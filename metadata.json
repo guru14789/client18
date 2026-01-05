@@ -1,0 +1,10 @@
+
+{
+  "name": "Inai - Family Connect",
+  "description": "Preserve your family's heritage through video memories and secure document sharing.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}
