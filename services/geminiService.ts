@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Language } from "../types";
 
 export const translateQuestion = async (text: string, targetLanguage: Language): Promise<string> => {
-  const apiKey = process.env.GEMINI_API_KEY || "";
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || "";
   const ai = new GoogleGenerativeAI(apiKey);
   
   try {
@@ -17,7 +17,7 @@ export const translateQuestion = async (text: string, targetLanguage: Language):
 };
 
 export const generateDocumentContext = async (filename: string, fileData?: string, mimeType?: string): Promise<string> => {
-  const apiKey = process.env.GEMINI_API_KEY || "";
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || "";
   const ai = new GoogleGenerativeAI(apiKey);
   
   try {

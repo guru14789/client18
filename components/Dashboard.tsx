@@ -82,7 +82,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(async (position) => {
         try {
-          const apiKey = process.env.GEMINI_API_KEY || "";
+          const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || "";
           const ai = new GoogleGenerativeAI(apiKey);
           const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
           
