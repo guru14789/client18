@@ -58,10 +58,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
   // Dynamic Translation when global language changes
   useEffect(() => {
     const updateTranslations = async () => {
-      const updatedPrompts = await Promise.all(activePrompts.map(async (q) => {
-        const newTranslation = await translateQuestion(q.text, currentLanguage);
-        return { ...q, translation: newTranslation, language: currentLanguage };
-      }));
+      const updatedPrompts = activePrompts.map((q) => {
+        return { ...q, translation: q.text, language: currentLanguage };
+      });
       setActivePrompts(updatedPrompts);
     };
     
@@ -81,20 +80,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
   useEffect(() => {
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(async (position) => {
-        try {
-          const apiKey = import.meta.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY || "";
-          const ai = new GoogleGenerativeAI(apiKey);
-          const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
-          
-          const response = await model.generateContent("What city and country am I in based on these coordinates? Provide a very short answer like 'London, UK'. The coordinates are: " + position.coords.latitude + ", " + position.coords.longitude);
-          
-          const text = response.response.text();
-          if (text) {
-            setLocationName(text.trim().replace(/^[.\s]+|[.\s]+$/g, ''));
-          }
-        } catch (error) {
-          console.error("Location fetching error:", error);
-        }
+        // Location fetching disabled as Gemini key was removed
       }, (error) => {
         console.warn("Geolocation permission denied or error:", error.message);
       });
