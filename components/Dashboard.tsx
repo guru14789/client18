@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Archive, Plus, Video, X, Globe, MapPin, Info, ThumbsUp } from 'lucide-react';
 import { User, Family, Question, Language } from '../types';
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { translateQuestion } from '../services/geminiService';
 
 interface Member {
@@ -82,28 +82,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(async (position) => {
         try {
-          // Initialize Gemini client with the latest API key from environment
-          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+          const apiKey = process.env.GEMINI_API_KEY || "";
+          const ai = new GoogleGenerativeAI(apiKey);
+          const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
           
-          // CRITICAL: Use gemini-2.5-flash as maps grounding is only supported in Gemini 2.5 series models.
-          const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: "What city and country am I in based on these coordinates? Provide a very short answer like 'London, UK'.",
-            config: {
-              tools: [{ googleMaps: {} }],
-              toolConfig: {
-                retrievalConfig: {
-                  latLng: {
-                    latitude: position.coords.latitude,
-                    longitude: position.coords.longitude
-                  }
-                }
-              }
-            },
-          });
+          const response = await model.generateContent("What city and country am I in based on these coordinates? Provide a very short answer like 'London, UK'. The coordinates are: " + position.coords.latitude + ", " + position.coords.longitude);
           
-          if (response.text) {
-            setLocationName(response.text.trim().replace(/^[.\s]+|[.\s]+$/g, ''));
+          const text = response.response.text();
+          if (text) {
+            setLocationName(text.trim().replace(/^[.\s]+|[.\s]+$/g, ''));
           }
         } catch (error) {
           console.error("Location fetching error:", error);
