@@ -13,8 +13,6 @@ export default defineConfig(({ mode }) => {
         allowedHosts: true,
       },
       plugins: [react()],
-      define: {
-      },
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
