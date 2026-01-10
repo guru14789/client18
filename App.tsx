@@ -192,6 +192,14 @@ const App: React.FC = () => {
     }
   }, [theme]);
 
+  // Language Management
+  useEffect(() => {
+    if (language) {
+      console.log("App: Language changed to:", language);
+      localStorage.setItem('inai_language', language);
+    }
+  }, [language]);
+
   // Initial Boot - Transitions from splash
   useEffect(() => {
     if (view !== 'splash') return;

@@ -10,7 +10,8 @@ export enum Language {
   RUSSIAN = 'Russian',
   JAPANESE = 'Japanese',
   ITALIAN = 'Italian',
-  TAMIL = 'Tamil'
+  TAMIL = 'Tamil',
+  ENGLISH = 'English'
 }
 
 export interface User {

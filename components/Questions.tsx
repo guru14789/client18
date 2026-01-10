@@ -35,26 +35,34 @@ const Questions: React.FC<QuestionsProps> = ({ user, families, onAnswer, onRecor
     if (!newQuestionText) return;
 
     setIsTranslating(true);
-    // Use the globally selected language for the translation of a new question
-    const translation = await translateQuestion(newQuestionText, currentLanguage);
+    try {
+      // 1. Always get an English version for the main text
+      const englishText = await translateQuestion(newQuestionText, Language.ENGLISH);
 
-    const newQ: Question = {
-      id: Date.now().toString(),
-      askerId: user.id,
-      askerName: user.name,
-      text: newQuestionText,
-      translation: translation,
-      language: currentLanguage,
-      upvotes: 0,
-      hasUpvoted: false,
-      isVideoQuestion: false,
-      familyId: targetFamilyId
-    };
+      // 2. Get the translation in the user's preferred language
+      const preferredTranslation = await translateQuestion(newQuestionText, currentLanguage);
 
-    onAddQuestion(newQ);
-    setIsTranslating(false);
-    setNewQuestionText('');
-    setIsAsking(false);
+      const newQ: Question = {
+        id: Date.now().toString(),
+        askerId: user.id,
+        askerName: user.name,
+        text: englishText, // Main text is now always English
+        translation: preferredTranslation, // Sub-text is the preferred language
+        language: currentLanguage,
+        upvotes: 0,
+        hasUpvoted: false,
+        isVideoQuestion: false,
+        familyId: targetFamilyId
+      };
+
+      onAddQuestion(newQ);
+      setNewQuestionText('');
+      setIsAsking(false);
+    } catch (err) {
+      console.error("Error asking question:", err);
+    } finally {
+      setIsTranslating(false);
+    }
   };
 
 
@@ -140,7 +148,7 @@ const Questions: React.FC<QuestionsProps> = ({ user, families, onAnswer, onRecor
                   <div className="space-y-1">
                     <p className="text-[10px] font-bold text-accent uppercase tracking-wider">{q.askerName} asked</p>
                     <h3 className="text-lg font-bold text-charcoal dark:text-warmwhite leading-snug">{q.text}</h3>
-                    {q.translation && (
+                    {q.translation && q.translation !== q.text && (
                       <p className="text-primary dark:text-support/60 italic text-sm font-semibold mt-1">
                         {q.translation}
                       </p>

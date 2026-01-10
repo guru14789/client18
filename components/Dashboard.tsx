@@ -42,11 +42,23 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
 
   useEffect(() => {
     const hour = new Date().getHours();
-    if (hour < 5) setGreeting('Good Night');
-    else if (hour < 12) setGreeting('Good Morning');
-    else if (hour < 18) setGreeting('Good Afternoon');
-    else setGreeting('Good Evening');
-  }, []);
+    let baseGreeting = 'Hello';
+    if (hour < 5) baseGreeting = 'Good Night';
+    else if (hour < 12) baseGreeting = 'Good Morning';
+    else if (hour < 18) baseGreeting = 'Good Afternoon';
+    else baseGreeting = 'Good Evening';
+
+    // Simple localization for demonstration
+    const localizedGreetings: Record<string, Record<string, string>> = {
+      'Spanish': { 'Hello': 'Hola', 'Good Morning': 'Buenos Días', 'Good Afternoon': 'Buenas Tardes', 'Good Evening': 'Buenas Noches', 'Good Night': 'Buenas Noches' },
+      'Hindi': { 'Hello': 'नमस्ते', 'Good Morning': 'शुभ प्रभात', 'Good Afternoon': 'नमस्ते', 'Good Evening': 'शुभ संध्या', 'Good Night': 'शुभ रात्रि' },
+      'French': { 'Hello': 'Bonjour', 'Good Morning': 'Bonjour', 'Good Afternoon': 'Bon après-midi', 'Good Evening': 'Bonsoir', 'Good Night': 'Bonne nuit' },
+      'Tamil': { 'Hello': 'வணக்கம்', 'Good Morning': 'காலை வணக்கம்', 'Good Afternoon': 'மதிய வணக்கம்', 'Good Evening': 'மாலை வணக்கம்', 'Good Night': 'இனிய இரவு' }
+    };
+
+    const langGreeting = localizedGreetings[currentLanguage]?.[baseGreeting] || baseGreeting;
+    setGreeting(langGreeting);
+  }, [currentLanguage]);
 
   useEffect(() => {
     if ("geolocation" in navigator) {
@@ -214,7 +226,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
               <div className="flex-1">
                 <p className="text-[11px] font-black text-accent/80 dark:text-accent uppercase tracking-[0.15em] mb-1.5">{q.askerName} requested</p>
                 <h4 className="text-[22px] font-bold text-charcoal dark:text-warmwhite leading-[1.2] tracking-tight">{q.text}</h4>
-                {q.translation && (
+                {q.translation && q.translation !== q.text && (
                   <p className="text-primary dark:text-support/60 italic text-sm font-semibold mt-2">{q.translation}</p>
                 )}
               </div>

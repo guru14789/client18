@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect } from 'react';
-import { 
-  User as UserIcon, 
-  Users, 
-  Settings, 
-  Shield, 
-  LogOut, 
+import {
+  User as UserIcon,
+  Users,
+  Settings,
+  Shield,
+  LogOut,
   ChevronRight,
   Camera,
   PlusCircle,
@@ -72,12 +72,12 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
         try {
           const cam = await navigator.permissions.query({ name: 'camera' as any });
           camStatus = cam.state;
-        } catch(e) { /* fallback */ }
+        } catch (e) { /* fallback */ }
 
         try {
           const mic = await navigator.permissions.query({ name: 'microphone' as any });
           micStatus = mic.state;
-        } catch(e) { /* fallback */ }
+        } catch (e) { /* fallback */ }
 
         setPermissions({
           camera: camStatus,
@@ -115,7 +115,7 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
   );
 
   const ActionItem = ({ label, sublabel, icon: Icon, onClick, color = "text-charcoal dark:text-warmwhite", danger = false }: any) => (
-    <button 
+    <button
       onClick={onClick}
       className={`w-full flex items-center justify-between py-5 border-b border-secondary/10 dark:border-white/5 last:border-0 active:bg-secondary/10 dark:active:bg-white/5 transition-colors ${danger ? 'text-red-500' : ''}`}
     >
@@ -169,7 +169,7 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
     return (
       <div className="animate-in slide-in-from-right duration-300">
         <SubViewHeader title="Join Requests" onBack={() => setActiveSubView('none')} />
-        
+
         {mockJoinRequests.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 opacity-30">
             <Mail size={48} className="mb-4" />
@@ -192,13 +192,13 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
                   <span className="text-[10px] font-black text-slate/30 uppercase tracking-widest">{req.timestamp}</span>
                 </div>
                 <div className="flex gap-3">
-                  <button 
+                  <button
                     onClick={() => handleRequest(req.id, 'accept')}
                     className="flex-1 bg-primary text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-primary/20"
                   >
                     <Check size={16} strokeWidth={3} /> Accept
                   </button>
-                  <button 
+                  <button
                     onClick={() => handleRequest(req.id, 'decline')}
                     className="flex-1 bg-secondary/10 dark:bg-white/5 text-slate dark:text-support/60 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all"
                   >
@@ -223,31 +223,31 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
     return (
       <div className="animate-in slide-in-from-right duration-300">
         <SubViewHeader title="App Theme" onBack={() => setActiveSubView('none')} />
-        
+
         <div className="space-y-4">
           {themeOptions.map((option) => {
             const isSelected = currentTheme === option.id;
             return (
               <button
                 key={option.id}
-                onClick={() => onThemeChange(option.id as any)}
-                className={`w-full text-left p-6 rounded-[32px] border transition-all duration-300 flex items-center justify-between group ${
-                  isSelected 
-                    ? 'bg-primary text-white border-primary shadow-xl shadow-primary/20 scale-[1.02]' 
-                    : 'bg-white dark:bg-white/5 border-secondary/20 dark:border-white/10 text-charcoal dark:text-warmwhite'
-                }`}
+                onClick={() => {
+                  onThemeChange(option.id as any);
+                  setActiveSubView('none');
+                }}
+                className={`w-full text-left p-6 rounded-[32px] border transition-all duration-300 flex items-center justify-between group ${isSelected
+                  ? 'bg-primary text-white border-primary shadow-xl shadow-primary/20 scale-[1.02]'
+                  : 'bg-white dark:bg-white/5 border-secondary/20 dark:border-white/10 text-charcoal dark:text-warmwhite'
+                  }`}
               >
                 <div className="flex items-center gap-5">
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${
-                    isSelected ? 'bg-white/20 text-white' : 'bg-secondary/10 dark:bg-white/10 text-primary dark:text-white'
-                  }`}>
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${isSelected ? 'bg-white/20 text-white' : 'bg-secondary/10 dark:bg-white/10 text-primary dark:text-white'
+                    }`}>
                     <option.icon size={22} className={isSelected ? 'text-white' : 'text-primary dark:text-white'} />
                   </div>
                   <div>
                     <p className="font-black text-lg leading-none tracking-tight">{option.label}</p>
-                    <p className={`text-[10px] font-bold uppercase tracking-widest mt-1.5 ${
-                      isSelected ? 'text-white/60' : 'text-slate dark:text-support/60'
-                    }`}>
+                    <p className={`text-[10px] font-bold uppercase tracking-widest mt-1.5 ${isSelected ? 'text-white/60' : 'text-slate dark:text-support/60'
+                      }`}>
                       {option.desc}
                     </p>
                   </div>
@@ -263,9 +263,9 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
         </div>
 
         <div className="mt-12 p-8 text-center bg-secondary/10 dark:bg-white/5 rounded-[40px] border border-dashed border-secondary/40">
-           <p className="text-[10px] font-black text-slate/40 uppercase tracking-[0.2em] leading-relaxed">
-             The theme applies instantly<br/>to all screens in the app.
-           </p>
+          <p className="text-[10px] font-black text-slate/40 uppercase tracking-[0.2em] leading-relaxed">
+            The theme applies instantly<br />to all screens in the app.
+          </p>
         </div>
       </div>
     );
@@ -277,24 +277,25 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
     return (
       <div className="animate-in slide-in-from-right duration-300">
         <SubViewHeader title="Preferred Language" onBack={() => setActiveSubView('none')} />
-        
+
         <div className="space-y-3">
           {languages.map((lang) => {
             const isSelected = currentLanguage === lang;
             return (
               <button
                 key={lang}
-                onClick={() => onLanguageChange(lang)}
-                className={`w-full text-left p-5 rounded-[28px] border transition-all duration-300 flex items-center justify-between group ${
-                  isSelected 
-                    ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20 scale-[1.01]' 
-                    : 'bg-white dark:bg-white/5 border-secondary/20 dark:border-white/10 text-charcoal dark:text-warmwhite'
-                }`}
+                onClick={() => {
+                  onLanguageChange(lang);
+                  setActiveSubView('none');
+                }}
+                className={`w-full text-left p-5 rounded-[28px] border transition-all duration-300 flex items-center justify-between group ${isSelected
+                  ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20 scale-[1.01]'
+                  : 'bg-white dark:bg-white/5 border-secondary/20 dark:border-white/10 text-charcoal dark:text-warmwhite'
+                  }`}
               >
                 <div className="flex items-center gap-4">
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
-                    isSelected ? 'bg-white/20 text-white' : 'bg-secondary/10 dark:bg-white/10 text-primary dark:text-white'
-                  }`}>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${isSelected ? 'bg-white/20 text-white' : 'bg-secondary/10 dark:bg-white/10 text-primary dark:text-white'
+                    }`}>
                     <Languages size={18} className={isSelected ? 'text-white' : 'text-primary dark:text-white'} />
                   </div>
                   <p className="font-black text-[15px] leading-none tracking-tight">{lang}</p>
@@ -310,10 +311,10 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
         </div>
 
         <div className="mt-12 p-8 text-center bg-secondary/10 dark:bg-white/5 rounded-[40px] border border-dashed border-secondary/40">
-           <Globe className="text-primary/40 dark:text-white/20 mx-auto mb-4" size={32} />
-           <p className="text-[10px] font-black text-slate/40 uppercase tracking-[0.2em] leading-relaxed">
-             This affects AI translations<br/>and interface language.
-           </p>
+          <Globe className="text-primary/40 dark:text-white/20 mx-auto mb-4" size={32} />
+          <p className="text-[10px] font-black text-slate/40 uppercase tracking-[0.2em] leading-relaxed">
+            This affects AI translations<br />and interface language.
+          </p>
         </div>
       </div>
     );
@@ -325,14 +326,14 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
         alert("Permission has been blocked by your browser. Please enable it in your browser settings.");
         return;
       }
-      
+
       try {
         if (type === 'geolocation') {
           navigator.geolocation.getCurrentPosition(() => checkPermissions(), () => checkPermissions());
         } else {
-          const stream = await navigator.mediaDevices.getUserMedia({ 
-            video: type === 'camera', 
-            audio: type === 'microphone' 
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: type === 'camera',
+            audio: type === 'microphone'
           });
           stream.getTracks().forEach(t => t.stop());
           checkPermissions();
@@ -343,28 +344,26 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
     };
 
     const Toggle = ({ active, onToggle, disabled }: { active: boolean, onToggle: () => void, disabled?: boolean }) => (
-      <button 
+      <button
         onClick={onToggle}
         disabled={disabled}
-        className={`relative w-[52px] h-[28px] rounded-full transition-all duration-300 flex items-center p-1 ${
-          active ? 'bg-primary shadow-[0_0_15px_rgba(47,93,138,0.3)]' : 'bg-slate/20'
-        } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+        className={`relative w-[52px] h-[28px] rounded-full transition-all duration-300 flex items-center p-1 ${active ? 'bg-primary shadow-[0_0_15px_rgba(47,93,138,0.3)]' : 'bg-slate/20'
+          } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
       >
-        <div className={`w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300 transform ${
-          active ? 'translate-x-[24px]' : 'translate-x-0'
-        }`} />
+        <div className={`w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300 transform ${active ? 'translate-x-[24px]' : 'translate-x-0'
+          }`} />
       </button>
     );
 
     return (
       <div className="animate-in slide-in-from-right duration-300">
         <SubViewHeader title="System Access" onBack={() => setActiveSubView('none')} />
-        
+
         <div className="bg-support/10 dark:bg-white/5 rounded-3xl p-5 mb-8 flex gap-4 border border-support/20 dark:border-white/10">
-           <AlertCircle className="text-primary dark:text-white shrink-0" size={20} />
-           <p className="text-xs font-medium text-slate dark:text-support/60 leading-relaxed">
-             Turning these on allows the app to record your voice, capture video memories, and tag locations. Once granted, your browser may require you to visit settings to revoke access.
-           </p>
+          <AlertCircle className="text-primary dark:text-white shrink-0" size={20} />
+          <p className="text-xs font-medium text-slate dark:text-support/60 leading-relaxed">
+            Turning these on allows the app to record your voice, capture video memories, and tag locations. Once granted, your browser may require you to visit settings to revoke access.
+          </p>
         </div>
 
         <div className="space-y-4">
@@ -378,9 +377,8 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
             return (
               <div key={item.id} className="bg-white dark:bg-white/5 p-6 rounded-[32px] border border-secondary/20 dark:border-white/10 flex items-center justify-between group">
                 <div className="flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${
-                    isGranted ? 'bg-primary/10 dark:bg-white/10 text-primary dark:text-white' : 'bg-secondary/10 dark:bg-white/5 text-slate'
-                  }`}>
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${isGranted ? 'bg-primary/10 dark:bg-white/10 text-primary dark:text-white' : 'bg-secondary/10 dark:bg-white/5 text-slate'
+                    }`}>
                     <item.icon size={22} className={isGranted ? 'text-primary dark:text-white' : 'text-slate'} />
                   </div>
                   <div>
@@ -390,22 +388,22 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
                     </p>
                   </div>
                 </div>
-                
-                <Toggle 
-                  active={isGranted} 
+
+                <Toggle
+                  active={isGranted}
                   onToggle={() => triggerRequest(item.id as any)}
-                  disabled={isGranted} 
+                  disabled={isGranted}
                 />
               </div>
             );
           })}
         </div>
-        
+
         <div className="mt-12 p-8 text-center bg-secondary/10 dark:bg-white/5 rounded-[40px] border border-dashed border-secondary/40">
-           <Shield className="text-primary/40 dark:text-white/20 mx-auto mb-4" size={32} />
-           <p className="text-[10px] font-black text-slate/40 uppercase tracking-[0.2em] leading-relaxed">
-             Permissions are handled securely<br/>by your mobile browser.
-           </p>
+          <Shield className="text-primary/40 dark:text-white/20 mx-auto mb-4" size={32} />
+          <p className="text-[10px] font-black text-slate/40 uppercase tracking-[0.2em] leading-relaxed">
+            Permissions are handled securely<br />by your mobile browser.
+          </p>
         </div>
       </div>
     );
@@ -448,7 +446,7 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
             </div>
           </>
         )}
-        
+
         {activeSubView === 'permissions' && <PermissionGroup />}
         {activeSubView === 'theme' && <ThemeSelector />}
         {activeSubView === 'branches' && <ManageBranches />}
