@@ -1,7 +1,7 @@
 import { initializeApp, getApp, getApps, FirebaseApp } from "firebase/app";
 import { getFirestore, Firestore } from "firebase/firestore";
-import { getStorage, FirebaseStorage } from "firebase/storage";
 import { getAnalytics, isSupported } from "firebase/analytics";
+import { getAuth, Auth } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: (import.meta as any).env.VITE_FIREBASE_API_KEY,
@@ -13,7 +13,7 @@ const firebaseConfig = {
   measurementId: (import.meta as any).env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
-// Singleton initialization: ensure we only ever have one instance of the app
+// Singleton initialization
 let app: FirebaseApp;
 try {
   app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
@@ -21,11 +21,11 @@ try {
   app = initializeApp(firebaseConfig);
 }
 
-// Service Exports: ensure all services are bound to the SAME app instance
+// Service Exports - Using only free-tier core services (Auth, Firestore, Analytics)
 export const db: Firestore = getFirestore(app);
-export const storage: FirebaseStorage = getStorage(app);
+export const auth: Auth = getAuth(app);
 
-// Analytics setup (safely handled for client-side environments)
+// Analytics setup
 if (typeof window !== "undefined") {
   isSupported().then((supported) => {
     if (supported && firebaseConfig.measurementId) {

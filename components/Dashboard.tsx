@@ -20,54 +20,25 @@ interface DashboardProps {
   onRecord: (question?: Question) => void;
   onAddFamily: (name: string, language: Language) => void;
   currentLanguage: Language;
+  activeFamilyId: string | null;
+  onSwitchFamily: (id: string) => void;
+  prompts: Question[];
+  onToggleUpvote: (id: string) => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRecord, onAddFamily, currentLanguage }) => {
-  const [selectedFamilyMembers, setSelectedFamilyMembers] = useState<{name: string, members: Member[]} | null>(null);
+const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRecord, onAddFamily, currentLanguage, activeFamilyId, onSwitchFamily, prompts, onToggleUpvote }) => {
+  const [selectedFamilyMembers, setSelectedFamilyMembers] = useState<{ name: string, members: Member[] } | null>(null);
   const [isCreatingFamily, setIsCreatingFamily] = useState(false);
+  const [isSwitchingFamily, setIsSwitchingFamily] = useState(false);
   const [newFamilyName, setNewFamilyName] = useState('');
   const [newFamilyLang, setNewFamilyLang] = useState<Language>(Language.SPANISH);
   const [greeting, setGreeting] = useState('Hello');
   const [locationName, setLocationName] = useState<string | null>(null);
 
-  const [activePrompts, setActivePrompts] = useState<Question[]>([
-    {
-      id: 'q1',
-      askerId: 'u2',
-      askerName: 'Emma',
-      text: 'What was your first job like?',
-      translation: '¿Cómo fue tu primer trabajo?',
-      language: Language.SPANISH,
-      upvotes: 5,
-      hasUpvoted: false,
-      isVideoQuestion: false,
-    },
-    {
-      id: 'q2',
-      askerId: 'u3',
-      askerName: 'Grandpa',
-      text: 'Tell us about the day you met Grandma.',
-      translation: 'Háblanos del día que conociste a la abuela.',
-      language: Language.SPANISH,
-      upvotes: 12,
-      hasUpvoted: false,
-      isVideoQuestion: false,
-    }
-  ]);
-
-  // Dynamic Translation when global language changes
-  useEffect(() => {
-    const updateTranslations = async () => {
-      const updatedPrompts = activePrompts.map((q) => {
-        return { ...q, translation: q.text, language: currentLanguage };
-      });
-      setActivePrompts(updatedPrompts);
-    };
-    
-    updateTranslations();
-  }, [currentLanguage]);
+  const activePrompts = prompts;
 
   const connectedFamilies = families.filter(f => user.families.includes(f.id));
+  const activeFamily = connectedFamilies.find(f => f.id === activeFamilyId) || connectedFamilies[0];
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -118,34 +89,40 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
     }
   };
 
-  const toggleUpvote = (id: string) => {
-    setActivePrompts(prev => prev.map(q => {
-      if (q.id === id) {
-        const alreadyUpvoted = q.hasUpvoted;
-        return {
-          ...q,
-          hasUpvoted: !alreadyUpvoted,
-          upvotes: alreadyUpvoted ? q.upvotes - 1 : q.upvotes + 1
-        };
-      }
-      return q;
-    }));
+  const handleToggleUpvote = (id: string) => {
+    onToggleUpvote(id);
   };
 
   return (
     <div className="bg-warmwhite dark:bg-charcoal flex-1 pb-32 transition-colors duration-300">
       {/* Page Header */}
-      <div className="px-6 pt-8 pb-4">
-        <h1 className="text-4xl font-black text-charcoal dark:text-warmwhite tracking-tighter leading-none">Hi {user.name}</h1>
-        <div className="flex items-center gap-2 mt-2">
-          <p className="text-slate/60 dark:text-support/40 text-xl font-medium">{greeting}!</p>
-          {locationName && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-primary/5 dark:bg-white/10 rounded-full border border-primary/10 dark:border-white/10 transition-colors">
-              <MapPin size={12} className="text-primary dark:text-white" />
-              <span className="text-[10px] font-bold text-primary dark:text-white uppercase tracking-wider">{locationName}</span>
-            </div>
-          )}
+      <div className="px-6 pt-8 pb-4 flex items-start justify-between">
+        <div>
+          <h1 className="text-4xl font-black text-charcoal dark:text-warmwhite tracking-tighter leading-none">Hi {user.name}</h1>
+          <div className="flex items-center gap-2 mt-2">
+            <p className="text-slate/60 dark:text-support/40 text-xl font-medium">{greeting}!</p>
+            {locationName && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-primary/5 dark:bg-white/10 rounded-full border border-primary/10 dark:border-white/10 transition-colors">
+                <MapPin size={12} className="text-primary dark:text-white" />
+                <span className="text-[10px] font-bold text-primary dark:text-white uppercase tracking-wider">{locationName}</span>
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* Group Switcher - De-emphasized but accessible */}
+        <button
+          onClick={() => setIsSwitchingFamily(true)}
+          className="flex flex-col items-end gap-1 active:scale-95 transition-all"
+        >
+          <div className="flex items-center gap-2 bg-white/40 dark:bg-white/5 border border-secondary/20 dark:border-white/10 px-4 py-2 rounded-2xl">
+            <span className="text-[10px] font-black uppercase tracking-widest text-primary truncate max-w-[80px]">
+              {activeFamily?.name || 'Switch'}
+            </span>
+            <Users size={14} className="text-primary" />
+          </div>
+          <span className="text-[9px] font-bold text-slate/40 uppercase tracking-tighter">Current Family</span>
+        </button>
       </div>
 
       {/* HERO CARD */}
@@ -157,7 +134,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
               Capture a new family story today
             </h2>
             <div className="pb-1">
-              <button 
+              <button
                 onClick={() => onRecord()}
                 className="bg-white text-primary px-8 py-3 rounded-full font-black text-[14px] shadow-lg shadow-black/10 active:scale-95 transition-all hover:bg-white/95"
               >
@@ -168,8 +145,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
           <div className="relative z-10 w-[40%] flex items-center justify-center p-3">
             <div className="relative w-full aspect-square flex items-center justify-center">
               <div className="absolute inset-1 bg-support rounded-full opacity-90 blur-sm"></div>
-              <img 
-                src="https://img.icons8.com/clouds/200/000000/family.png" 
+              <img
+                src="https://img.icons8.com/clouds/200/000000/family.png"
                 className="relative z-20 w-full h-full object-contain scale-110 drop-shadow-[0_8px_16px_rgba(0,0,0,0.15)]"
                 alt="Family Illustration"
               />
@@ -178,39 +155,38 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
         </div>
       </div>
 
-      {/* Family Branches Section */}
-      <div className="mb-12">
-        <div className="px-6 flex items-center justify-between mb-6">
-          <h3 className="text-[14px] font-black text-charcoal/40 dark:text-warmwhite/40 tracking-[0.2em] uppercase">Family Circles</h3>
-          <button 
+      {/* Family Branches Section - DE-EMPHASIZED */}
+      <div className="mb-10 opacity-60 hover:opacity-100 transition-opacity">
+        <div className="px-6 flex items-center justify-between mb-4">
+          <h3 className="text-[10px] font-black text-charcoal/40 dark:text-warmwhite/40 tracking-[0.2em] uppercase">Other Circles</h3>
+          <button
             onClick={() => setIsCreatingFamily(true)}
-            className="text-primary dark:text-white font-black text-[11px] uppercase tracking-widest flex items-center gap-1.5 bg-primary/5 dark:bg-white/10 px-4 py-2 rounded-full border border-primary/10 dark:border-white/10"
+            className="text-primary dark:text-white font-black text-[9px] uppercase tracking-widest flex items-center gap-1 bg-primary/5 dark:bg-white/5 px-3 py-1.5 rounded-full"
           >
-             <Plus size={14} /> New Branch
+            <Plus size={12} /> New
           </button>
         </div>
-        
-        <div className="flex overflow-x-auto px-6 gap-6 pb-2 no-scrollbar">
-          {connectedFamilies.map((family, index) => (
-            <div 
-              key={family.id} 
-              className="flex flex-col items-center gap-4 shrink-0"
-              onClick={() => handleFamilyClick(family)}
+
+        <div className="flex overflow-x-auto px-6 gap-4 pb-2 no-scrollbar">
+          {connectedFamilies.filter(f => f.id !== activeFamilyId).map((family) => (
+            <div
+              key={family.id}
+              className="flex items-center gap-3 bg-white/40 dark:bg-white/5 border border-secondary/20 dark:border-white/10 px-4 py-2 rounded-2xl shrink-0 cursor-pointer active:scale-95 transition-all"
+              onClick={() => onSwitchFamily(family.id)}
             >
-              <div className={`w-[80px] h-[80px] ${index === 0 ? 'bg-primary/10 dark:bg-white/10 text-primary dark:text-white' : 'bg-white dark:bg-white/5 text-primary dark:text-white border border-secondary/30 dark:border-white/10'} rounded-[32px] flex items-center justify-center transition-all active:scale-95 cursor-pointer`}>
-                <Users size={32} />
-              </div>
-              <span className="text-[11px] font-bold text-slate/50 dark:text-support/40 uppercase tracking-wider truncate max-w-[80px] text-center">
+              <Users size={14} className="text-slate/60" />
+              <span className="text-[11px] font-bold text-slate/60 uppercase tracking-wider">
                 {family.name}
               </span>
             </div>
           ))}
-          
-          <div className="flex flex-col items-center gap-4 shrink-0" onClick={() => onNavigate('documents')}>
-            <div className="w-[80px] h-[80px] bg-secondary/10 dark:bg-white/10 text-accent dark:text-white rounded-[32px] flex items-center justify-center shadow-sm transition-all active:scale-95 cursor-pointer border border-secondary/20 dark:border-white/10">
-              <Archive size={32} />
-            </div>
-            <span className="text-[11px] font-bold text-slate/50 dark:text-support/40 uppercase tracking-wider">Vault</span>
+
+          <div
+            className="flex items-center gap-3 bg-secondary/10 dark:bg-white/5 border border-secondary/20 dark:border-white/10 px-4 py-2 rounded-2xl shrink-0 cursor-pointer active:scale-95 transition-all"
+            onClick={() => onNavigate('documents')}
+          >
+            <Archive size={14} className="text-accent/60" />
+            <span className="text-[11px] font-bold text-accent/60 uppercase tracking-wider">Vault</span>
           </div>
         </div>
       </div>
@@ -220,7 +196,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
         <div className="flex items-center justify-between">
           <h3 className="text-[14px] font-black text-charcoal/40 dark:text-warmwhite/40 tracking-[0.2em] uppercase">Active Prompts</h3>
         </div>
-        
+
         {activePrompts.map((q) => (
           <div key={q.id} className="bg-white dark:bg-white/5 rounded-[44px] p-8 flex flex-col gap-8 border border-secondary/20 dark:border-white/10 relative transition-all shadow-sm">
             <div className="flex items-start gap-6">
@@ -237,7 +213,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
             </div>
 
             <div className="flex items-center gap-4 pt-2 w-full h-[84px]">
-              <button 
+              <button
                 onClick={() => onRecord(q)}
                 className="flex-[1.4] h-full bg-primary text-white rounded-[32px] flex items-center justify-center gap-4 shadow-xl shadow-primary/20 active:scale-[0.98] transition-all px-4"
               >
@@ -247,14 +223,13 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
                   <span className="text-[14px] font-black uppercase tracking-tight">Story</span>
                 </div>
               </button>
-              
-              <button 
-                onClick={() => toggleUpvote(q.id)}
-                className={`flex-1 h-full rounded-[32px] flex flex-col items-center justify-center border transition-all active:scale-95 ${
-                  q.hasUpvoted 
-                    ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20' 
-                    : 'bg-charcoal/5 dark:bg-white/5 border-secondary/20 dark:border-white/10'
-                }`}
+
+              <button
+                onClick={() => onToggleUpvote(q.id)}
+                className={`flex-1 h-full rounded-[32px] flex flex-col items-center justify-center border transition-all active:scale-95 ${q.hasUpvoted
+                  ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20'
+                  : 'bg-charcoal/5 dark:bg-white/5 border-secondary/20 dark:border-white/10'
+                  }`}
               >
                 <span className={`text-[24px] font-black leading-none tracking-tight ${q.hasUpvoted ? 'text-white' : 'text-charcoal dark:text-warmwhite'}`}>
                   {q.upvotes}
@@ -274,7 +249,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
       {/* Selected Family Modal */}
       {selectedFamilyMembers && (
         <div className="fixed inset-0 z-[200] flex items-end justify-center">
-          <div 
+          <div
             className="absolute inset-0 bg-charcoal/60 backdrop-blur-sm animate-in fade-in duration-300"
             onClick={() => setSelectedFamilyMembers(null)}
           ></div>
@@ -284,7 +259,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
                 <h3 className="text-3xl font-black text-charcoal dark:text-warmwhite tracking-tighter">{selectedFamilyMembers.name}</h3>
                 <p className="text-slate font-bold text-sm uppercase tracking-widest mt-1 opacity-60">{selectedFamilyMembers.members.length} Members</p>
               </div>
-              <button 
+              <button
                 onClick={() => setSelectedFamilyMembers(null)}
                 className="p-4 bg-secondary/30 dark:bg-white/10 rounded-full text-slate dark:text-support/60 hover:bg-secondary/50 transition-colors"
               >
@@ -309,41 +284,108 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
         </div>
       )}
 
+      {/* Family Switcher Modal */}
+      {isSwitchingFamily && (
+        <div className="fixed inset-0 z-[200] flex items-end justify-center">
+          <div
+            className="absolute inset-0 bg-charcoal/60 backdrop-blur-sm animate-in fade-in duration-300"
+            onClick={() => setIsSwitchingFamily(false)}
+          ></div>
+          <div className="relative w-full max-w-md bg-warmwhite dark:bg-charcoal rounded-t-[56px] shadow-[0_-20px_80px_rgba(0,0,0,0.4)] animate-in slide-in-from-bottom duration-500 p-10 border-t border-white/20 dark:border-white/10 safe-area-bottom">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h3 className="text-3xl font-black text-charcoal dark:text-warmwhite tracking-tighter">Your Families</h3>
+                <p className="text-slate font-bold text-sm uppercase tracking-widest mt-1 opacity-60">Switch active group context</p>
+              </div>
+              <button
+                onClick={() => setIsSwitchingFamily(false)}
+                className="p-4 bg-secondary/30 dark:bg-white/10 rounded-full"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="space-y-4 max-h-[50vh] overflow-y-auto no-scrollbar pb-6">
+              {connectedFamilies.map((family) => (
+                <button
+                  key={family.id}
+                  onClick={() => {
+                    onSwitchFamily(family.id);
+                    setIsSwitchingFamily(false);
+                  }}
+                  className={`w-full flex items-center justify-between p-6 rounded-[32px] transition-all ${family.id === activeFamilyId
+                    ? 'bg-primary text-white shadow-xl shadow-primary/30 scale-105'
+                    : 'bg-white dark:bg-white/5 border border-secondary/20 dark:border-white/10 text-charcoal dark:text-warmwhite'
+                    }`}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className={`p-3 rounded-2xl ${family.id === activeFamilyId ? 'bg-white/20' : 'bg-primary/10'}`}>
+                      <Users size={20} className={family.id === activeFamilyId ? 'text-white' : 'text-primary'} />
+                    </div>
+                    <div className="text-left">
+                      <p className="font-black text-lg leading-none">{family.name}</p>
+                      <p className={`text-[10px] font-bold uppercase tracking-widest mt-1 ${family.id === activeFamilyId ? 'text-white/60' : 'text-slate/40'}`}>
+                        {family.id === activeFamilyId ? 'Currently Active' : 'Switch Context'}
+                      </p>
+                    </div>
+                  </div>
+                  {family.id === activeFamilyId && (
+                    <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center text-primary">
+                      <Info size={14} strokeWidth={4} />
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            <button
+              onClick={() => {
+                setIsSwitchingFamily(false);
+                setIsCreatingFamily(true);
+              }}
+              className="w-full py-5 rounded-[28px] border-2 border-dashed border-secondary/40 text-slate/60 font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 hover:bg-primary/5 transition-all mt-4"
+            >
+              <Plus size={16} /> Create New Family
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Branch Creation Modal */}
       {isCreatingFamily && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
-           <div className="absolute inset-0 bg-charcoal/60 backdrop-blur-sm" onClick={() => setIsCreatingFamily(false)}></div>
-           <div className="relative w-full max-sm bg-warmwhite dark:bg-charcoal rounded-[44px] p-10 shadow-2xl border border-white/20 animate-in zoom-in-95 duration-200">
-              <h3 className="text-2xl font-black text-charcoal dark:text-warmwhite mb-8 tracking-tight">New Family Branch</h3>
-              <div className="space-y-6">
-                <div>
-                   <label className="text-[10px] font-black text-slate dark:text-support/60 uppercase tracking-widest block mb-2 px-1">Name</label>
-                   <input 
-                      type="text" 
-                      className="w-full bg-white dark:bg-white/5 border border-secondary/30 dark:border-white/10 rounded-2xl p-4 text-charcoal dark:text-warmwhite outline-none focus:ring-4 focus:ring-primary/10 transition-all font-bold"
-                      placeholder="e.g. The Smiths"
-                      value={newFamilyName}
-                      onChange={(e) => setNewFamilyName(e.target.value)}
-                   />
-                </div>
-                <div>
-                   <label className="text-[10px] font-black text-slate dark:text-support/60 uppercase tracking-widest block mb-2 px-1">Language</label>
-                   <select 
-                      className="w-full bg-white dark:bg-white/5 border border-secondary/30 dark:border-white/10 rounded-2xl p-4 text-charcoal dark:text-warmwhite outline-none font-bold appearance-none"
-                      value={newFamilyLang}
-                      onChange={(e) => setNewFamilyLang(e.target.value as Language)}
-                   >
-                      {Object.values(Language).map(lang => (
-                        <option key={lang} value={lang}>{lang}</option>
-                      ))}
-                   </select>
-                </div>
-                <div className="flex gap-4 pt-4">
-                   <button onClick={() => setIsCreatingFamily(false)} className="flex-1 py-4 text-slate dark:text-support/60 font-black uppercase tracking-widest text-xs">Cancel</button>
-                   <button onClick={handleCreateFamily} className="flex-1 bg-primary text-white py-4 rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-primary/20">Create</button>
-                </div>
+          <div className="absolute inset-0 bg-charcoal/60 backdrop-blur-sm" onClick={() => setIsCreatingFamily(false)}></div>
+          <div className="relative w-full max-sm bg-warmwhite dark:bg-charcoal rounded-[44px] p-10 shadow-2xl border border-white/20 animate-in zoom-in-95 duration-200">
+            <h3 className="text-2xl font-black text-charcoal dark:text-warmwhite mb-8 tracking-tight">New Family Branch</h3>
+            <div className="space-y-6">
+              <div>
+                <label className="text-[10px] font-black text-slate dark:text-support/60 uppercase tracking-widest block mb-2 px-1">Name</label>
+                <input
+                  type="text"
+                  className="w-full bg-white dark:bg-white/5 border border-secondary/30 dark:border-white/10 rounded-2xl p-4 text-charcoal dark:text-warmwhite outline-none focus:ring-4 focus:ring-primary/10 transition-all font-bold"
+                  placeholder="e.g. The Smiths"
+                  value={newFamilyName}
+                  onChange={(e) => setNewFamilyName(e.target.value)}
+                />
               </div>
-           </div>
+              <div>
+                <label className="text-[10px] font-black text-slate dark:text-support/60 uppercase tracking-widest block mb-2 px-1">Language</label>
+                <select
+                  className="w-full bg-white dark:bg-white/5 border border-secondary/30 dark:border-white/10 rounded-2xl p-4 text-charcoal dark:text-warmwhite outline-none font-bold appearance-none"
+                  value={newFamilyLang}
+                  onChange={(e) => setNewFamilyLang(e.target.value as Language)}
+                >
+                  {Object.values(Language).map(lang => (
+                    <option key={lang} value={lang}>{lang}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex gap-4 pt-4">
+                <button onClick={() => setIsCreatingFamily(false)} className="flex-1 py-4 text-slate dark:text-support/60 font-black uppercase tracking-widest text-xs">Cancel</button>
+                <button onClick={handleCreateFamily} className="flex-1 bg-primary text-white py-4 rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-primary/20">Create</button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

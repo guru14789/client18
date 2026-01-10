@@ -1,8 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { FileText, Upload, Plus, Trash2, Loader2, Info, Search, FileCode, Clock, Eye, X, AlertCircle, Archive, Shield, Smartphone } from 'lucide-react';
-import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from "firebase/storage";
 import { collection, addDoc, deleteDoc, doc, serverTimestamp } from "firebase/firestore";
-import { storage, db } from '../services/firebase';
+import { db } from '../services/firebase';
 import { User, Family, FamilyDocument } from '../types';
 import { generateDocumentContext } from '../services/geminiService';
 
@@ -47,59 +46,45 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
     setError(null);
     setIsUploading(true);
     setUploadProgress(0);
-    
+
     try {
-      // 1. Prepare Storage Reference
-      const storageRef = ref(storage, `documents/${targetFamilyId}/${Date.now()}_${file.name}`);
-      const uploadTask = uploadBytesResumable(storageRef, file);
+      // 1. Prepare Local URL instead of Firebase Storage
+      const localUrl = URL.createObjectURL(file);
+      setUploadProgress(50); // Immediate jump to show activity
 
-      // 2. Track Progress
-      uploadTask.on('state_changed', 
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          setUploadProgress(Math.round(progress));
-        }, 
-        (error) => {
-          console.error("Upload failed", error);
-          setError("Storage upload failed. Check your connection.");
-          setIsUploading(false);
-        }, 
-        async () => {
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          
-          // 3. Generate AI Summary
-          let aiSummary = "";
-          try {
-            const base64Data = await fileToBase64(file);
-            aiSummary = await generateDocumentContext(file.name, base64Data, file.type);
-          } catch (aiErr) {
-            console.warn("AI summary generation failed", aiErr);
-            aiSummary = "A precious family record, safely archived.";
-          }
+      // 2. Generate AI Summary (Uses Gemini)
+      let aiSummary = "";
+      try {
+        const base64Data = await fileToBase64(file);
+        aiSummary = await generateDocumentContext(file.name, base64Data, file.type);
+      } catch (aiErr) {
+        console.warn("AI summary generation failed", aiErr);
+        aiSummary = "A precious family record, safely archived.";
+      }
 
-          // 4. Save Metadata to Firestore
-          const newDocData = {
-            name: file.name,
-            type: 'application/pdf',
-            size: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
-            timestamp: new Date().toISOString(),
-            serverTimestamp: serverTimestamp(),
-            familyId: targetFamilyId,
-            aiSummary,
-            fileUrl: downloadURL,
-            storagePath: storageRef.fullPath,
-            uploaderId: user.id
-          };
+      setUploadProgress(100);
 
-          await addDoc(collection(db, "documents"), newDocData);
-          setIsUploading(false);
-          setUploadProgress(0);
-          if (fileInputRef.current) fileInputRef.current.value = '';
-        }
-      );
+      // 3. Save Metadata to Firestore
+      const newDocData = {
+        name: file.name,
+        type: 'application/pdf',
+        size: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
+        timestamp: new Date().toISOString(),
+        serverTimestamp: serverTimestamp(),
+        familyId: targetFamilyId,
+        aiSummary,
+        fileUrl: localUrl,
+        storagePath: `local/${Date.now()}_${file.name}`,
+        uploaderId: user.id
+      };
+
+      await addDoc(collection(db, "documents"), newDocData);
+      setIsUploading(false);
+      setUploadProgress(0);
+      if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (err) {
       console.error(err);
-      setError("An unexpected error occurred during upload.");
+      setError("An unexpected error occurred during processing.");
       setIsUploading(false);
     }
   };
@@ -108,16 +93,13 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
     if (!confirm("Are you sure you want to delete this record?")) return;
     try {
       await deleteDoc(doc(db, "documents", document.id));
-      if (document.storagePath) {
-        const storageRef = ref(storage, document.storagePath);
-        await deleteObject(storageRef);
-      }
+      // No storage deletion needed for local URLs
     } catch (err) {
       console.error("Error deleting document:", err);
     }
   };
 
-  const filteredDocs = documents.filter(doc => 
+  const filteredDocs = documents.filter(doc =>
     doc.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -135,8 +117,8 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
         </div>
         <div className="mt-6 relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate/40" size={18} />
-          <input 
-            type="text" 
+          <input
+            type="text"
             placeholder="Search documents..."
             className="w-full bg-white dark:bg-white/5 border border-secondary/30 dark:border-white/10 rounded-[20px] py-4 pl-12 pr-4 text-charcoal dark:text-warmwhite outline-none focus:ring-4 focus:ring-primary/5 transition-all shadow-sm font-medium"
             value={searchQuery}
@@ -168,12 +150,12 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
               </div>
               {isUploading && (
                 <div className="w-10 h-10 rounded-full border-2 border-primary border-t-transparent animate-spin flex items-center justify-center">
-                   <span className="text-[8px] font-black text-primary animate-none">{uploadProgress}%</span>
+                  <span className="text-[8px] font-black text-primary animate-none">{uploadProgress}%</span>
                 </div>
               )}
             </div>
             <div className="space-y-4">
-              <select 
+              <select
                 className="w-full bg-white dark:bg-charcoal p-3.5 rounded-xl border border-secondary/20 dark:border-white/10 text-sm outline-none font-bold text-charcoal dark:text-warmwhite appearance-none"
                 value={targetFamilyId}
                 onChange={(e) => setTargetFamilyId(e.target.value)}
@@ -182,7 +164,7 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
                   <option key={f.id} value={f.id}>{f.name}</option>
                 ))}
               </select>
-              <button 
+              <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isUploading}
                 className="w-full bg-primary text-white py-5 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 shadow-xl shadow-primary/20 transition-all hover:brightness-110 active:scale-95 disabled:opacity-50"
@@ -199,7 +181,7 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
         {filteredDocs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center space-y-6 bg-secondary/5 dark:bg-white/5 rounded-[40px] border-2 border-dashed border-secondary/40 dark:border-white/5">
             <div className="w-20 h-20 bg-warmwhite dark:bg-charcoal rounded-full flex items-center justify-center text-secondary shadow-inner">
-               <FileCode size={32} />
+              <FileCode size={32} />
             </div>
             <h3 className="text-lg font-black text-charcoal/40 dark:text-warmwhite/20 uppercase tracking-widest">Archive Empty</h3>
           </div>
@@ -214,9 +196,9 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
                   <div className="flex-1 min-w-0 pr-4">
                     <h4 className="font-black text-charcoal dark:text-warmwhite truncate text-lg tracking-tight">{doc.name}</h4>
                     <div className="flex items-center gap-2 mt-2">
-                       <span className="text-[10px] font-black text-accent uppercase tracking-widest">{families.find(f => f.id === doc.familyId)?.name}</span>
-                       <span className="w-1 h-1 bg-slate/20 rounded-full"></span>
-                       <span className="text-[10px] font-bold text-slate/40 uppercase">{doc.size}</span>
+                      <span className="text-[10px] font-black text-accent uppercase tracking-widest">{families.find(f => f.id === doc.familyId)?.name}</span>
+                      <span className="w-1 h-1 bg-slate/20 rounded-full"></span>
+                      <span className="text-[10px] font-bold text-slate/40 uppercase">{doc.size}</span>
                     </div>
                   </div>
                   <div className="flex flex-col gap-2">
@@ -238,29 +220,29 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
 
       {viewingDoc && (
         <div className="fixed inset-0 z-[120] flex flex-col bg-warmwhite dark:bg-charcoal animate-in slide-in-from-bottom duration-500">
-           <header className="p-8 flex items-center justify-between border-b border-secondary/10 dark:border-white/10 bg-white dark:bg-charcoal shadow-sm">
-              <div className="flex items-center gap-5">
-                 <div className="p-3 bg-primary text-white rounded-2xl shadow-lg shadow-primary/20"><FileText size={24} /></div>
-                 <h3 className="font-black text-charcoal dark:text-warmwhite truncate max-w-[200px] text-lg tracking-tight">{viewingDoc.name}</h3>
-              </div>
-              <button onClick={() => setViewingDoc(null)} className="p-4 bg-secondary/20 dark:bg-white/10 rounded-full hover:bg-red-500 hover:text-white transition-all"><X size={20} /></button>
-           </header>
-           
-           <div className="flex-1 bg-secondary/5 dark:bg-black/20 p-8 flex flex-col items-center justify-center">
-              {viewingDoc.fileUrl ? (
-                <iframe src={viewingDoc.fileUrl} className="w-full h-full rounded-3xl shadow-2xl border-0 bg-white" title="PDF Viewer" />
-              ) : (
-                <div className="w-full max-w-sm bg-white dark:bg-white/5 aspect-[1/1.414] rounded-3xl shadow-2xl p-10 flex flex-col items-center justify-center text-center">
-                  <Shield size={48} className="text-primary mb-6" />
-                  <p className="font-black text-lg text-charcoal dark:text-warmwhite">Secure Access Only</p>
-                  <p className="text-xs text-slate mt-2">Document is encrypted and stored in your family vault.</p>
-                </div>
-              )}
-           </div>
+          <header className="p-8 flex items-center justify-between border-b border-secondary/10 dark:border-white/10 bg-white dark:bg-charcoal shadow-sm">
+            <div className="flex items-center gap-5">
+              <div className="p-3 bg-primary text-white rounded-2xl shadow-lg shadow-primary/20"><FileText size={24} /></div>
+              <h3 className="font-black text-charcoal dark:text-warmwhite truncate max-w-[200px] text-lg tracking-tight">{viewingDoc.name}</h3>
+            </div>
+            <button onClick={() => setViewingDoc(null)} className="p-4 bg-secondary/20 dark:bg-white/10 rounded-full hover:bg-red-500 hover:text-white transition-all"><X size={20} /></button>
+          </header>
 
-           <footer className="p-8 bg-white dark:bg-charcoal border-t border-secondary/10 dark:border-white/10 flex gap-4 safe-area-bottom">
-              <button className="flex-1 bg-primary text-white py-5 rounded-[24px] font-black text-sm uppercase tracking-widest shadow-2xl shadow-primary/20 hover:brightness-110 active:scale-95 transition-all" onClick={() => setViewingDoc(null)}>Close Vault</button>
-           </footer>
+          <div className="flex-1 bg-secondary/5 dark:bg-black/20 p-8 flex flex-col items-center justify-center">
+            {viewingDoc.fileUrl ? (
+              <iframe src={viewingDoc.fileUrl} className="w-full h-full rounded-3xl shadow-2xl border-0 bg-white" title="PDF Viewer" />
+            ) : (
+              <div className="w-full max-w-sm bg-white dark:bg-white/5 aspect-[1/1.414] rounded-3xl shadow-2xl p-10 flex flex-col items-center justify-center text-center">
+                <Shield size={48} className="text-primary mb-6" />
+                <p className="font-black text-lg text-charcoal dark:text-warmwhite">Secure Access Only</p>
+                <p className="text-xs text-slate mt-2">Document is encrypted and stored in your family vault.</p>
+              </div>
+            )}
+          </div>
+
+          <footer className="p-8 bg-white dark:bg-charcoal border-t border-secondary/10 dark:border-white/10 flex gap-4 safe-area-bottom">
+            <button className="flex-1 bg-primary text-white py-5 rounded-[24px] font-black text-sm uppercase tracking-widest shadow-2xl shadow-primary/20 hover:brightness-110 active:scale-95 transition-all" onClick={() => setViewingDoc(null)}>Close Vault</button>
+          </footer>
         </div>
       )}
     </div>

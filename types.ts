@@ -1,4 +1,3 @@
-
 export enum Language {
   SPANISH = 'Spanish',
   HINDI = 'Hindi',
@@ -19,8 +18,26 @@ export interface User {
   name: string;
   phoneNumber: string;
   families: string[]; // Family IDs
+  activeFamilyId?: string;
   avatarUrl?: string;
   role?: 'admin' | 'user';
+}
+
+export interface GroupMembership {
+  userId: string;
+  role: 'admin' | 'member';
+  status: 'pending' | 'active';
+  joinedAt: string;
+}
+
+export interface Family {
+  id: string;
+  name: string;
+  motherTongue: Language;
+  admins: string[]; // User IDs
+  members: string[]; // User IDs
+  inviteCode: string;
+  isApproved: boolean; // Platform approval
 }
 
 export interface Memory {
@@ -31,8 +48,10 @@ export interface Memory {
   timestamp: string;
   familyId: string;
   isDraft: boolean;
+  questionId?: string;
   questionText?: string;
   questionTranslation?: string;
+  shareOption?: 'app_whatsapp' | 'app_only' | 'draft';
 }
 
 export interface Question {
@@ -47,15 +66,9 @@ export interface Question {
   directedTo?: string; // User ID
   isVideoQuestion: boolean;
   videoUrl?: string;
+  familyId: string; // Scoped to family
 }
 
-export interface Family {
-  id: string;
-  name: string;
-  motherTongue: Language;
-}
-
-// Added missing FamilyDocument interface properties to resolve import errors and property access errors
 export interface FamilyDocument {
   id: string;
   name: string;

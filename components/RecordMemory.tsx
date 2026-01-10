@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  X, 
-  Camera, 
-  Play, 
-  RefreshCcw, 
-  Send, 
+import {
+  X,
+  Camera,
+  Play,
+  RefreshCcw,
+  Send,
   Video,
   Share2,
   SwitchCamera,
@@ -21,18 +21,24 @@ interface RecordMemoryProps {
   onCancel: () => void;
   onComplete: (m: Memory) => void;
   families: Family[];
+  mode?: 'answer' | 'question';
+  existingDraftId?: string;
+  onDeleteDraft?: (id: string) => void;
+  activeFamilyId: string | null;
 }
 
 type RecordStage = 'prep' | 'recording' | 'review' | 'processing';
 
-const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, onComplete, families }) => {
+const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, onComplete, families, mode = 'answer', existingDraftId, onDeleteDraft, activeFamilyId }) => {
   const [stage, setStage] = useState<RecordStage>('prep');
   const [timeLeft, setTimeLeft] = useState(90);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
-  const [targetFamilyId, setTargetFamilyId] = useState(user.families[0]);
+  const [targetFamilyId, setTargetFamilyId] = useState(activeFamilyId || user.families[0]);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [recordedUrl, setRecordedUrl] = useState<string | null>(null);
+  const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
+  const [savingOption, setSavingOption] = useState<'app_whatsapp' | 'app_only' | 'draft' | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewRef = useRef<HTMLVideoElement>(null);
@@ -63,7 +69,7 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
 
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { 
+          video: {
             facingMode,
             width: { ideal: 1280 },
             height: { ideal: 720 }
@@ -118,12 +124,12 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
 
   const startActualRecording = () => {
     if (!streamRef.current) return;
-    
+
     chunksRef.current = [];
     const mimeType = getSupportedMimeType();
     const mediaRecorder = new MediaRecorder(streamRef.current, { mimeType });
     mediaRecorderRef.current = mediaRecorder;
-    
+
     mediaRecorder.ondataavailable = (e) => {
       if (e.data.size > 0) chunksRef.current.push(e.data);
     };
@@ -131,6 +137,7 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
     mediaRecorder.onstop = () => {
       const blob = new Blob(chunksRef.current, { type: mimeType || 'video/webm' });
       const url = URL.createObjectURL(blob);
+      setVideoBlob(blob);
       setRecordedUrl(url);
       setStage('review');
     };
@@ -156,18 +163,44 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
     setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
   };
 
-  const handleFinish = (publish: boolean) => {
-    const newMemory: Memory = {
-      id: Date.now().toString(),
-      responderId: user.id,
-      videoUrl: recordedUrl || '',
-      timestamp: new Date().toISOString(),
-      familyId: targetFamilyId,
-      isDraft: !publish,
-      questionText: question?.text,
-      questionTranslation: question?.translation,
-    };
-    onComplete(newMemory);
+  const handleFinish = async (shareOption: 'app_whatsapp' | 'app_only' | 'draft') => {
+    if (!videoBlob) return;
+
+    setSavingOption(shareOption);
+    setStage('processing');
+    try {
+      // 1. Create a Local URL instead of uploading to Firebase Storage
+      // This bypasses Storage CORS issues for development
+      const localVideoUrl = URL.createObjectURL(videoBlob);
+      const downloadURL = localVideoUrl;
+
+      // 2. Pass to parent with the permanent URL
+      const newMemory: Memory = {
+        id: existingDraftId || Date.now().toString(),
+        responderId: user.id,
+        videoUrl: downloadURL,
+        timestamp: new Date().toISOString(),
+        familyId: targetFamilyId,
+        isDraft: shareOption === 'draft',
+        questionText: mode === 'answer' ? question?.text : undefined,
+        questionTranslation: mode === 'answer' ? question?.translation : undefined,
+        shareOption: shareOption,
+      };
+
+      if (shareOption === 'app_whatsapp') {
+        const text = mode === 'answer'
+          ? `I just answered a family question: "${question?.text}"\nCheck it out on Inai!`
+          : `I just asked a family question!\nCheck it out and answer on Inai!`;
+        const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text + "\n" + downloadURL)}`;
+        window.open(whatsappUrl, '_blank');
+      }
+
+      onComplete(newMemory);
+    } catch (err) {
+      console.error("Error uploading video:", err);
+      // Revert stage so user can try again
+      setStage('review');
+    }
   };
 
   return (
@@ -186,9 +219,9 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
               </div>
             )}
             {(stage === 'prep' || (stage === 'recording' && !isCapturing)) && (
-               <button onClick={toggleCamera} className="p-2.5 bg-white/10 backdrop-blur-lg rounded-2xl border border-white/10 active:scale-90 transition-transform">
-                  <SwitchCamera size={24} />
-               </button>
+              <button onClick={toggleCamera} className="p-2.5 bg-white/10 backdrop-blur-lg rounded-2xl border border-white/10 active:scale-90 transition-transform">
+                <SwitchCamera size={24} />
+              </button>
             )}
           </div>
         </div>
@@ -197,27 +230,38 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
       {/* Main View Area */}
       <div className="absolute inset-0 z-0 bg-black">
         {stage !== 'review' && stage !== 'processing' ? (
-          <video 
+          <video
             ref={videoRef}
-            autoPlay 
-            muted 
+            autoPlay
+            muted
             playsInline
             className={`w-full h-full object-cover ${facingMode === 'user' ? 'scale-x-[-1]' : ''}`}
           />
         ) : stage === 'review' ? (
-          <video 
-            ref={previewRef}
-            src={recordedUrl || ""}
-            autoPlay 
-            loop 
-            playsInline
-            controls
-            className="w-full h-full object-contain bg-black"
-          />
+          <div className="relative w-full h-full flex flex-col bg-black">
+            <video
+              ref={previewRef}
+              src={recordedUrl || ""}
+              autoPlay
+              loop
+              playsInline
+              controls
+              className="w-full h-full object-contain"
+            />
+            {/* Visual Question Context */}
+            {question && (
+              <div className="absolute top-24 left-6 right-6 z-40 bg-black/40 backdrop-blur-md rounded-2xl p-4 border border-white/20 pointer-events-none">
+                <p className="text-[9px] font-black text-accent uppercase mb-1 tracking-widest">Question</p>
+                <p className="text-sm font-bold leading-tight">{question.text}</p>
+              </div>
+            )}
+          </div>
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center gap-4">
             <Loader2 size={48} className="animate-spin text-primary" />
-            <p className="font-bold uppercase tracking-widest text-xs opacity-60">Processing Story...</p>
+            <p className="font-bold uppercase tracking-widest text-xs opacity-60">
+              {savingOption === 'draft' ? 'Saving Draft...' : 'Sharing Story...'}
+            </p>
           </div>
         )}
         <div className="absolute inset-0 bg-black/10 pointer-events-none" />
@@ -236,14 +280,14 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
             )}
 
             <div className="space-y-4 w-full">
-              <button 
+              <button
                 onClick={handleStartRequest}
                 className="w-full bg-primary text-white font-bold py-5 rounded-[28px] shadow-2xl shadow-primary/40 flex items-center justify-center gap-3 active:scale-95 transition-all text-xl"
               >
                 <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
                   <Camera size={24} fill="white" />
                 </div>
-                Start Story
+                {mode === 'question' ? 'Record Video Question' : 'Start Story'}
               </button>
             </div>
           </div>
@@ -261,11 +305,11 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
                   </div>
                 )}
                 <div className="w-28 h-28 rounded-full border-4 border-white/40 flex items-center justify-center p-1.5 hover:border-white transition-all shadow-2xl bg-white/5">
-                  <button 
+                  <button
                     onClick={stopRecording}
                     className="w-full h-full bg-red-500 rounded-full flex items-center justify-center active:scale-90 transition-transform shadow-inner"
                   >
-                     <Square size={32} fill="white" className="text-white" />
+                    <Square size={32} fill="white" className="text-white" />
                   </button>
                 </div>
                 <p className="text-[11px] font-black tracking-[0.4em] uppercase text-white/80 drop-shadow-md">Finish Recording</p>
@@ -276,38 +320,51 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
 
         {stage === 'review' && (
           <div className="w-full space-y-4 animate-in slide-in-from-bottom duration-500">
-            <div className="bg-primary/30 backdrop-blur-xl rounded-[32px] p-6 border border-white/10 mb-4 shadow-xl">
-              <p className="text-sm font-bold text-center tracking-tight">Your story is ready to be shared with the family!</p>
+            <div className="bg-primary/30 backdrop-blur-xl rounded-[32px] p-4 border border-white/10 mb-2 shadow-xl text-center">
+              <p className="text-sm font-bold tracking-tight">How would you like to share this?</p>
             </div>
-            
-            <button 
-              onClick={() => handleFinish(true)}
-              className="w-full bg-primary text-white font-bold py-5 rounded-[28px] flex items-center justify-center gap-3 shadow-2xl shadow-primary/30 transition-all active:scale-95 text-xl"
-            >
-              <Send size={24} fill="white" />
-              Share to Vault
-            </button>
-            
-            <div className="flex gap-4">
-              <button 
-                onClick={() => {
-                  if (recordedUrl) URL.revokeObjectURL(recordedUrl);
-                  setRecordedUrl(null);
-                  setStage('prep');
-                  setTimeLeft(90);
-                }}
-                className="flex-1 bg-white/10 backdrop-blur-xl text-white font-bold py-4 rounded-[24px] flex items-center justify-center gap-2 hover:bg-white/20 transition-all active:scale-95 border border-white/10"
+
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => handleFinish('app_whatsapp')}
+                className="w-full bg-primary text-white font-bold py-5 rounded-[28px] flex items-center justify-center gap-3 shadow-2xl shadow-primary/30 transition-all active:scale-95 text-lg"
               >
-                <RefreshCcw size={18} />
-                Retake
+                <Share2 size={22} fill="white" />
+                Share in-app + WhatsApp
               </button>
-              <button 
-                onClick={() => handleFinish(false)}
-                className="flex-1 bg-accent/20 backdrop-blur-xl text-accent font-bold py-4 rounded-[24px] flex items-center justify-center gap-2 hover:bg-accent/30 transition-all active:scale-95 border border-accent/20"
+
+              <button
+                onClick={() => handleFinish('app_only')}
+                className="w-full bg-white/10 backdrop-blur-xl text-white font-bold py-5 rounded-[28px] flex items-center justify-center gap-3 border border-white/20 transition-all active:scale-95 text-lg"
               >
-                <FilePlus size={18} />
-                Keep Draft
+                <Send size={22} fill="white" />
+                Share in-app only
               </button>
+
+              <div className="flex gap-4">
+                <button
+                  onClick={() => {
+                    if (existingDraftId && onDeleteDraft) {
+                      onDeleteDraft(existingDraftId);
+                    }
+                    if (recordedUrl) URL.revokeObjectURL(recordedUrl);
+                    setRecordedUrl(null);
+                    setStage('prep');
+                    setTimeLeft(90);
+                  }}
+                  className="flex-1 bg-white/10 backdrop-blur-xl text-white font-bold py-4 rounded-[24px] flex items-center justify-center gap-2 hover:bg-white/20 transition-all active:scale-95 border border-white/10"
+                >
+                  <RefreshCcw size={18} />
+                  Retake
+                </button>
+                <button
+                  onClick={() => handleFinish('draft')}
+                  className="flex-1 bg-accent/20 backdrop-blur-xl text-accent font-bold py-4 rounded-[24px] flex items-center justify-center gap-2 hover:bg-accent/30 transition-all active:scale-95 border border-accent/20"
+                >
+                  <FilePlus size={18} />
+                  Save as Draft
+                </button>
+              </div>
             </div>
           </div>
         )}
