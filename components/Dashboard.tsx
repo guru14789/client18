@@ -93,6 +93,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
     onToggleUpvote(id);
   };
 
+  const handleFamilySelection = (family: Family) => {
+    onSwitchFamily(family.id);
+    handleFamilyClick(family);
+  };
+
   return (
     <div className="bg-warmwhite dark:bg-charcoal flex-1 pb-32 transition-colors duration-300">
       {/* Page Header */}
@@ -155,10 +160,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
         </div>
       </div>
 
-      {/* Family Branches Section - DE-EMPHASIZED */}
-      <div className="mb-10 opacity-60 hover:opacity-100 transition-opacity">
+      {/* Family Branches Section */}
+      <div className="mb-10 transition-opacity">
         <div className="px-6 flex items-center justify-between mb-4">
-          <h3 className="text-[10px] font-black text-charcoal/40 dark:text-warmwhite/40 tracking-[0.2em] uppercase">Other Circles</h3>
+          <h3 className="text-[10px] font-black text-charcoal/40 dark:text-warmwhite/40 tracking-[0.2em] uppercase">Your Circles</h3>
           <button
             onClick={() => setIsCreatingFamily(true)}
             className="text-primary dark:text-white font-black text-[9px] uppercase tracking-widest flex items-center gap-1 bg-primary/5 dark:bg-white/5 px-3 py-1.5 rounded-full"
@@ -168,14 +173,17 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
         </div>
 
         <div className="flex overflow-x-auto px-6 gap-4 pb-2 no-scrollbar">
-          {connectedFamilies.filter(f => f.id !== activeFamilyId).map((family) => (
+          {connectedFamilies.map((family) => (
             <div
               key={family.id}
-              className="flex items-center gap-3 bg-white/40 dark:bg-white/5 border border-secondary/20 dark:border-white/10 px-4 py-2 rounded-2xl shrink-0 cursor-pointer active:scale-95 transition-all"
-              onClick={() => onSwitchFamily(family.id)}
+              className={`flex items-center gap-3 border px-4 py-2 rounded-2xl shrink-0 cursor-pointer active:scale-95 transition-all ${family.id === activeFamilyId
+                ? 'bg-primary/10 border-primary shadow-sm'
+                : 'bg-white/40 dark:bg-white/5 border-secondary/20 dark:border-white/10'
+                }`}
+              onClick={() => handleFamilySelection(family)}
             >
-              <Users size={14} className="text-slate/60" />
-              <span className="text-[11px] font-bold text-slate/60 uppercase tracking-wider">
+              <Users size={14} className={family.id === activeFamilyId ? "text-primary" : "text-slate/60"} />
+              <span className={`text-[11px] font-bold uppercase tracking-wider ${family.id === activeFamilyId ? "text-primary" : "text-slate/60"}`}>
                 {family.name}
               </span>
             </div>
