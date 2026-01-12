@@ -300,7 +300,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage }) => {
                 } catch (err: any) {
                   console.error("Login: Google redirect error:", err);
                   setError(err.message || "Google login failed.");
-                  setLoading(false); // Only reset if redirect didn't happen
+                  setLoading(false);
                 }
               }}
               disabled={loading}
@@ -310,6 +310,13 @@ const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage }) => {
               {t('login.google', currentLanguage)}
             </button>
 
+            {error?.includes("offline") && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-700 text-[10px] font-bold text-center">
+                ⚠️ Connecticity Issue: Firebase cannot reach the server.
+                Check your network or VPN.
+              </div>
+            )}
+
             <button
               onClick={() => onLogin('9876543210', 'Guest Member', 'demo-uid-123')}
               className="w-full h-16 bg-accent/10 border border-accent/20 rounded-[24px] flex items-center justify-center gap-4 text-accent font-black text-lg active:scale-95 transition-all"
@@ -317,7 +324,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage }) => {
               {t('login.demo', currentLanguage)}
             </button>
           </div>
-        </div>
+        </div >
       );
     }
 
