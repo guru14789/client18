@@ -103,37 +103,26 @@ const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage }) => {
   }, [countrySearch]);
 
   useEffect(() => {
-    // Initialize reCAPTCHA on mount
-    const initRecaptcha = () => {
-      if (!auth || (window as any).recaptchaVerifier) return;
-
+    // Initialize reCAPTCHA only when the container is present (in the 'phone' step)
+    if (step === 'phone' && auth && !(window as any).recaptchaVerifier) {
       try {
         console.log("Login: Initializing reCAPTCHA verifier...");
-        (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        const verifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
           'size': 'invisible',
           'callback': () => {
             console.log("reCAPTCHA solved successfully");
             setError(null);
-          },
-          'expired-callback': () => {
-            console.log("reCAPTCHA expired, resetting...");
-            if ((window as any).recaptchaVerifier) {
-              (window as any).recaptchaVerifier.clear();
-              (window as any).recaptchaVerifier = null;
-            }
-            initRecaptcha();
           }
         });
 
-        (window as any).recaptchaVerifier.render().then((widgetId: any) => {
+        (window as any).recaptchaVerifier = verifier;
+        verifier.render().then((widgetId: any) => {
           (window as any).recaptchaWidgetId = widgetId;
         });
       } catch (err) {
         console.error("Error setting up reCAPTCHA:", err);
       }
-    };
-
-    initRecaptcha();
+    }
 
     return () => {
       if ((window as any).recaptchaVerifier) {
@@ -143,7 +132,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage }) => {
         } catch (e) { }
       }
     };
-  }, []);
+  }, [step]);
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
