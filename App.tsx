@@ -15,7 +15,8 @@ import {
 import { serverTimestamp } from "firebase/firestore";
 import {
   auth,
-  onAuthStateChange, // Changed from onAuthStateChanged
+  onAuthStateChange,
+  getUser,
   listenToUser,
   listenToUserFamilies,
   listenToFamilyMemories,
@@ -224,9 +225,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (loading) return;
     if (view === 'splash') {
-      const onboarded = localStorage.getItem('inai_onboarding_done');
-      if (!onboarded) setView('onboarding');
-      else setView(user ? 'home' : 'login');
+      setView(user ? 'home' : 'login');
     } else if (user && view === 'login') {
       setView('home');
     } else if (!user && !['splash', 'onboarding', 'login'].includes(view)) {
@@ -235,28 +234,45 @@ const App: React.FC = () => {
   }, [loading, user, view]);
 
   const handleLogin = useCallback(async (phoneNumber: string, name: string, firebaseUid: string) => {
-    const newUser: User = {
-      id: firebaseUid,
-      name,
-      phoneNumber,
-      families: families.length > 0 ? families.map(f => f.id) : [],
-      avatarUrl: `https://i.pravatar.cc/150?u=${firebaseUid}`,
-      role: 'admin',
-      preferredLanguage: language,
-      activeFamilyId: activeFamilyId || null
-    };
-
     try {
+      // 1. Check if user already exists to avoid overwriting existing data (like families)
+      const existingUser = await getUser(firebaseUid);
+
+      const newUser: User = {
+        id: firebaseUid,
+        name: name || (existingUser?.name) || 'Family Member',
+        phoneNumber: phoneNumber || (existingUser?.phoneNumber) || '',
+        families: existingUser?.families || [],
+        avatarUrl: existingUser?.avatarUrl || `https://i.pravatar.cc/150?u=${firebaseUid}`,
+        role: existingUser?.role || 'user',
+        preferredLanguage: existingUser?.preferredLanguage || language,
+        activeFamilyId: existingUser?.activeFamilyId || activeFamilyId || null
+      };
+
+      // 2. Save/Update in Firestore
       await createOrUpdateUser(firebaseUid, newUser);
+
+      // 3. Update local state
       setUser(newUser);
       setView('home');
+      console.log("✅ Profile synced and logged in:", firebaseUid);
     } catch (err) {
       console.error("Login save error:", err);
-      alert("Account created but profile couldn't be saved. Proceeding...");
-      setUser(newUser);
+      // Fallback: Proceed with local state even if save fails, to keep app usable
+      const fallbackUser: User = {
+        id: firebaseUid,
+        name,
+        phoneNumber,
+        families: [],
+        avatarUrl: `https://i.pravatar.cc/150?u=${firebaseUid}`,
+        role: 'user',
+        preferredLanguage: language,
+        activeFamilyId: activeFamilyId || null
+      };
+      setUser(fallbackUser);
       setView('home');
     }
-  }, [families, language, activeFamilyId]);
+  }, [language, activeFamilyId]);
 
   const handleRecordingComplete = async (newMemory: Memory) => {
     try {

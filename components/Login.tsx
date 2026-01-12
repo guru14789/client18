@@ -5,6 +5,7 @@ import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult, GoogleAut
 import { auth } from '../services/firebaseConfig';
 import { Language } from '../types';
 import { t } from '../services/i18n';
+import { getUser } from '../services/firebaseServices';
 
 interface Country {
   name: string;
@@ -52,15 +53,29 @@ const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage }) => {
   const authInitialized = useRef(false);
 
   useEffect(() => {
-    // We let App.tsx handle the initial auth check and view redirection.
-    // If we are at the login view and have an auth user but no display name,
-    // we stay here but show the name entry step.
-    const user = auth.currentUser;
-    if (user && !user.displayName) {
-      setFirebaseUid(user.uid);
-      setPhoneNumber(user.email || user.uid);
-      setStep('nameEntry');
-    }
+    const checkExistingUser = async () => {
+      const fbUser = auth.currentUser;
+      if (fbUser) {
+        try {
+          const profile = await getUser(fbUser.uid);
+          if (profile && profile.name) {
+            // Already has a profile, App.tsx should handle redirect but we confirm here
+            const phone = fbUser.phoneNumber || fbUser.email || fbUser.uid;
+            onLogin(phone, profile.name, fbUser.uid);
+          } else {
+            // No profile name found, show name entry
+            setFirebaseUid(fbUser.uid);
+            setPhoneNumber(fbUser.phoneNumber || fbUser.email || fbUser.uid);
+            setName(fbUser.displayName || '');
+            setStep('nameEntry');
+          }
+        } catch (err) {
+          console.error("Error checking existing user profile:", err);
+        }
+      }
+    };
+
+    checkExistingUser();
   }, []);
 
 
@@ -187,16 +202,19 @@ const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage }) => {
     try {
       if (!confirmationResult) throw new Error("No confirmation result found.");
       const result = await confirmationResult.confirm(code);
-      const user = result.user;
-      setFirebaseUid(user.uid);
+      const fbUser = result.user;
+      setFirebaseUid(fbUser.uid);
 
-      const fullPhone = `${selectedCountry.code}${phoneNumber}`;
+      const fullPhone = fbUser.phoneNumber || `${selectedCountry.code}${phoneNumber}`;
 
-      // If user profile already exists, onAuthStateChanged in App.tsx will handle it
-      // but for "near-immediate" transition we check if we need nameEntry
-      if (user.displayName) {
-        onLogin(fullPhone, user.displayName, user.uid);
+      // Check Firestore for profile first
+      const profile = await getUser(fbUser.uid);
+
+      if (profile && profile.name) {
+        onLogin(fullPhone, profile.name, fbUser.uid);
       } else {
+        // No Firestore profile, ask for name (even if firebase has a displayName)
+        setName(fbUser.displayName || '');
         setStep('nameEntry');
       }
     } catch (err: any) {
@@ -277,11 +295,16 @@ const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage }) => {
                   const result = await signInWithPopup(auth, provider);
                   console.log("Login: Popup successful, user:", result.user.uid);
 
-                  if (result.user.displayName) {
-                    onLogin(result.user.email || result.user.uid, result.user.displayName, result.user.uid);
+                  const fbUser = result.user;
+                  const profile = await getUser(fbUser.uid);
+
+                  if (profile && profile.name) {
+                    onLogin(fbUser.email || fbUser.uid, profile.name, fbUser.uid);
                   } else {
-                    setFirebaseUid(result.user.uid);
-                    setPhoneNumber(result.user.email || result.user.uid);
+                    // Force name entry for new profile
+                    setFirebaseUid(fbUser.uid);
+                    setPhoneNumber(fbUser.email || fbUser.uid);
+                    setName(fbUser.displayName || '');
                     setStep('nameEntry');
                   }
                 } catch (err: any) {
