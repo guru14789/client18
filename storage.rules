@@ -1,0 +1,29 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Allow authenticated users to read and write to family-specific folders
+    match /memories/{familyId}/{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+    
+    match /questions/{familyId}/{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+    
+    match /documents/{familyId}/{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Allow users to manage their own profile pictures
+    match /profiles/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Generic fallback for other profile paths if used
+    match /profiles/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+  }
+}
