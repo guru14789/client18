@@ -1,18 +1,21 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { FileText, Upload, Plus, Trash2, Loader2, Info, Search, FileCode, Clock, Eye, X, AlertCircle, Archive, Shield, Smartphone } from 'lucide-react';
 import { collection, addDoc, deleteDoc, doc, serverTimestamp } from "firebase/firestore";
-import { db } from '../services/firebase';
-import { User, Family, FamilyDocument } from '../types';
+import { db } from '../services/firebaseConfig';
+import { User, Family, FamilyDocument, Language } from '../types';
+import { t } from '../services/i18n';
 import { generateDocumentContext } from '../services/geminiService';
+import { LocalizedText } from './LocalizedText';
 
 interface DocumentsProps {
   user: User;
   families: Family[];
   documents: FamilyDocument[];
   setDocuments: React.Dispatch<React.SetStateAction<FamilyDocument[]>>;
+  currentLanguage: Language;
 }
 
-const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDocuments }) => {
+const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDocuments, currentLanguage }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [targetFamilyId, setTargetFamilyId] = useState(user.families[0]);
@@ -39,7 +42,7 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
     if (!file) return;
 
     if (file.type !== 'application/pdf') {
-      setError("Please upload a PDF file.");
+      setError(t('documents.pdf_error', currentLanguage));
       return;
     }
 
@@ -59,7 +62,7 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
         aiSummary = await generateDocumentContext(file.name, base64Data, file.type);
       } catch (aiErr) {
         console.warn("AI summary generation failed", aiErr);
-        aiSummary = "A precious family record, safely archived.";
+        aiSummary = t('documents.ai_fallback', currentLanguage);
       }
 
       setUploadProgress(100);
@@ -84,13 +87,13 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (err) {
       console.error(err);
-      setError("An unexpected error occurred during processing.");
+      setError(t('documents.error', currentLanguage));
       setIsUploading(false);
     }
   };
 
   const deleteDocument = async (document: FamilyDocument) => {
-    if (!confirm("Are you sure you want to delete this record?")) return;
+    if (!confirm(t('documents.delete_confirm', currentLanguage))) return;
     try {
       await deleteDoc(doc(db, "documents", document.id));
       // No storage deletion needed for local URLs
@@ -107,11 +110,11 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
     <div className="bg-warmwhite dark:bg-charcoal min-h-full transition-colors duration-300">
       <div className="px-6 mb-8 pt-4">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-[28px] font-black text-charcoal dark:text-warmwhite tracking-tight">Family Vault</h2>
+          <h2 className="text-[28px] font-black text-charcoal dark:text-warmwhite tracking-tight">{t('documents.title', currentLanguage)}</h2>
           <div className="flex items-center gap-2 bg-primary/5 dark:bg-white/10 px-4 py-1.5 rounded-full border border-primary/10 dark:border-white/10">
             <Archive size={14} className="text-primary dark:text-white" />
             <span className="text-[10px] font-black text-primary dark:text-white uppercase tracking-widest">
-              {filteredDocs.length} Records
+              {filteredDocs.length} {t('documents.records', currentLanguage)}
             </span>
           </div>
         </div>
@@ -119,7 +122,7 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate/40" size={18} />
           <input
             type="text"
-            placeholder="Search documents..."
+            placeholder={t('documents.search', currentLanguage)}
             className="w-full bg-white dark:bg-white/5 border border-secondary/30 dark:border-white/10 rounded-[20px] py-4 pl-12 pr-4 text-charcoal dark:text-warmwhite outline-none focus:ring-4 focus:ring-primary/5 transition-all shadow-sm font-medium"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -144,8 +147,8 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
                   <FileText size={28} />
                 </div>
                 <div>
-                  <h3 className="font-black text-charcoal dark:text-warmwhite text-lg">Add Record</h3>
-                  <p className="text-[10px] font-bold text-slate dark:text-support/40 uppercase tracking-widest">PDF Only</p>
+                  <h3 className="font-black text-charcoal dark:text-warmwhite text-lg">{t('documents.add', currentLanguage)}</h3>
+                  <p className="text-[10px] font-bold text-slate dark:text-support/40 uppercase tracking-widest">{t('documents.pdf_only', currentLanguage)}</p>
                 </div>
               </div>
               {isUploading && (
@@ -170,7 +173,7 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
                 className="w-full bg-primary text-white py-5 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 shadow-xl shadow-primary/20 transition-all hover:brightness-110 active:scale-95 disabled:opacity-50"
               >
                 {isUploading ? <Loader2 size={20} className="animate-spin" /> : <Plus size={20} strokeWidth={3} />}
-                Upload PDF
+                {t('documents.upload', currentLanguage)}
               </button>
             </div>
           </div>
@@ -183,7 +186,7 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
             <div className="w-20 h-20 bg-warmwhite dark:bg-charcoal rounded-full flex items-center justify-center text-secondary shadow-inner">
               <FileCode size={32} />
             </div>
-            <h3 className="text-lg font-black text-charcoal/40 dark:text-warmwhite/20 uppercase tracking-widest">Archive Empty</h3>
+            <h3 className="text-lg font-black text-charcoal/40 dark:text-warmwhite/20 uppercase tracking-widest">{t('documents.empty', currentLanguage)}</h3>
           </div>
         ) : (
           <div className="space-y-5 pb-32">
@@ -196,7 +199,15 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
                   <div className="flex-1 min-w-0 pr-4">
                     <h4 className="font-black text-charcoal dark:text-warmwhite truncate text-lg tracking-tight">{doc.name}</h4>
                     <div className="flex items-center gap-2 mt-2">
-                      <span className="text-[10px] font-black text-accent uppercase tracking-widest">{families.find(f => f.id === doc.familyId)?.name}</span>
+                      <span className="text-[10px] font-black text-accent uppercase tracking-widest">
+                        {families.find(f => f.id === doc.familyId) ? (
+                          <LocalizedText
+                            text={families.find(f => f.id === doc.familyId)!.name}
+                            targetLanguage={currentLanguage}
+                            originalLanguage={families.find(f => f.id === doc.familyId)!.motherTongue}
+                          />
+                        ) : 'Unknown'}
+                      </span>
                       <span className="w-1 h-1 bg-slate/20 rounded-full"></span>
                       <span className="text-[10px] font-bold text-slate/40 uppercase">{doc.size}</span>
                     </div>
@@ -209,7 +220,9 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
                 {doc.aiSummary && (
                   <div className="mt-5 bg-warmwhite dark:bg-charcoal/50 rounded-2xl p-5 flex gap-4 border border-secondary/10 dark:border-white/5 relative overflow-hidden">
                     <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary/20"></div>
-                    <p className="text-xs text-slate/80 dark:text-support/80 italic font-bold leading-relaxed">{doc.aiSummary}</p>
+                    <p className="text-xs text-slate/80 dark:text-support/80 italic font-bold leading-relaxed">
+                      <LocalizedText text={doc.aiSummary} targetLanguage={currentLanguage} />
+                    </p>
                   </div>
                 )}
               </div>
@@ -234,14 +247,14 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
             ) : (
               <div className="w-full max-w-sm bg-white dark:bg-white/5 aspect-[1/1.414] rounded-3xl shadow-2xl p-10 flex flex-col items-center justify-center text-center">
                 <Shield size={48} className="text-primary mb-6" />
-                <p className="font-black text-lg text-charcoal dark:text-warmwhite">Secure Access Only</p>
-                <p className="text-xs text-slate mt-2">Document is encrypted and stored in your family vault.</p>
+                <p className="font-black text-lg text-charcoal dark:text-warmwhite">{t('documents.secure_access', currentLanguage)}</p>
+                <p className="text-xs text-slate mt-2">{t('documents.vault_desc', currentLanguage)}</p>
               </div>
             )}
           </div>
 
           <footer className="p-8 bg-white dark:bg-charcoal border-t border-secondary/10 dark:border-white/10 flex gap-4 safe-area-bottom">
-            <button className="flex-1 bg-primary text-white py-5 rounded-[24px] font-black text-sm uppercase tracking-widest shadow-2xl shadow-primary/20 hover:brightness-110 active:scale-95 transition-all" onClick={() => setViewingDoc(null)}>Close Vault</button>
+            <button className="flex-1 bg-primary text-white py-5 rounded-[24px] font-black text-sm uppercase tracking-widest shadow-2xl shadow-primary/20 hover:brightness-110 active:scale-95 transition-all" onClick={() => setViewingDoc(null)}>{t('documents.close', currentLanguage)}</button>
           </footer>
         </div>
       )}

@@ -1,13 +1,13 @@
-
-import React, { useState } from 'react';
-import { User, Memory, Family } from '../types';
-import { 
-  ChevronLeft, 
-  User as UserIcon, 
-  Play, 
-  X, 
-  Heart, 
-  Share2, 
+import React, { useState, useEffect } from 'react';
+import { User, Memory, Family, Language } from '../types';
+import { t } from '../services/i18n';
+import {
+  ChevronLeft,
+  User as UserIcon,
+  Play,
+  X,
+  Heart,
+  Share2,
   MessageCircle,
   Clock,
   Calendar,
@@ -15,11 +15,14 @@ import {
   Check,
   Loader2
 } from 'lucide-react';
+import { translateQuestion } from '../services/geminiService';
+import { LocalizedText } from './LocalizedText';
 
 interface FeedProps {
   memories: Memory[];
   user: User;
   families: Family[];
+  currentLanguage: Language;
 }
 
 interface InteractionState {
@@ -28,7 +31,7 @@ interface InteractionState {
   comments: { id: string, userName: string, text: string, timestamp: string }[];
 }
 
-const Feed: React.FC<FeedProps> = ({ memories, user, families }) => {
+const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage }) => {
   const [filter, setFilter] = useState<'all' | 'mine'>('all');
   const [playingMemory, setPlayingMemory] = useState<Memory | null>(null);
   const [showComments, setShowComments] = useState<boolean>(false);
@@ -40,13 +43,13 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families }) => {
   const [interactions, setInteractions] = useState<Record<string, InteractionState>>({});
 
   const getInteractions = (id: string): InteractionState => {
-    return interactions[id] || { 
-      liked: false, 
-      likeCount: Math.floor(Math.random() * 20), 
+    return interactions[id] || {
+      liked: false,
+      likeCount: Math.floor(Math.random() * 20),
       comments: [
         { id: 'c1', userName: 'Maria', text: 'Love this story! ❤️', timestamp: '1h ago' },
         { id: 'c2', userName: 'Grandpa', text: 'I remember that day well.', timestamp: '30m ago' }
-      ] 
+      ]
     };
   };
 
@@ -69,7 +72,7 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families }) => {
       id: Date.now().toString(),
       userName: user.name,
       text: newComment,
-      timestamp: 'Just now'
+      timestamp: t('feed.just_now', currentLanguage)
     };
     setInteractions(prev => ({
       ...prev,
@@ -87,8 +90,8 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families }) => {
 
     try {
       const shareData: any = {
-        title: 'Inai Family Memory',
-        text: `Check out this family story: ${memory.questionText || "A priceless memory"}`,
+        title: t('feed.share_title_tag', currentLanguage),
+        text: `${t('feed.share_text', currentLanguage)}: ${memory.questionText || t('feed.shared_story_default', currentLanguage)}`,
         url: window.location.href,
       };
 
@@ -98,7 +101,7 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families }) => {
           const response = await fetch(memory.videoUrl);
           const blob = await response.blob();
           const file = new File([blob], 'family-memory.mp4', { type: blob.type || 'video/mp4' });
-          
+
           if (navigator.canShare && navigator.canShare({ files: [file] })) {
             shareData.files = [file];
             // Many browsers prefer sharing either a file OR a URL, so we prioritize the file
@@ -128,8 +131,8 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families }) => {
     }
   };
 
-  const filteredMemories = filter === 'all' 
-    ? memories 
+  const filteredMemories = filter === 'all'
+    ? memories
     : memories.filter(m => m.responderId === user.id);
 
   if (memories.length === 0) {
@@ -141,9 +144,9 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families }) => {
           </div>
         </div>
         <div className="space-y-3">
-          <h2 className="text-2xl font-bold text-charcoal dark:text-warmwhite">Your Feed is Empty</h2>
+          <h2 className="text-2xl font-bold text-charcoal dark:text-warmwhite">{t('feed.no_memories', currentLanguage)}</h2>
           <p className="text-slate dark:text-support/60 text-[15px] leading-relaxed max-w-[280px] mx-auto">
-            Start capturing your family stories today. Every memory counts.
+            {t('dashboard.hero.title', currentLanguage)}
           </p>
         </div>
       </div>
@@ -154,29 +157,27 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families }) => {
     <div className="flex flex-col h-full bg-warmwhite dark:bg-charcoal">
       {/* Header */}
       <header className="px-6 py-4 flex items-center justify-between sticky top-0 bg-warmwhite/90 dark:bg-charcoal/90 backdrop-blur-md z-20 transition-colors">
-        <h1 className="text-[32px] font-bold text-charcoal dark:text-warmwhite tracking-tight transition-colors">Gallery</h1>
-        
+        <h1 className="text-[32px] font-bold text-charcoal dark:text-warmwhite tracking-tight transition-colors">{t('feed.title', currentLanguage)}</h1>
+
         {/* Filter Toggle */}
         <div className="bg-support/20 dark:bg-white/5 rounded-full p-1 flex items-center border border-support/10 dark:border-white/5">
-          <button 
+          <button
             onClick={() => setFilter('all')}
-            className={`px-5 py-2 rounded-full text-[11px] font-black uppercase tracking-widest transition-all ${
-              filter === 'all' 
-                ? 'bg-primary text-white shadow-md' 
-                : 'text-primary dark:text-support/60'
-            }`}
+            className={`px-5 py-2 rounded-full text-[11px] font-black uppercase tracking-widest transition-all ${filter === 'all'
+              ? 'bg-primary text-white shadow-md'
+              : 'text-primary dark:text-support/60'
+              }`}
           >
-            All
+            {t('feed.all', currentLanguage)}
           </button>
-          <button 
+          <button
             onClick={() => setFilter('mine')}
-            className={`px-5 py-2 rounded-full text-[11px] font-black uppercase tracking-widest transition-all ${
-              filter === 'mine' 
-                ? 'bg-primary text-white shadow-md' 
-                : 'text-primary dark:text-support/60'
-            }`}
+            className={`px-5 py-2 rounded-full text-[11px] font-black uppercase tracking-widest transition-all ${filter === 'mine'
+              ? 'bg-primary text-white shadow-md'
+              : 'text-primary dark:text-support/60'
+              }`}
           >
-            Mine
+            {t('feed.mine', currentLanguage)}
           </button>
         </div>
       </header>
@@ -187,17 +188,17 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families }) => {
           {filteredMemories.map((memory) => {
             const displayName = memory.responderId === user.id ? user.name : "Family Member";
             return (
-              <div 
-                key={memory.id} 
+              <div
+                key={memory.id}
                 onClick={() => setPlayingMemory(memory)}
                 className="relative aspect-[3/4.2] rounded-[24px] overflow-hidden bg-support/20 dark:bg-white/5 group cursor-pointer active:scale-[0.98] transition-all shadow-sm border border-secondary/10 dark:border-white/5"
               >
-                <img 
-                  src={`https://picsum.photos/400/600?random=${memory.id}`} 
-                  className="absolute inset-0 w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-500" 
-                  alt="Story Thumbnail" 
+                <img
+                  src={`https://picsum.photos/400/600?random=${memory.id}`}
+                  className="absolute inset-0 w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-500"
+                  alt="Story Thumbnail"
                 />
-                
+
                 <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-charcoal/80 to-transparent" />
 
                 <div className="absolute inset-0 p-4 flex flex-col justify-end gap-2">
@@ -208,7 +209,12 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families }) => {
                     <span className="text-[10px] font-bold uppercase tracking-wider text-white/90">{displayName}</span>
                   </div>
                   <h3 className="text-white font-bold text-sm leading-tight line-clamp-2">
-                    {memory.questionText || "A priceless memory"}
+                    <LocalizedText
+                      text={memory.questionText || t('feed.shared_story_default', currentLanguage)}
+                      targetLanguage={currentLanguage}
+                      originalLanguage={memory.language}
+                      storedTranslation={memory.questionTranslation}
+                    />
                   </h3>
                 </div>
 
@@ -227,7 +233,7 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families }) => {
           {/* Top Controls */}
           <div className="absolute top-0 left-0 right-0 z-[210] safe-area-top">
             <div className="p-6 flex items-center justify-between">
-              <button 
+              <button
                 onClick={() => {
                   setPlayingMemory(null);
                   setShowComments(false);
@@ -247,51 +253,49 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families }) => {
 
           {/* Full Screen Video Container */}
           <div className="flex-1 relative flex items-center justify-center bg-black">
-            <video 
+            <video
               src={playingMemory.videoUrl}
-              autoPlay 
-              loop 
+              autoPlay
+              loop
               playsInline
               controls
               className="w-full h-full object-contain"
             />
-            
+
             {/* Side Action Bar */}
             {(() => {
               const interaction = getInteractions(playingMemory.id);
               return (
                 <div className="absolute right-6 bottom-32 flex flex-col gap-8 items-center z-[210]">
                   <div className="flex flex-col items-center gap-1">
-                    <button 
+                    <button
                       onClick={(e) => { e.stopPropagation(); handleLike(playingMemory.id); }}
-                      className={`p-4 backdrop-blur-xl rounded-full border border-white/10 transition-all active:scale-75 ${
-                        interaction.liked ? 'bg-red-500 text-white border-red-400' : 'bg-white/10 text-white'
-                      }`}
+                      className={`p-4 backdrop-blur-xl rounded-full border border-white/10 transition-all active:scale-75 ${interaction.liked ? 'bg-red-500 text-white border-red-400' : 'bg-white/10 text-white'
+                        }`}
                     >
                       <Heart size={24} fill={interaction.liked ? "currentColor" : "none"} />
                     </button>
                     <span className="text-[10px] font-black text-white uppercase tracking-widest">{interaction.likeCount}</span>
                   </div>
                   <div className="flex flex-col items-center gap-1">
-                    <button 
+                    <button
                       onClick={(e) => { e.stopPropagation(); setShowComments(!showComments); }}
-                      className={`p-4 backdrop-blur-xl rounded-full border border-white/10 text-white active:scale-90 transition-all ${
-                        showComments ? 'bg-primary border-primary' : 'bg-white/10'
-                      }`}
+                      className={`p-4 backdrop-blur-xl rounded-full border border-white/10 text-white active:scale-90 transition-all ${showComments ? 'bg-primary border-primary' : 'bg-white/10'
+                        }`}
                     >
                       <MessageCircle size={24} fill={showComments ? "currentColor" : "none"} />
                     </button>
                     <span className="text-[10px] font-black text-white uppercase tracking-widest">{interaction.comments.length}</span>
                   </div>
                   <div className="flex flex-col items-center gap-1">
-                    <button 
+                    <button
                       onClick={(e) => { e.stopPropagation(); handleShare(playingMemory); }}
                       disabled={isSharing}
                       className="p-4 bg-white/10 backdrop-blur-xl rounded-full border border-white/10 text-white active:scale-90 transition-all hover:bg-white/20 disabled:opacity-50"
                     >
                       {isSharing ? <Loader2 size={24} className="animate-spin" /> : <Share2 size={24} />}
                     </button>
-                    <span className="text-[10px] font-black text-white uppercase tracking-widest">Share</span>
+                    <span className="text-[10px] font-black text-white uppercase tracking-widest">{t('feed.share', currentLanguage)}</span>
                   </div>
                 </div>
               );
@@ -301,18 +305,25 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families }) => {
             <div className="absolute bottom-0 left-0 right-0 p-8 pt-20 bg-gradient-to-t from-black via-black/40 to-transparent z-[210] pointer-events-none">
               <div className="flex items-start gap-4 mb-6">
                 <div className="w-14 h-14 rounded-2xl border-2 border-white/20 overflow-hidden shadow-2xl bg-support/20">
-                  <img 
-                    src={playingMemory.responderId === user.id ? user.avatarUrl : `https://i.pravatar.cc/150?u=${playingMemory.responderId}`} 
+                  <img
+                    src={playingMemory.responderId === user.id ? user.avatarUrl : `https://i.pravatar.cc/150?u=${playingMemory.responderId}`}
                     className="w-full h-full object-cover"
                     alt="Responder"
                   />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[11px] font-black text-primary uppercase tracking-[0.2em] mb-1">Captured by {playingMemory.responderId === user.id ? 'You' : 'Family Member'}</p>
+                  <p className="text-[11px] font-black text-primary uppercase tracking-[0.2em] mb-1">
+                    {t('feed.captured_by', currentLanguage)} {playingMemory.responderId === user.id ? t('feed.you', currentLanguage) : t('feed.family_member', currentLanguage)}
+                  </p>
                   <h2 className="text-xl font-bold text-white leading-tight tracking-tight">
-                    {playingMemory.questionText || "A shared family story"}
+                    <LocalizedText
+                      text={playingMemory.questionText || t('feed.shared_story_default', currentLanguage)}
+                      targetLanguage={currentLanguage}
+                      originalLanguage={playingMemory.language}
+                      storedTranslation={playingMemory.questionTranslation}
+                    />
                   </h2>
-                  {playingMemory.questionTranslation && (
+                  {playingMemory.questionTranslation && playingMemory.language !== currentLanguage && (
                     <p className="text-white/60 italic text-sm font-medium mt-1">
                       {playingMemory.questionTranslation}
                     </p>
@@ -322,10 +333,10 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families }) => {
 
               <div className="flex items-center gap-3">
                 <div className="px-3 py-1 bg-white/10 rounded-full border border-white/10">
-                  <span className="text-[9px] font-black text-white/80 uppercase tracking-widest">Private Branch</span>
+                  <span className="text-[9px] font-black text-white/80 uppercase tracking-widest">{t('feed.private_branch', currentLanguage)}</span>
                 </div>
                 <div className="px-3 py-1 bg-white/10 rounded-full border border-white/10">
-                  <span className="text-[9px] font-black text-white/80 uppercase tracking-widest">Encrypted</span>
+                  <span className="text-[9px] font-black text-white/80 uppercase tracking-widest">{t('feed.encrypted', currentLanguage)}</span>
                 </div>
               </div>
             </div>
@@ -336,12 +347,12 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families }) => {
             <div className="absolute inset-x-0 bottom-0 z-[220] bg-white dark:bg-charcoal rounded-t-[40px] shadow-[0_-20px_80px_rgba(0,0,0,0.5)] animate-in slide-in-from-bottom duration-300 flex flex-col max-h-[60vh]">
               <div className="w-12 h-1 bg-slate/20 rounded-full mx-auto my-4 shrink-0" />
               <div className="px-8 pb-4 flex items-center justify-between border-b border-slate/5 dark:border-white/5">
-                <h3 className="text-lg font-black text-charcoal dark:text-warmwhite">Replies</h3>
+                <h3 className="text-lg font-black text-charcoal dark:text-warmwhite">{t('feed.replies', currentLanguage)}</h3>
                 <button onClick={() => setShowComments(false)} className="text-slate/40">
                   <X size={20} />
                 </button>
               </div>
-              
+
               <div className="flex-1 overflow-y-auto px-8 py-6 space-y-6 no-scrollbar">
                 {getInteractions(playingMemory.id).comments.map((comment) => (
                   <div key={comment.id} className="flex gap-4">
@@ -363,15 +374,15 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families }) => {
 
               <div className="p-6 border-t border-slate/5 dark:border-white/5 safe-area-bottom">
                 <div className="flex items-center gap-3 bg-secondary/10 dark:bg-white/5 p-2 rounded-[24px] border border-secondary/20 dark:border-white/10">
-                  <input 
-                    type="text" 
-                    placeholder="Add a reply..."
+                  <input
+                    type="text"
+                    placeholder={t('feed.reply_placeholder', currentLanguage)}
                     className="flex-1 bg-transparent px-4 py-2 text-sm font-bold text-charcoal dark:text-warmwhite outline-none"
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && handleAddComment(playingMemory.id)}
                   />
-                  <button 
+                  <button
                     onClick={() => handleAddComment(playingMemory.id)}
                     disabled={!newComment.trim()}
                     className="w-10 h-10 bg-primary text-white rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 active:scale-90 transition-all disabled:opacity-50"
@@ -387,7 +398,7 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families }) => {
           {showShareToast && (
             <div className="absolute top-24 left-1/2 -translate-x-1/2 z-[300] bg-primary text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-top-4">
               <Check size={18} strokeWidth={3} />
-              <span className="text-sm font-black uppercase tracking-widest">Link Copied</span>
+              <span className="text-sm font-black uppercase tracking-widest">{t('feed.link_copied', currentLanguage)}</span>
             </div>
           )}
         </div>

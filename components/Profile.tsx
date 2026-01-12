@@ -26,6 +26,7 @@ import {
   Languages
 } from 'lucide-react';
 import { User, Family, Language } from '../types';
+import { t } from '../services/i18n';
 
 type SubView = 'none' | 'branches' | 'requests' | 'privacy' | 'theme' | 'permissions' | 'language';
 
@@ -132,7 +133,7 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
 
   const ManageBranches = () => (
     <div className="animate-in slide-in-from-right duration-300">
-      <SubViewHeader title="My Branches" onBack={() => setActiveSubView('none')} />
+      <SubViewHeader title={t('profile.sub.branches', currentLanguage)} onBack={() => setActiveSubView('none')} />
       <div className="space-y-4">
         {userFamilies.map((family) => (
           <div key={family.id} className="bg-white dark:bg-white/5 p-6 rounded-[32px] border border-secondary/20 dark:border-white/10 flex items-center justify-between group">
@@ -155,7 +156,7 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
         ))}
         <button className="w-full py-6 border-2 border-dashed border-secondary/40 dark:border-white/10 rounded-[32px] flex items-center justify-center gap-3 text-slate dark:text-support/40 font-black uppercase tracking-widest text-[11px] hover:bg-secondary/5 dark:hover:bg-white/5 transition-all active:scale-[0.98]">
           <PlusCircle size={18} />
-          Create New Branch
+          {t('profile.sub.create_branch', currentLanguage)}
         </button>
       </div>
     </div>
@@ -168,12 +169,12 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
 
     return (
       <div className="animate-in slide-in-from-right duration-300">
-        <SubViewHeader title="Join Requests" onBack={() => setActiveSubView('none')} />
+        <SubViewHeader title={t('profile.sub.requests', currentLanguage)} onBack={() => setActiveSubView('none')} />
 
         {mockJoinRequests.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 opacity-30">
             <Mail size={48} className="mb-4" />
-            <p className="text-[10px] font-black uppercase tracking-[0.2em]">No pending requests</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em]">{t('profile.sub.no_requests', currentLanguage)}</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -186,7 +187,7 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
                     </div>
                     <div>
                       <h4 className="font-black text-charcoal dark:text-warmwhite leading-none mb-1">{req.userName}</h4>
-                      <p className="text-[10px] font-bold text-slate dark:text-support/60">Requests to join <span className="text-primary dark:text-white">{req.familyName}</span></p>
+                      <p className="text-[10px] font-bold text-slate dark:text-support/60">{t('profile.sub.request_join', currentLanguage)} <span className="text-primary dark:text-white">{req.familyName}</span></p>
                     </div>
                   </div>
                   <span className="text-[10px] font-black text-slate/30 uppercase tracking-widest">{req.timestamp}</span>
@@ -196,13 +197,13 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
                     onClick={() => handleRequest(req.id, 'accept')}
                     className="flex-1 bg-primary text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-primary/20"
                   >
-                    <Check size={16} strokeWidth={3} /> Accept
+                    <Check size={16} strokeWidth={3} /> {t('profile.sub.accept', currentLanguage)}
                   </button>
                   <button
                     onClick={() => handleRequest(req.id, 'decline')}
                     className="flex-1 bg-secondary/10 dark:bg-white/5 text-slate dark:text-support/60 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all"
                   >
-                    <X size={16} strokeWidth={3} /> Decline
+                    <X size={16} strokeWidth={3} /> {t('profile.sub.decline', currentLanguage)}
                   </button>
                 </div>
               </div>
@@ -215,14 +216,14 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
 
   const ThemeSelector = () => {
     const themeOptions = [
-      { id: 'system', label: 'System Default', icon: Monitor, desc: 'Sync with your device settings' },
-      { id: 'light', label: 'Light Mode', icon: Sun, desc: 'Clean and bright' },
-      { id: 'dark', label: 'Dark Mode', icon: Moon, desc: 'Easier on the eyes' }
+      { id: 'system', label: t('profile.theme.system', currentLanguage), icon: Monitor, desc: t('profile.theme.system_desc', currentLanguage) },
+      { id: 'light', label: t('profile.theme.light', currentLanguage), icon: Sun, desc: t('profile.theme.light_desc', currentLanguage) },
+      { id: 'dark', label: t('profile.theme.dark', currentLanguage), icon: Moon, desc: t('profile.theme.dark_desc', currentLanguage) }
     ];
 
     return (
       <div className="animate-in slide-in-from-right duration-300">
-        <SubViewHeader title="App Theme" onBack={() => setActiveSubView('none')} />
+        <SubViewHeader title={t('profile.sub.theme', currentLanguage)} onBack={() => setActiveSubView('none')} />
 
         <div className="space-y-4">
           {themeOptions.map((option) => {
@@ -264,7 +265,7 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
 
         <div className="mt-12 p-8 text-center bg-secondary/10 dark:bg-white/5 rounded-[40px] border border-dashed border-secondary/40">
           <p className="text-[10px] font-black text-slate/40 uppercase tracking-[0.2em] leading-relaxed">
-            The theme applies instantly<br />to all screens in the app.
+            {t('profile.theme.advisory', currentLanguage)}
           </p>
         </div>
       </div>
@@ -276,7 +277,7 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
 
     return (
       <div className="animate-in slide-in-from-right duration-300">
-        <SubViewHeader title="Preferred Language" onBack={() => setActiveSubView('none')} />
+        <SubViewHeader title={t('profile.language', currentLanguage)} onBack={() => setActiveSubView('none')} />
 
         <div className="space-y-3">
           {languages.map((lang) => {
@@ -313,7 +314,7 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
         <div className="mt-12 p-8 text-center bg-secondary/10 dark:bg-white/5 rounded-[40px] border border-dashed border-secondary/40">
           <Globe className="text-primary/40 dark:text-white/20 mx-auto mb-4" size={32} />
           <p className="text-[10px] font-black text-slate/40 uppercase tracking-[0.2em] leading-relaxed">
-            This affects AI translations<br />and interface language.
+            {t('profile.lang.advisory', currentLanguage)}
           </p>
         </div>
       </div>
@@ -357,20 +358,20 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
 
     return (
       <div className="animate-in slide-in-from-right duration-300">
-        <SubViewHeader title="System Access" onBack={() => setActiveSubView('none')} />
+        <SubViewHeader title={t('profile.sub.permissions', currentLanguage)} onBack={() => setActiveSubView('none')} />
 
         <div className="bg-support/10 dark:bg-white/5 rounded-3xl p-5 mb-8 flex gap-4 border border-support/20 dark:border-white/10">
           <AlertCircle className="text-primary dark:text-white shrink-0" size={20} />
           <p className="text-xs font-medium text-slate dark:text-support/60 leading-relaxed">
-            Turning these on allows the app to record your voice, capture video memories, and tag locations. Once granted, your browser may require you to visit settings to revoke access.
+            {t('profile.perm.advisory', currentLanguage)}
           </p>
         </div>
 
         <div className="space-y-4">
           {[
-            { id: 'camera', label: 'Camera', icon: Camera, desc: 'For recording video memories' },
-            { id: 'microphone', label: 'Microphone', icon: Mic, desc: 'For recording audio' },
-            { id: 'geolocation', label: 'Location', icon: MapPin, desc: 'For tagging stories with places' },
+            { id: 'camera', label: t('profile.perm.camera', currentLanguage), icon: Camera, desc: t('profile.perm.camera_desc', currentLanguage) },
+            { id: 'mic', label: t('profile.perm.mic', currentLanguage), icon: Mic, desc: t('profile.perm.mic_desc', currentLanguage) },
+            { id: 'location', label: t('profile.perm.location', currentLanguage), icon: MapPin, desc: t('profile.perm.location_desc', currentLanguage) },
           ].map((item) => {
             const status = permissions[item.id as keyof typeof permissions];
             const isGranted = status === 'granted';
@@ -384,7 +385,7 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
                   <div>
                     <p className="font-black text-charcoal dark:text-warmwhite leading-none">{item.label}</p>
                     <p className="text-[10px] font-bold text-slate dark:text-support/60 uppercase tracking-widest mt-1.5 opacity-60">
-                      {isGranted ? 'Access Granted' : status === 'denied' ? 'Access Blocked' : 'Not Requested'}
+                      {isGranted ? t('profile.perm.granted', currentLanguage) : status === 'denied' ? t('profile.perm.blocked', currentLanguage) : t('profile.perm.none', currentLanguage)}
                     </p>
                   </div>
                 </div>
@@ -402,10 +403,10 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
         <div className="mt-12 p-8 text-center bg-secondary/10 dark:bg-white/5 rounded-[40px] border border-dashed border-secondary/40">
           <Shield className="text-primary/40 dark:text-white/20 mx-auto mb-4" size={32} />
           <p className="text-[10px] font-black text-slate/40 uppercase tracking-[0.2em] leading-relaxed">
-            Permissions are handled securely<br />by your mobile browser.
+            {t('profile.perm.secure_advisory', currentLanguage)}
           </p>
         </div>
-      </div>
+      </div >
     );
   };
 
@@ -427,22 +428,22 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
               <p className="text-slate dark:text-support/60 font-bold text-sm mt-2 opacity-60 tracking-tight">{user.phoneNumber}</p>
             </div>
 
-            <SectionHeader title="System" icon={LockKeyhole} />
+            <SectionHeader title={t('profile.system', currentLanguage)} icon={LockKeyhole} />
             <div className="bg-white dark:bg-white/5 rounded-[32px] px-6 py-1 shadow-sm border border-secondary/20 dark:border-white/10 mb-4 transition-colors">
-              <ActionItem label="System Access" icon={Shield} sublabel="Camera, Mic & Location" onClick={() => setActiveSubView('permissions')} />
-              <ActionItem label="App Theme" icon={Monitor} sublabel={`${currentTheme.charAt(0).toUpperCase() + currentTheme.slice(1)} Mode`} onClick={() => setActiveSubView('theme')} />
+              <ActionItem label={t('profile.access', currentLanguage)} icon={Shield} sublabel="Camera, Mic & Location" onClick={() => setActiveSubView('permissions')} />
+              <ActionItem label={t('profile.theme', currentLanguage)} icon={Monitor} sublabel={`${currentTheme.charAt(0).toUpperCase() + currentTheme.slice(1)} Mode`} onClick={() => setActiveSubView('theme')} />
             </div>
 
-            <SectionHeader title="Family" icon={Users} />
+            <SectionHeader title={t('profile.family', currentLanguage)} icon={Users} />
             <div className="bg-white dark:bg-white/5 rounded-[32px] px-6 py-1 shadow-sm border border-secondary/20 dark:border-white/10 mb-4 transition-colors">
-              <ActionItem label="Manage Branches" icon={PlusCircle} onClick={() => setActiveSubView('branches')} />
-              <ActionItem label="Join Requests" icon={Mail} onClick={() => setActiveSubView('requests')} />
+              <ActionItem label={t('profile.branches', currentLanguage)} icon={PlusCircle} onClick={() => setActiveSubView('branches')} />
+              <ActionItem label={t('profile.requests', currentLanguage)} icon={Mail} onClick={() => setActiveSubView('requests')} />
             </div>
 
-            <SectionHeader title="Account" icon={Shield} />
+            <SectionHeader title={t('profile.account', currentLanguage)} icon={Shield} />
             <div className="bg-white dark:bg-white/5 rounded-[32px] px-6 py-1 shadow-sm border border-secondary/20 dark:border-white/10 mb-8 transition-colors">
-              <ActionItem label="Preferred Language" icon={Globe} sublabel={currentLanguage} onClick={() => setActiveSubView('language')} />
-              <ActionItem label="Log Out" icon={LogOut} onClick={onLogout} danger />
+              <ActionItem label={t('profile.language', currentLanguage)} icon={Globe} sublabel={currentLanguage} onClick={() => setActiveSubView('language')} />
+              <ActionItem label={t('profile.logout', currentLanguage)} icon={LogOut} onClick={onLogout} danger />
             </div>
           </>
         )}

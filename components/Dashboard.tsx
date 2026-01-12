@@ -4,6 +4,8 @@ import { Users, Archive, Plus, Video, X, Globe, MapPin, Info, ThumbsUp } from 'l
 import { User, Family, Question, Language } from '../types';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { translateQuestion } from '../services/geminiService';
+import { t } from '../services/i18n';
+import { LocalizedText } from './LocalizedText';
 
 interface Member {
   id: string;
@@ -31,7 +33,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
   const [isCreatingFamily, setIsCreatingFamily] = useState(false);
   const [isSwitchingFamily, setIsSwitchingFamily] = useState(false);
   const [newFamilyName, setNewFamilyName] = useState('');
-  const [newFamilyLang, setNewFamilyLang] = useState<Language>(Language.SPANISH);
+  const [newFamilyLang, setNewFamilyLang] = useState<Language>(Language.TAMIL);
   const [greeting, setGreeting] = useState('Hello');
   const [locationName, setLocationName] = useState<string | null>(null);
 
@@ -48,15 +50,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
     else if (hour < 18) baseGreeting = 'Good Afternoon';
     else baseGreeting = 'Good Evening';
 
-    // Simple localization for demonstration
-    const localizedGreetings: Record<string, Record<string, string>> = {
-      'Spanish': { 'Hello': 'Hola', 'Good Morning': 'Buenos Días', 'Good Afternoon': 'Buenas Tardes', 'Good Evening': 'Buenas Noches', 'Good Night': 'Buenas Noches' },
-      'Hindi': { 'Hello': 'नमस्ते', 'Good Morning': 'शुभ प्रभात', 'Good Afternoon': 'नमस्ते', 'Good Evening': 'शुभ संध्या', 'Good Night': 'शुभ रात्रि' },
-      'French': { 'Hello': 'Bonjour', 'Good Morning': 'Bonjour', 'Good Afternoon': 'Bon après-midi', 'Good Evening': 'Bonsoir', 'Good Night': 'Bonne nuit' },
-      'Tamil': { 'Hello': 'வணக்கம்', 'Good Morning': 'காலை வணக்கம்', 'Good Afternoon': 'மதிய வணக்கம்', 'Good Evening': 'மாலை வணக்கம்', 'Good Night': 'இனிய இரவு' }
-    };
-
-    const langGreeting = localizedGreetings[currentLanguage]?.[baseGreeting] || baseGreeting;
+    const greetingKey = `dashboard.${baseGreeting.toLowerCase().replace(' ', '_')}`;
+    const langGreeting = t(greetingKey, currentLanguage);
     setGreeting(langGreeting);
   }, [currentLanguage]);
 
@@ -73,10 +68,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
   const getMockMembers = (familyId: string): Member[] => {
     if (familyId === 'f1') {
       return [
-        { id: 'm1', name: 'Grandpa Joe', role: 'Patriarch', avatar: 'https://i.pravatar.cc/150?u=joe', isOnline: true },
-        { id: 'm2', name: 'Emma Gomez', role: 'Daughter', avatar: 'https://i.pravatar.cc/150?u=emma', isOnline: false },
-        { id: 'm3', name: 'Maria Gomez', role: 'Sister', avatar: 'https://i.pravatar.cc/150?u=maria', isOnline: true },
-        { id: 'm4', name: 'Ricardo', role: 'Uncle', avatar: 'https://i.pravatar.cc/150?u=ric', isOnline: false },
+        { id: 'm1', name: 'சந்தோஷ்', role: 'குடும்பத்தலைவர்', avatar: 'https://i.pravatar.cc/150?u=joe', isOnline: true },
+        { id: 'm2', name: 'அகிலா', role: 'மகள்', avatar: 'https://i.pravatar.cc/150?u=emma', isOnline: false },
+        { id: 'm3', name: 'மரியா', role: 'சகோதரி', avatar: 'https://i.pravatar.cc/150?u=maria', isOnline: true },
+        { id: 'm4', name: 'ரிச்சர்ட்', role: 'சித்தப்பா', avatar: 'https://i.pravatar.cc/150?u=ric', isOnline: false },
       ];
     }
     return [
@@ -115,7 +110,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
       {/* Page Header */}
       <div className="px-6 pt-8 pb-4 flex items-start justify-between">
         <div>
-          <h1 className="text-4xl font-black text-charcoal dark:text-warmwhite tracking-tighter leading-none">Hi {user.name}</h1>
+          <h1 className="text-4xl font-black text-charcoal dark:text-warmwhite tracking-tighter leading-none">{t('dashboard.greeting', currentLanguage)} {user.name}</h1>
           <div className="flex items-center gap-2 mt-2">
             <p className="text-slate/60 dark:text-support/40 text-xl font-medium">{greeting}!</p>
             {locationName && (
@@ -134,11 +129,17 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
         >
           <div className="flex items-center gap-2 bg-white/40 dark:bg-white/5 border border-secondary/20 dark:border-white/10 px-4 py-2 rounded-2xl">
             <span className="text-[10px] font-black uppercase tracking-widest text-primary truncate max-w-[80px]">
-              {activeFamily?.name || 'Switch'}
+              {activeFamily ? (
+                <LocalizedText
+                  text={activeFamily.name}
+                  targetLanguage={currentLanguage}
+                  originalLanguage={activeFamily.motherTongue}
+                />
+              ) : t('dashboard.switch', currentLanguage)}
             </span>
             <Users size={14} className="text-primary" />
           </div>
-          <span className="text-[9px] font-bold text-slate/40 uppercase tracking-tighter">Current Family</span>
+          <span className="text-[9px] font-bold text-slate/40 uppercase tracking-tighter">{t('dashboard.current_family', currentLanguage)}</span>
         </button>
       </div>
 
@@ -148,14 +149,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
           <div className="absolute top-[20%] left-[35%] w-[50%] h-[50%] bg-white/5 rounded-[32px] pointer-events-none z-0"></div>
           <div className="relative z-20 w-[60%] flex flex-col justify-between p-8 pr-0">
             <h2 className="text-white text-[26px] font-bold leading-tight tracking-tight">
-              Capture a new family story today
+              {t('dashboard.hero.title', currentLanguage)}
             </h2>
             <div className="pb-1">
               <button
                 onClick={() => onRecord()}
                 className="bg-white text-primary px-8 py-3 rounded-full font-black text-[14px] shadow-lg shadow-black/10 active:scale-95 transition-all hover:bg-white/95"
               >
-                Record Now
+                {t('dashboard.hero.button', currentLanguage)}
               </button>
             </div>
           </div>
@@ -175,12 +176,12 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
       {/* Family Branches Section */}
       <div className="mb-10 transition-opacity">
         <div className="px-6 flex items-center justify-between mb-4">
-          <h3 className="text-[10px] font-black text-charcoal/40 dark:text-warmwhite/40 tracking-[0.2em] uppercase">Your Circles</h3>
+          <h3 className="text-[10px] font-black text-charcoal/40 dark:text-warmwhite/40 tracking-[0.2em] uppercase">{t('dashboard.circles', currentLanguage)}</h3>
           <button
             onClick={() => setIsCreatingFamily(true)}
             className="text-primary dark:text-white font-black text-[9px] uppercase tracking-widest flex items-center gap-1 bg-primary/5 dark:bg-white/5 px-3 py-1.5 rounded-full"
           >
-            <Plus size={12} /> New
+            <Plus size={12} /> {t('dashboard.new', currentLanguage)}
           </button>
         </div>
 
@@ -196,7 +197,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
             >
               <Users size={14} className={family.id === activeFamilyId ? "text-primary" : "text-slate/60"} />
               <span className={`text-[11px] font-bold uppercase tracking-wider ${family.id === activeFamilyId ? "text-primary" : "text-slate/60"}`}>
-                {family.name}
+                <LocalizedText
+                  text={family.name}
+                  targetLanguage={currentLanguage}
+                  originalLanguage={family.motherTongue}
+                />
               </span>
             </div>
           ))}
@@ -206,7 +211,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
             onClick={() => onNavigate('documents')}
           >
             <Archive size={14} className="text-accent/60" />
-            <span className="text-[11px] font-bold text-accent/60 uppercase tracking-wider">Vault</span>
+            <span className="text-[11px] font-bold text-accent/60 uppercase tracking-wider">{t('dashboard.vault', currentLanguage)}</span>
           </div>
         </div>
       </div>
@@ -214,7 +219,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
       {/* Active Prompts Section */}
       <div className="px-6 space-y-6">
         <div className="flex items-center justify-between">
-          <h3 className="text-[14px] font-black text-charcoal/40 dark:text-warmwhite/40 tracking-[0.2em] uppercase">Active Prompts</h3>
+          <h3 className="text-[14px] font-black text-charcoal/40 dark:text-warmwhite/40 tracking-[0.2em] uppercase">{t('dashboard.prompts', currentLanguage)}</h3>
         </div>
 
         {activePrompts.map((q) => (
@@ -224,9 +229,16 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
                 {q.askerName.charAt(0)}
               </div>
               <div className="flex-1">
-                <p className="text-[11px] font-black text-accent/80 dark:text-accent uppercase tracking-[0.15em] mb-1.5">{q.askerName} requested</p>
-                <h4 className="text-[22px] font-bold text-charcoal dark:text-warmwhite leading-[1.2] tracking-tight">{q.text}</h4>
-                {q.translation && q.translation !== q.text && (
+                <p className="text-[11px] font-black text-accent/80 dark:text-accent uppercase tracking-[0.15em] mb-1.5">{q.askerName} {t('questions.asked', currentLanguage)}</p>
+                <h4 className="text-[22px] font-bold text-charcoal dark:text-warmwhite leading-[1.2] tracking-tight">
+                  <LocalizedText
+                    text={q.text}
+                    targetLanguage={currentLanguage}
+                    originalLanguage={q.language}
+                    storedTranslation={q.translation}
+                  />
+                </h4>
+                {q.translation && q.translation !== q.text && q.language !== currentLanguage && (
                   <p className="text-primary dark:text-support/60 italic text-sm font-semibold mt-2">{q.translation}</p>
                 )}
               </div>
@@ -239,8 +251,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
               >
                 <Video size={24} className="text-white shrink-0" />
                 <div className="flex flex-col items-start leading-none gap-1">
-                  <span className="text-[14px] font-black uppercase tracking-tight">Record</span>
-                  <span className="text-[14px] font-black uppercase tracking-tight">Story</span>
+                  <span className="text-[14px] font-black uppercase tracking-tight">{t('dashboard.record', currentLanguage)}</span>
+                  <span className="text-[14px] font-black uppercase tracking-tight">{t('dashboard.story', currentLanguage)}</span>
                 </div>
               </button>
 
@@ -257,7 +269,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
                 <div className="flex items-center gap-1 mt-1">
                   {q.hasUpvoted && <ThumbsUp size={8} className="text-white fill-white" />}
                   <span className={`text-[9px] font-black uppercase tracking-[0.2em] ${q.hasUpvoted ? 'text-white/80' : 'text-slate dark:text-support/40'}`}>
-                    {q.hasUpvoted ? 'Upvoted' : 'Upvotes'}
+                    {q.hasUpvoted ? t('dashboard.upvoted', currentLanguage) : t('dashboard.upvotes', currentLanguage)}
                   </span>
                 </div>
               </button>
@@ -276,8 +288,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
           <div className="relative w-full max-w-md bg-warmwhite dark:bg-charcoal rounded-t-[56px] shadow-[0_-20px_80px_rgba(0,0,0,0.4)] animate-in slide-in-from-bottom duration-500 p-10 border-t border-white/20 dark:border-white/10 safe-area-bottom">
             <div className="flex items-center justify-between mb-10">
               <div>
-                <h3 className="text-3xl font-black text-charcoal dark:text-warmwhite tracking-tighter">{selectedFamilyMembers.name}</h3>
-                <p className="text-slate font-bold text-sm uppercase tracking-widest mt-1 opacity-60">{selectedFamilyMembers.members.length} Members</p>
+                <h3 className="text-3xl font-black text-charcoal dark:text-warmwhite tracking-tighter">
+                  <LocalizedText
+                    text={selectedFamilyMembers.name}
+                    targetLanguage={currentLanguage}
+                    originalLanguage={selectedFamilyMembers.motherTongue}
+                  />
+                </h3>
+                <p className="text-slate font-bold text-sm uppercase tracking-widest mt-1 opacity-60">{selectedFamilyMembers.members.length} {t('dashboard.members', currentLanguage)}</p>
               </div>
               <button
                 onClick={() => setSelectedFamilyMembers(null)}
@@ -295,7 +313,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
                   </div>
                   <div>
                     <h4 className="font-black text-charcoal dark:text-warmwhite text-lg tracking-tight">{member.name}</h4>
-                    <p className="text-slate dark:text-support/60 text-[10px] font-black uppercase tracking-[0.2em] opacity-40">{member.role}</p>
+                    <p className="text-slate dark:text-support/60 text-[10px] font-black uppercase tracking-[0.2em] opacity-40">
+                      <LocalizedText text={member.role} targetLanguage={currentLanguage} />
+                    </p>
                   </div>
                 </div>
               ))}
@@ -314,8 +334,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
           <div className="relative w-full max-w-md bg-warmwhite dark:bg-charcoal rounded-t-[56px] shadow-[0_-20px_80px_rgba(0,0,0,0.4)] animate-in slide-in-from-bottom duration-500 p-10 border-t border-white/20 dark:border-white/10 safe-area-bottom">
             <div className="flex items-center justify-between mb-8">
               <div>
-                <h3 className="text-3xl font-black text-charcoal dark:text-warmwhite tracking-tighter">Your Families</h3>
-                <p className="text-slate font-bold text-sm uppercase tracking-widest mt-1 opacity-60">Switch active group context</p>
+                <h3 className="text-3xl font-black text-charcoal dark:text-warmwhite tracking-tighter">{t('dashboard.families_title', currentLanguage)}</h3>
+                <p className="text-slate font-bold text-sm uppercase tracking-widest mt-1 opacity-60">{t('dashboard.families_subtitle', currentLanguage)}</p>
               </div>
               <button
                 onClick={() => setIsSwitchingFamily(false)}
@@ -343,9 +363,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
                       <Users size={20} className={family.id === activeFamilyId ? 'text-white' : 'text-primary'} />
                     </div>
                     <div className="text-left">
-                      <p className="font-black text-lg leading-none">{family.name}</p>
+                      <p className="font-black text-lg leading-none">
+                        <LocalizedText
+                          text={family.name}
+                          targetLanguage={currentLanguage}
+                          originalLanguage={family.motherTongue}
+                        />
+                      </p>
                       <p className={`text-[10px] font-bold uppercase tracking-widest mt-1 ${family.id === activeFamilyId ? 'text-white/60' : 'text-slate/40'}`}>
-                        {family.id === activeFamilyId ? 'Currently Active' : 'Switch Context'}
+                        {family.id === activeFamilyId ? t('dashboard.active_context', currentLanguage) : t('dashboard.switch_context', currentLanguage)}
                       </p>
                     </div>
                   </div>
@@ -365,7 +391,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
               }}
               className="w-full py-5 rounded-[28px] border-2 border-dashed border-secondary/40 text-slate/60 font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 hover:bg-primary/5 transition-all mt-4"
             >
-              <Plus size={16} /> Create New Family
+              <Plus size={16} /> {t('dashboard.create_new', currentLanguage)}
             </button>
           </div>
         </div>
@@ -376,20 +402,20 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
           <div className="absolute inset-0 bg-charcoal/60 backdrop-blur-sm" onClick={() => setIsCreatingFamily(false)}></div>
           <div className="relative w-full max-sm bg-warmwhite dark:bg-charcoal rounded-[44px] p-10 shadow-2xl border border-white/20 animate-in zoom-in-95 duration-200">
-            <h3 className="text-2xl font-black text-charcoal dark:text-warmwhite mb-8 tracking-tight">New Family Branch</h3>
+            <h3 className="text-2xl font-black text-charcoal dark:text-warmwhite mb-8 tracking-tight">{t('dashboard.new_branch', currentLanguage)}</h3>
             <div className="space-y-6">
               <div>
-                <label className="text-[10px] font-black text-slate dark:text-support/60 uppercase tracking-widest block mb-2 px-1">Name</label>
+                <label className="text-[10px] font-black text-slate dark:text-support/60 uppercase tracking-widest block mb-2 px-1">{t('dashboard.name_label', currentLanguage)}</label>
                 <input
                   type="text"
                   className="w-full bg-white dark:bg-white/5 border border-secondary/30 dark:border-white/10 rounded-2xl p-4 text-charcoal dark:text-warmwhite outline-none focus:ring-4 focus:ring-primary/10 transition-all font-bold"
-                  placeholder="e.g. The Smiths"
+                  placeholder={t('dashboard.name_placeholder', currentLanguage)}
                   value={newFamilyName}
                   onChange={(e) => setNewFamilyName(e.target.value)}
                 />
               </div>
               <div>
-                <label className="text-[10px] font-black text-slate dark:text-support/60 uppercase tracking-widest block mb-2 px-1">Language</label>
+                <label className="text-[10px] font-black text-slate dark:text-support/60 uppercase tracking-widest block mb-2 px-1">{t('dashboard.lang_label', currentLanguage)}</label>
                 <select
                   className="w-full bg-white dark:bg-white/5 border border-secondary/30 dark:border-white/10 rounded-2xl p-4 text-charcoal dark:text-warmwhite outline-none font-bold appearance-none"
                   value={newFamilyLang}
@@ -401,8 +427,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
                 </select>
               </div>
               <div className="flex gap-4 pt-4">
-                <button onClick={() => setIsCreatingFamily(false)} className="flex-1 py-4 text-slate dark:text-support/60 font-black uppercase tracking-widest text-xs">Cancel</button>
-                <button onClick={handleCreateFamily} className="flex-1 bg-primary text-white py-4 rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-primary/20">Create</button>
+                <button onClick={() => setIsCreatingFamily(false)} className="flex-1 py-4 text-slate dark:text-support/60 font-black uppercase tracking-widest text-xs">{t('questions.cancel', currentLanguage)}</button>
+                <button onClick={handleCreateFamily} className="flex-1 bg-primary text-white py-4 rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-primary/20">{t('dashboard.new', currentLanguage)}</button>
               </div>
             </div>
           </div>

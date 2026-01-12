@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 <html lang="en" class="dark:bg-charcoal">
+
 <head>
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-GEJXLSNYHG"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
-    function gtag(){dataLayer.push(arguments);}
+    function gtag() { dataLayer.push(arguments); }
     gtag('js', new Date());
     gtag('config', 'G-GEJXLSNYHG');
   </script>
@@ -16,10 +17,14 @@
   <meta name="theme-color" content="#2F5D8A">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <!-- Fix CORS issues for Google Sign-in popup -->
+  <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin-allow-popups">
+
   <title>Inai - Family Heritage Vault</title>
-  
+
   <script src="https://cdn.tailwindcss.com"></script>
-  
+
   <script>
     tailwind.config = {
       darkMode: 'class',
@@ -38,7 +43,7 @@
       }
     }
   </script>
-  
+
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
@@ -49,28 +54,42 @@
       overflow: hidden;
       background-color: #FAF9F7;
     }
+
     .dark body {
       background-color: #2B2B2B;
     }
+
     .safe-area-top {
       padding-top: env(safe-area-inset-top);
     }
+
     .safe-area-bottom {
       padding-bottom: env(safe-area-inset-bottom);
     }
+
     .no-scrollbar::-webkit-scrollbar {
       display: none;
     }
+
     .no-scrollbar {
       -ms-overflow-style: none;
       scrollbar-width: none;
     }
+
     .view-transition {
       animation: fadeIn 0.3s ease-out;
     }
+
     @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
   </style>
 
@@ -92,10 +111,15 @@
   }
 }
 </script>
-<link rel="stylesheet" href="/index.css">
+  <link rel="stylesheet" href="/index.css">
 </head>
+
 <body class="bg-warmwhite text-charcoal dark:bg-charcoal dark:text-warmwhite">
+  <!-- reCAPTCHA container for Firebase Phone Auth -->
+  <div id="recaptcha-container"></div>
+
   <div id="root"></div>
   <script type="module" src="/index.tsx"></script>
 </body>
+
 </html>

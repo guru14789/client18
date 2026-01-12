@@ -22,6 +22,7 @@ export interface User {
   activeFamilyId?: string;
   avatarUrl?: string;
   role?: 'admin' | 'user';
+  preferredLanguage?: Language;
 }
 
 export interface GroupMembership {

@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp, orderBy, getDoc, doc, setDoc, updateDoc } from "firebase/firestore";
 import { onAuthStateChanged, getRedirectResult, GoogleAuthProvider } from "firebase/auth";
-import { db, auth } from './services/firebase';
+import { db, auth } from './services/firebaseConfig';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import Feed from './components/Feed';
@@ -26,9 +26,11 @@ import Onboarding from './components/Onboarding';
 import Profile from './components/Profile';
 import Documents from './components/Documents';
 import { AppState, User, Memory, Family, Language, Question, FamilyDocument } from './types';
+import { LocalizedText } from './components/LocalizedText';
+import { t } from './services/i18n';
 
 const INITIAL_FAMILIES: Family[] = [
-  { id: 'f1', name: 'Gomez Family', motherTongue: Language.SPANISH, admins: [], members: [], inviteCode: 'GOMEZ123', isApproved: true },
+  { id: 'f1', name: 'Santosh Family', motherTongue: Language.TAMIL, admins: [], members: [], inviteCode: 'TAMIL123', isApproved: true },
   { id: 'f2', name: 'Sharma Clan', motherTongue: Language.HINDI, admins: [], members: [], inviteCode: 'SHARMA456', isApproved: true },
 ];
 
@@ -53,7 +55,7 @@ const App: React.FC = () => {
 
   const [language, setLanguage] = useState<Language>(() => {
     const saved = localStorage.getItem('inai_language');
-    return (saved as Language) || Language.SPANISH;
+    return (saved as Language) || Language.TAMIL;
   });
 
   // Auth State Listener
@@ -66,21 +68,31 @@ const App: React.FC = () => {
 
       try {
         if (firebaseUser) {
-          const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+          console.log("App: Fetching Firestore profile for:", firebaseUser.uid);
+          // Set a timeout for Firestore fetch just in case
+          const profilePromise = getDoc(doc(db, "users", firebaseUser.uid));
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Firestore timeout")), 5000));
+
+          const userDoc = await Promise.race([profilePromise, timeoutPromise]) as any;
+
           if (userDoc.exists()) {
-            console.log("App: Firestore profile loaded.");
-            setUser(userDoc.data() as User);
+            console.log("App: Firestore profile loaded successfully.");
+            const userData = userDoc.data() as User;
+            setUser(userData);
+            if (isMounted && userData.preferredLanguage) {
+              setLanguage(userData.preferredLanguage);
+            }
           } else {
-            console.log("App: No Firestore profile. Staying on login for checkUser.");
-            setUser(null);
+            console.log("App: No Firestore profile found for authenticated user.");
           }
         } else {
-          console.log("App: No user logged in.");
+          console.log("App: No user logged in via Firebase Auth.");
           setUser(null);
         }
       } catch (err) {
-        console.error("App: Auth observer error:", err);
+        console.error("App: Auth initialization error:", err);
       } finally {
+        console.log("App: Setting loading to false.");
         setLoading(false);
       }
     });
@@ -193,62 +205,72 @@ const App: React.FC = () => {
   }, [theme]);
 
   // Language Management
+  const handleLanguageChange = async (lang: Language) => {
+    setLanguage(lang);
+    localStorage.setItem('inai_language', lang);
+    if (user) {
+      try {
+        await updateDoc(doc(db, "users", user.id), { preferredLanguage: lang });
+        setUser({ ...user, preferredLanguage: lang });
+      } catch (err) {
+        console.error("Error saving language preference:", err);
+      }
+    }
+  };
+
   useEffect(() => {
     if (language) {
-      console.log("App: Language changed to:", language);
-      localStorage.setItem('inai_language', language);
+      console.log("App: Language synced in session:", language);
     }
   }, [language]);
 
-  // Initial Boot - Transitions from splash
+  // Robust View Transition Logic
   useEffect(() => {
-    if (view !== 'splash') return;
-
-    // Minimum display time for splash is 1.5s
-    const timer = setTimeout(() => {
-      if (!loading) {
-        if (!localStorage.getItem('inai_onboarding_done')) {
-          setView('onboarding');
-        } else {
-          setView(user ? 'home' : 'login');
-        }
-      }
-    }, 1500);
-
-    return () => clearTimeout(timer);
-  }, [view, loading, user]);
-
-  // Ensure view changes immediately when loading finishes if we had a long-lived splash
-  useEffect(() => {
-    if (view === 'splash' && !loading) {
-      if (!localStorage.getItem('inai_onboarding_done')) {
+    if (!loading && view === 'splash') {
+      const onboarded = localStorage.getItem('inai_onboarding_done');
+      if (!onboarded) {
         setView('onboarding');
       } else {
         setView(user ? 'home' : 'login');
       }
     }
-  }, [loading, view, user]);
+  }, [loading, user, view]);
 
   const handleLogin = useCallback(async (phoneNumber: string, name: string, firebaseUid: string) => {
     console.log("App: handleLogin triggered for:", name, firebaseUid);
+
     const newUser: User = {
       id: firebaseUid,
       name,
       phoneNumber,
       families: ['f1', 'f2'],
       avatarUrl: `https://i.pravatar.cc/150?u=${firebaseUid}`,
-      role: 'admin'
+      role: 'admin',
+      preferredLanguage: language,
+      activeFamilyId: 'f1'
     };
+
     try {
+      console.log("App: Saving user profile to Firestore...");
+
       if (firebaseUid !== 'demo-uid-123') {
-        await setDoc(doc(db, "users", firebaseUid), newUser);
+        await setDoc(doc(db, "users", firebaseUid), newUser, { merge: true });
+        console.log("App: User profile saved successfully!");
+      } else {
+        console.log("App: Demo user, skipping Firestore save");
       }
+
+      // Set user state and navigate
       setUser(newUser);
+      console.log("App: User state set, navigating to home...");
       setView('home');
+      console.log("App: Navigation complete!");
+
     } catch (err) {
-      console.error("Login error:", err);
+      console.error("App: Login error:", err);
+      alert(`Login failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
-  }, []);
+  }, [language]);
 
   const handleRecordingComplete = async (newMemory: Memory) => {
     try {
@@ -263,7 +285,8 @@ const App: React.FC = () => {
           id: Date.now().toString(),
           askerId: user?.id || '',
           askerName: user?.name || '',
-          text: 'Video Question',
+          text: t('questions.video_question_default', language),
+          translation: t('record.mode.question', language),
           language,
           upvotes: 0,
           isVideoQuestion: true,
@@ -282,13 +305,15 @@ const App: React.FC = () => {
     }
   };
 
+  const activeFamily = families.find(f => f.id === activeFamilyId);
+
   const handleLogout = async () => {
     await auth.signOut();
     setUser(null);
     setView('login');
   };
 
-  if (view === 'splash') return <SplashScreen />;
+  if (view === 'splash') return <SplashScreen currentLanguage={language} />;
 
   const hideFrame = ['splash', 'onboarding', 'login', 'record', 'nameEntry'].includes(view);
 
@@ -300,23 +325,23 @@ const App: React.FC = () => {
         <div onClick={() => setView('drafts')} className="bg-accent text-white px-6 py-3 flex items-center justify-between cursor-pointer shrink-0 z-10 animate-in slide-in-from-top duration-300 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="p-1 bg-white/20 rounded-lg"><Archive size={14} /></div>
-            <span className="text-[11px] font-bold tracking-tight">You have {drafts.length} draft memory awaiting review</span>
+            <span className="text-[11px] font-bold tracking-tight">{t('login.draft_alert', language).replace('{count}', drafts.length.toString())}</span>
           </div>
-          <span className="text-[9px] uppercase font-black tracking-widest border border-white/40 px-2 py-0.5 rounded-md">View</span>
+          <span className="text-[9px] uppercase font-black tracking-widest border border-white/40 px-2 py-0.5 rounded-md">{t('login.view', language)}</span>
         </div>
       )}
 
       <main className="flex-1 overflow-y-auto no-scrollbar relative flex flex-col">
         <div className="flex-1 view-transition">
-          {view === 'onboarding' && <Onboarding onComplete={() => { localStorage.setItem('inai_onboarding_done', 'true'); setView('login'); }} />}
-          {view === 'login' && <Login onLogin={handleLogin} />}
+          {view === 'onboarding' && <Onboarding onComplete={() => { localStorage.setItem('inai_onboarding_done', 'true'); setView('login'); }} currentLanguage={language} />}
+          {view === 'login' && <Login onLogin={handleLogin} currentLanguage={language} />}
           {view === 'home' && user && <Dashboard user={user} families={families} prompts={qPrompts} onNavigate={setView} onRecord={(q) => { if (q) setActiveQuestion(q); setRecordMode('answer'); setView('record'); }} onAddFamily={() => { }} currentLanguage={language} activeFamilyId={activeFamilyId} onSwitchFamily={switchFamily} onToggleUpvote={toggleUpvote} />}
-          {view === 'feed' && user && <Feed memories={memories} user={user} families={families} />}
+          {view === 'feed' && user && <Feed memories={memories} user={user} families={families} currentLanguage={language} />}
           {view === 'questions' && user && <Questions user={user} families={families} questions={qPrompts} onAnswer={(q) => { setActiveQuestion(q); setRecordMode('answer'); setView('record'); }} onRecordQuestion={() => { setActiveQuestion(null); setRecordMode('question'); setView('record'); }} onToggleUpvote={toggleUpvote} onAddQuestion={handleAddQuestion} activeFamilyId={activeFamilyId} currentLanguage={language} />}
-          {view === 'documents' && user && <Documents user={user} families={families} documents={documents} setDocuments={setDocuments} />}
-          {view === 'record' && user && <RecordMemory user={user} question={activeQuestion} mode={recordMode} onCancel={() => { setView('home'); setActiveQuestion(null); }} onComplete={handleRecordingComplete} families={families} activeFamilyId={activeFamilyId} />}
+          {view === 'documents' && user && <Documents user={user} families={families} documents={documents} setDocuments={setDocuments} currentLanguage={language} />}
+          {view === 'record' && user && <RecordMemory user={user} question={activeQuestion} mode={recordMode} onCancel={() => { setView('home'); setActiveQuestion(null); }} onComplete={handleRecordingComplete} families={families} activeFamilyId={activeFamilyId} currentLanguage={language} />}
           {view === 'drafts' && <Drafts drafts={drafts} onPublish={(m) => handleRecordingComplete({ ...m, isDraft: false })} onDelete={() => { }} />}
-          {view === 'profile' && user && <Profile user={user} families={families} onLogout={handleLogout} currentTheme={theme} onThemeChange={setTheme} currentLanguage={language} onLanguageChange={setLanguage} />}
+          {view === 'profile' && user && <Profile user={user} families={families} onLogout={handleLogout} currentTheme={theme} onThemeChange={setTheme} currentLanguage={language} onLanguageChange={handleLanguageChange} />}
         </div>
       </main>
 
@@ -326,20 +351,24 @@ const App: React.FC = () => {
             <nav className="bg-charcoal dark:bg-charcoal/90 backdrop-blur-md rounded-[36px] h-[68px] w-full flex items-center justify-around px-2 shadow-[0_25px_60px_rgba(0,0,0,0.5)] border border-white/5 relative pointer-events-auto">
               <button onClick={() => setView('home')} className={`relative flex flex-col items-center justify-center w-12 h-full transition-all active:scale-90 ${view === 'home' ? 'text-primary' : 'text-white/30 hover:text-white'}`}>
                 <Home size={20} strokeWidth={view === 'home' ? 3 : 2} />
-                {view === 'home' && <div className="absolute bottom-[10px] w-5 h-[3px] bg-primary rounded-full shadow-[0_0_15px_rgba(47,93,138,0.8)]" />}
+                <span className="text-[8px] font-bold mt-1 uppercase tracking-tighter">{t('nav.home', language)}</span>
+                {view === 'home' && <div className="absolute bottom-[2px] w-5 h-[2px] bg-primary rounded-full shadow-[0_0_15px_rgba(47,93,138,0.8)]" />}
               </button>
               <button onClick={() => setView('feed')} className={`relative flex flex-col items-center justify-center w-12 h-full transition-all active:scale-90 ${view === 'feed' ? 'text-primary' : 'text-white/30 hover:text-white'}`}>
                 <LayoutGrid size={20} strokeWidth={view === 'feed' ? 3 : 2} />
-                {view === 'feed' && <div className="absolute bottom-[10px] w-5 h-[3px] bg-primary rounded-full shadow-[0_0_15px_rgba(47,93,138,0.8)]" />}
+                <span className="text-[8px] font-bold mt-1 uppercase tracking-tighter">{t('nav.feed', language)}</span>
+                {view === 'feed' && <div className="absolute bottom-[2px] w-5 h-[2px] bg-primary rounded-full shadow-[0_0_15px_rgba(47,93,138,0.8)]" />}
               </button>
               <div className="w-16"></div>
               <button onClick={() => setView('questions')} className={`relative flex flex-col items-center justify-center w-12 h-full transition-all active:scale-90 ${view === 'questions' ? 'text-primary' : 'text-white/30 hover:text-white'}`}>
                 <MessageCircle size={20} strokeWidth={view === 'questions' ? 3 : 2} />
-                {view === 'questions' && <div className="absolute bottom-[10px] w-5 h-[3px] bg-primary rounded-full shadow-[0_0_15px_rgba(47,93,138,0.8)]" />}
+                <span className="text-[8px] font-bold mt-1 uppercase tracking-tighter">{t('nav.ask', language)}</span>
+                {view === 'questions' && <div className="absolute bottom-[2px] w-5 h-[2px] bg-primary rounded-full shadow-[0_0_15px_rgba(47,93,138,0.8)]" />}
               </button>
               <button onClick={() => setView('profile')} className={`relative flex flex-col items-center justify-center w-12 h-full transition-all active:scale-90 ${view === 'profile' ? 'text-primary' : 'text-white/30 hover:text-white'}`}>
                 <UserIcon size={20} strokeWidth={view === 'profile' ? 3 : 2} />
-                {view === 'profile' && <div className="absolute bottom-[10px] w-5 h-[3px] bg-primary rounded-full shadow-[0_0_15px_rgba(47,93,138,0.8)]" />}
+                <span className="text-[8px] font-bold mt-1 uppercase tracking-tighter">{t('nav.profile', language)}</span>
+                {view === 'profile' && <div className="absolute bottom-[2px] w-5 h-[2px] bg-primary rounded-full shadow-[0_0_15px_rgba(47,93,138,0.8)]" />}
               </button>
               <button onClick={() => setView('record')} className="absolute left-1/2 -translate-x-1/2 -top-[28px] w-[56px] h-[56px] bg-primary text-white rounded-full flex items-center justify-center shadow-[0_15px_35px_rgba(47,93,138,0.5)] hover:brightness-110 active:scale-95 transition-all z-[70] ring-4 ring-white dark:ring-charcoal border border-white/10">
                 <Plus size={30} strokeWidth={3} />

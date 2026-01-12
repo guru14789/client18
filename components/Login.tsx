@@ -2,7 +2,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Smartphone, ChevronLeft, ChevronDown, Phone, Search, X, User as UserIcon, ArrowRight, Loader2 } from 'lucide-react';
 import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signInWithPopup } from "firebase/auth";
-import { auth } from '../services/firebase';
+import { auth } from '../services/firebaseConfig';
+import { Language } from '../types';
+import { t } from '../services/i18n';
 
 interface Country {
   name: string;
@@ -29,9 +31,10 @@ const COUNTRIES: Country[] = [
 
 interface LoginProps {
   onLogin: (phone: string, name: string, firebaseUid: string) => void;
+  currentLanguage: Language;
 }
 
-const Login: React.FC<LoginProps> = ({ onLogin }) => {
+const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage }) => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']); // Firebase typically uses 6 digits
   const [name, setName] = useState('');
@@ -98,18 +101,48 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     );
   }, [countrySearch]);
 
-  const setupRecaptcha = () => {
-    if ((window as any).recaptchaVerifier) {
-      (window as any).recaptchaVerifier.clear();
-    }
-    (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-      'size': 'invisible',
-      'callback': () => { },
-      'expired-callback': () => {
-        setupRecaptcha();
+  useEffect(() => {
+    // Initialize reCAPTCHA on mount
+    const initRecaptcha = () => {
+      if (!auth || (window as any).recaptchaVerifier) return;
+
+      try {
+        console.log("Login: Initializing reCAPTCHA verifier...");
+        (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+          'size': 'normal',
+          'callback': () => {
+            console.log("reCAPTCHA solved successfully");
+            setError(null);
+          },
+          'expired-callback': () => {
+            console.log("reCAPTCHA expired, resetting...");
+            if ((window as any).recaptchaVerifier) {
+              (window as any).recaptchaVerifier.clear();
+              (window as any).recaptchaVerifier = null;
+            }
+            initRecaptcha();
+          }
+        });
+
+        (window as any).recaptchaVerifier.render().then((widgetId: any) => {
+          (window as any).recaptchaWidgetId = widgetId;
+        });
+      } catch (err) {
+        console.error("Error setting up reCAPTCHA:", err);
       }
-    });
-  };
+    };
+
+    initRecaptcha();
+
+    return () => {
+      if ((window as any).recaptchaVerifier) {
+        try {
+          (window as any).recaptchaVerifier.clear();
+          (window as any).recaptchaVerifier = null;
+        } catch (e) { }
+      }
+    };
+  }, []);
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -121,15 +154,43 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     localStorage.setItem('inai_cached_country', selectedCountry.iso);
 
     try {
-      setupRecaptcha();
       const appVerifier = (window as any).recaptchaVerifier;
+
+      if (!appVerifier) {
+        throw new Error("reCAPTCHA verifier not initialized. Please refresh the page.");
+      }
+
       const fullPhone = `${selectedCountry.code}${phoneNumber}`;
+      console.log("Attempting to send OTP to:", fullPhone);
+
       const result = await signInWithPhoneNumber(auth, fullPhone, appVerifier);
       setConfirmationResult(result);
       setStep('otp');
+      console.log("OTP sent successfully");
     } catch (err: any) {
       console.error("Error sending OTP:", err);
-      setError(err.message || "Failed to send code. Please try again.");
+
+      // Provide more specific error messages
+      if (err.code === 'auth/invalid-phone-number') {
+        setError("Invalid phone number format. Please check and try again.");
+      } else if (err.code === 'auth/too-many-requests') {
+        setError("Too many attempts. Please try again later.");
+      } else if (err.code === 'auth/invalid-app-credential') {
+        setError("Authentication not properly configured. Please contact support.");
+      } else {
+        setError(t('login.error_failed_send', currentLanguage));
+      }
+
+      // Clear the recaptcha verifier on error
+      if ((window as any).recaptchaVerifier) {
+        try {
+          (window as any).recaptchaVerifier.clear();
+          (window as any).recaptchaVerifier = null;
+        } catch (e) {
+          console.warn("Error clearing recaptcha after failure:", e);
+        }
+      }
+
     } finally {
       setLoading(false);
     }
@@ -159,7 +220,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       }
     } catch (err: any) {
       console.error("Error verifying OTP:", err);
-      setError("Invalid code. Please try again.");
+      setError(t('login.error_invalid_otp', currentLanguage));
     } finally {
       setLoading(false);
     }
@@ -210,8 +271,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           </div>
 
           <div className="text-center space-y-3 mb-12">
-            <h1 className="text-[44px] font-black text-charcoal tracking-tighter leading-none">Connect</h1>
-            <p className="text-slate text-lg font-medium max-w-[280px] mx-auto opacity-70">Preserve your family heritage in a secure vault.</p>
+            <h1 className="text-[44px] font-black text-charcoal tracking-tighter leading-none">{t('login.welcome_title', currentLanguage)}</h1>
+            <p className="text-slate text-lg font-medium max-w-[280px] mx-auto opacity-70">{t('login.welcome_subtitle', currentLanguage)}</p>
           </div>
 
           <div className="w-full space-y-4 mb-16">
@@ -220,7 +281,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               className="w-full h-16 bg-primary rounded-[24px] flex items-center justify-center gap-4 text-white font-black text-lg shadow-xl shadow-primary/20 active:scale-95 transition-all"
             >
               <Smartphone size={24} />
-              Phone Number
+              {t('login.phone_btn', currentLanguage)}
             </button>
             <button
               onClick={async () => {
@@ -245,9 +306,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 } catch (err: any) {
                   console.error("Login: Google popup error:", err);
                   if (err.code === 'auth/popup-closed-by-user') {
-                    setError("Login cancelled. Please try again.");
+                    setError(t('login.error_popup_closed', currentLanguage));
                   } else if (err.code === 'auth/operation-not-allowed') {
-                    setError("Google Sign-in is not enabled in Firebase Console.");
+                    setError(t('login.error_google_disabled', currentLanguage));
                   } else {
                     setError(err.message || "Google login failed.");
                   }
@@ -259,14 +320,14 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               className="w-full h-16 bg-white border border-secondary rounded-[24px] flex items-center justify-center gap-4 text-charcoal font-black text-lg shadow-sm active:scale-95 transition-all disabled:opacity-50"
             >
               <img src="https://www.gstatic.com/images/branding/product/1x/googleg_48dp.png" alt="Google" className="w-6 h-6" />
-              Google
+              {t('login.google', currentLanguage)}
             </button>
 
             <button
               onClick={() => onLogin('9876543210', 'Guest Member', 'demo-uid-123')}
               className="w-full h-16 bg-accent/10 border border-accent/20 rounded-[24px] flex items-center justify-center gap-4 text-accent font-black text-lg active:scale-95 transition-all"
             >
-              Demo Access
+              {t('login.demo', currentLanguage)}
             </button>
           </div>
         </div>
@@ -284,8 +345,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           </div>
 
           <div className="space-y-2 mb-10">
-            <h1 className="text-4xl font-black text-charcoal tracking-tighter">Your Number</h1>
-            <p className="text-lg text-slate font-medium opacity-60">We'll send a code to verify you.</p>
+            <h1 className="text-4xl font-black text-charcoal tracking-tighter">{t('login.phone_title', currentLanguage)}</h1>
+            <p className="text-lg text-slate font-medium opacity-60">{t('login.phone_subtitle', currentLanguage)}</p>
           </div>
 
           <form onSubmit={handleSendOtp} className="flex flex-col flex-1">
@@ -301,7 +362,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               </button>
               <input
                 type="tel"
-                placeholder="000 0000 000"
+                placeholder={t('login.phone_placeholder', currentLanguage)}
                 className="flex-1 px-4 text-xl bg-transparent outline-none text-charcoal placeholder-slate/20 font-bold"
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
@@ -321,7 +382,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 disabled={loading || phoneNumber.length < 8}
                 className="w-full h-16 bg-primary text-white font-black rounded-[24px] text-lg shadow-2xl shadow-primary/20 flex items-center justify-center gap-3 disabled:opacity-50 active:scale-95 transition-all"
               >
-                {loading ? <Loader2 size={24} className="animate-spin" /> : <>Get Code <ArrowRight size={20} /></>}
+                {loading ? <Loader2 size={24} className="animate-spin" /> : <>{t('login.get_code', currentLanguage)} <ArrowRight size={20} /></>}
               </button>
             </div>
           </form>
@@ -336,7 +397,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate/40" size={18} />
                   <input
                     type="text"
-                    placeholder="Search countries..."
+                    placeholder={t('login.search_countries', currentLanguage)}
                     className="w-full bg-secondary/10 pl-11 pr-4 py-3 rounded-xl outline-none focus:ring-2 focus:ring-primary transition-all text-charcoal font-bold"
                     value={countrySearch}
                     onChange={(e) => setCountrySearch(e.target.value)}
@@ -379,8 +440,8 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           </div>
 
           <div className="space-y-2 mb-10">
-            <h1 className="text-4xl font-black text-charcoal tracking-tighter">Verification</h1>
-            <p className="text-lg text-slate font-medium opacity-60">Enter the 6-digit code sent to you.</p>
+            <h1 className="text-4xl font-black text-charcoal tracking-tighter">{t('login.otp_title', currentLanguage)}</h1>
+            <p className="text-lg text-slate font-medium opacity-60">{t('login.otp_subtitle', currentLanguage)}</p>
           </div>
 
           <div className="flex justify-between gap-4 mb-10">
@@ -406,7 +467,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           )}
 
           <div className="text-center">
-            <button className="text-primary font-black text-sm uppercase tracking-widest bg-primary/5 px-6 py-2 rounded-full">Resend Code</button>
+            <button className="text-primary font-black text-sm uppercase tracking-widest bg-primary/5 px-6 py-2 rounded-full">{t('login.resend', currentLanguage)}</button>
           </div>
 
           <div className="mt-auto pb-16">
@@ -415,7 +476,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               disabled={loading || otp.some(d => !d)}
               className="w-full h-16 bg-primary text-white font-black rounded-[24px] text-lg shadow-2xl shadow-primary/20 flex items-center justify-center gap-3 active:scale-95 transition-all disabled:opacity-50"
             >
-              {loading ? <Loader2 size={24} className="animate-spin" /> : 'Confirm Code'}
+              {loading ? <Loader2 size={24} className="animate-spin" /> : t('login.confirm', currentLanguage)}
             </button>
           </div>
         </div>
@@ -429,16 +490,16 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             <div className="w-20 h-20 bg-primary/10 rounded-[24px] flex items-center justify-center text-primary mb-6">
               <UserIcon size={40} />
             </div>
-            <h1 className="text-3xl font-black text-charcoal tracking-tighter text-center">Nearly there!</h1>
-            <p className="text-slate font-medium opacity-60 text-center mt-2">What should your family call you?</p>
+            <h1 className="text-3xl font-black text-charcoal tracking-tighter text-center">{t('login.nearly_there', currentLanguage)}</h1>
+            <p className="text-slate font-medium opacity-60 text-center mt-2">{t('login.family_call_you', currentLanguage)}</p>
           </div>
 
           <form onSubmit={handleNameSubmit} className="flex-1 flex flex-col mt-10">
             <div className="bg-white border border-secondary/30 rounded-[28px] p-6 shadow-sm">
-              <label className="text-[10px] font-black text-slate uppercase tracking-[0.3em] block mb-3 px-1">Your Full Name</label>
+              <label className="text-[10px] font-black text-slate uppercase tracking-[0.3em] block mb-3 px-1">{t('login.full_name', currentLanguage)}</label>
               <input
                 type="text"
-                placeholder="e.g. Grandma Rose"
+                placeholder={t('login.enter_name', currentLanguage)}
                 className="w-full bg-transparent outline-none text-2xl font-black text-charcoal placeholder-slate/10"
                 value={name}
                 onChange={e => setName(e.target.value)}
@@ -447,7 +508,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             </div>
 
             <p className="mt-6 text-sm text-slate text-center px-4 opacity-50 font-medium">
-              This name will be shown to your family members when you share memories.
+              {t('login.name_desc', currentLanguage)}
             </p>
 
             <div className="mt-auto pb-16">
@@ -456,7 +517,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 disabled={name.trim().length < 2 || !firebaseUid}
                 className="w-full h-16 bg-primary text-white font-black rounded-[24px] text-lg shadow-2xl shadow-primary/20 flex items-center justify-center gap-3 active:scale-95 transition-all disabled:opacity-50"
               >
-                Start Preserving <ArrowRight size={20} />
+                {t('login.get_started', currentLanguage)} <ArrowRight size={20} />
               </button>
             </div>
           </form>

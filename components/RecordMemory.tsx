@@ -13,7 +13,10 @@ import {
   Loader2,
   FilePlus
 } from 'lucide-react';
-import { User, Question, Memory, Family } from '../types';
+import { User, Question, Memory, Family, Language } from '../types';
+import { t } from '../services/i18n';
+import { translateQuestion } from '../services/geminiService';
+import { LocalizedText } from './LocalizedText';
 
 interface RecordMemoryProps {
   user: User;
@@ -25,11 +28,12 @@ interface RecordMemoryProps {
   existingDraftId?: string;
   onDeleteDraft?: (id: string) => void;
   activeFamilyId: string | null;
+  currentLanguage: Language;
 }
 
 type RecordStage = 'prep' | 'recording' | 'review' | 'processing';
 
-const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, onComplete, families, mode = 'answer', existingDraftId, onDeleteDraft, activeFamilyId }) => {
+const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, onComplete, families, mode = 'answer', existingDraftId, onDeleteDraft, activeFamilyId, currentLanguage }) => {
   const [stage, setStage] = useState<RecordStage>('prep');
   const [timeLeft, setTimeLeft] = useState(90);
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -188,9 +192,10 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
       };
 
       if (shareOption === 'app_whatsapp') {
-        const text = mode === 'answer'
-          ? `I just answered a family question: "${question?.text}"\nCheck it out on Inai!`
-          : `I just asked a family question!\nCheck it out and answer on Inai!`;
+        const template = mode === 'answer'
+          ? t('record.whatsapp_template_answer', currentLanguage)
+          : t('record.whatsapp_template_question', currentLanguage);
+        const text = template.replace('{question}', question?.text || "");
         const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text + "\n" + downloadURL)}`;
         window.open(whatsappUrl, '_blank');
       }
@@ -251,8 +256,15 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
             {/* Visual Question Context */}
             {question && (
               <div className="absolute top-24 left-6 right-6 z-40 bg-black/40 backdrop-blur-md rounded-2xl p-4 border border-white/20 pointer-events-none">
-                <p className="text-[9px] font-black text-accent uppercase mb-1 tracking-widest">Question</p>
-                <p className="text-sm font-bold leading-tight">{question.text}</p>
+                <p className="text-[9px] font-black text-accent uppercase mb-1 tracking-widest">{t('record.question_label', currentLanguage)}</p>
+                <p className="text-sm font-bold leading-tight">
+                  <LocalizedText
+                    text={question.text}
+                    targetLanguage={currentLanguage}
+                    originalLanguage={question.language}
+                    storedTranslation={question.translation}
+                  />
+                </p>
               </div>
             )}
           </div>
@@ -260,7 +272,7 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
           <div className="w-full h-full flex flex-col items-center justify-center gap-4">
             <Loader2 size={48} className="animate-spin text-primary" />
             <p className="font-bold uppercase tracking-widest text-xs opacity-60">
-              {savingOption === 'draft' ? 'Saving Draft...' : 'Sharing Story...'}
+              {savingOption === 'draft' ? t('record.save_draft', currentLanguage) + '...' : t('record.publish', currentLanguage) + '...'}
             </p>
           </div>
         )}
@@ -273,8 +285,15 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
           <div className="w-full space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {question && (
               <div className="bg-white/10 backdrop-blur-xl rounded-[32px] p-8 border border-white/10 shadow-2xl text-left">
-                <p className="text-[10px] font-black text-accent uppercase mb-3 tracking-[0.2em]">Family Request</p>
-                <h3 className="text-xl font-bold mb-2 leading-tight tracking-tight">{question.text}</h3>
+                <p className="text-[10px] font-black text-accent uppercase mb-3 tracking-[0.2em]">{t('record.family_request', currentLanguage)}</p>
+                <h3 className="text-xl font-bold mb-2 leading-tight tracking-tight">
+                  <LocalizedText
+                    text={question.text}
+                    targetLanguage={currentLanguage}
+                    originalLanguage={question.language}
+                    storedTranslation={question.translation}
+                  />
+                </h3>
                 {question.translation && <p className="text-support/60 italic text-sm font-medium">{question.translation}</p>}
               </div>
             )}
@@ -287,7 +306,7 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
                 <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
                   <Camera size={24} fill="white" />
                 </div>
-                {mode === 'question' ? 'Record Video Question' : 'Start Story'}
+                {mode === 'question' ? t('record.mode.question', currentLanguage) : t('record.start', currentLanguage)}
               </button>
             </div>
           </div>
@@ -301,7 +320,14 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
               <div className="flex flex-col items-center gap-6">
                 {question && (
                   <div className="bg-black/60 backdrop-blur-md p-5 rounded-3xl mb-8 border border-white/10 max-w-xs shadow-2xl">
-                    <p className="text-sm font-bold text-white text-center">{question.text}</p>
+                    <p className="text-sm font-bold text-white text-center">
+                      <LocalizedText
+                        text={question.text}
+                        targetLanguage={currentLanguage}
+                        originalLanguage={question.language}
+                        storedTranslation={question.translation}
+                      />
+                    </p>
                   </div>
                 )}
                 <div className="w-28 h-28 rounded-full border-4 border-white/40 flex items-center justify-center p-1.5 hover:border-white transition-all shadow-2xl bg-white/5">
@@ -312,7 +338,7 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
                     <Square size={32} fill="white" className="text-white" />
                   </button>
                 </div>
-                <p className="text-[11px] font-black tracking-[0.4em] uppercase text-white/80 drop-shadow-md">Finish Recording</p>
+                <p className="text-[11px] font-black tracking-[0.4em] uppercase text-white/80 drop-shadow-md">{t('record.finish', currentLanguage)}</p>
               </div>
             )}
           </div>
@@ -321,7 +347,7 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
         {stage === 'review' && (
           <div className="w-full space-y-4 animate-in slide-in-from-bottom duration-500">
             <div className="bg-primary/30 backdrop-blur-xl rounded-[32px] p-4 border border-white/10 mb-2 shadow-xl text-center">
-              <p className="text-sm font-bold tracking-tight">How would you like to share this?</p>
+              <p className="text-sm font-bold tracking-tight">{t('record.share_title', currentLanguage)}</p>
             </div>
 
             <div className="flex flex-col gap-3">
@@ -330,7 +356,7 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
                 className="w-full bg-primary text-white font-bold py-5 rounded-[28px] flex items-center justify-center gap-3 shadow-2xl shadow-primary/30 transition-all active:scale-95 text-lg"
               >
                 <Share2 size={22} fill="white" />
-                Share in-app + WhatsApp
+                {t('record.share_whatsapp', currentLanguage)}
               </button>
 
               <button
@@ -338,7 +364,7 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
                 className="w-full bg-white/10 backdrop-blur-xl text-white font-bold py-5 rounded-[28px] flex items-center justify-center gap-3 border border-white/20 transition-all active:scale-95 text-lg"
               >
                 <Send size={22} fill="white" />
-                Share in-app only
+                {t('record.publish', currentLanguage)}
               </button>
 
               <div className="flex gap-4">
@@ -355,14 +381,14 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
                   className="flex-1 bg-white/10 backdrop-blur-xl text-white font-bold py-4 rounded-[24px] flex items-center justify-center gap-2 hover:bg-white/20 transition-all active:scale-95 border border-white/10"
                 >
                   <RefreshCcw size={18} />
-                  Retake
+                  {t('record.retake', currentLanguage)}
                 </button>
                 <button
                   onClick={() => handleFinish('draft')}
                   className="flex-1 bg-accent/20 backdrop-blur-xl text-accent font-bold py-4 rounded-[24px] flex items-center justify-center gap-2 hover:bg-accent/30 transition-all active:scale-95 border border-accent/20"
                 >
                   <FilePlus size={18} />
-                  Save as Draft
+                  {t('record.save_draft', currentLanguage)}
                 </button>
               </div>
             </div>
