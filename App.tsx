@@ -224,15 +224,23 @@ const App: React.FC = () => {
     }
   }, [language]);
 
-  // Robust View Transition Logic
+  // Global View Transition & Auth-View Sync
   useEffect(() => {
-    if (!loading && view === 'splash') {
+    if (loading) return;
+
+    if (view === 'splash') {
       const onboarded = localStorage.getItem('inai_onboarding_done');
       if (!onboarded) {
         setView('onboarding');
       } else {
         setView(user ? 'home' : 'login');
       }
+    } else if (user && view === 'login') {
+      // Auto-navigate to home if user is detected while on login screen
+      setView('home');
+    } else if (!user && !['splash', 'onboarding', 'login'].includes(view)) {
+      // Force back to login if user is lost
+      setView('login');
     }
   }, [loading, user, view]);
 
@@ -317,6 +325,7 @@ const App: React.FC = () => {
 
   const hideFrame = ['splash', 'onboarding', 'login', 'record', 'nameEntry'].includes(view);
 
+  console.log(`[RENDER] Current View: ${view}, Has User: ${!!user}`);
   return (
     <div className="flex flex-col h-screen max-w-md mx-auto bg-warmwhite dark:bg-charcoal text-charcoal dark:text-warmwhite shadow-xl relative overflow-hidden transition-colors duration-300">
       {!hideFrame && <div className="safe-area-top bg-warmwhite dark:bg-charcoal shrink-0 z-[100] w-full transition-colors" />}

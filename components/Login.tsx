@@ -52,35 +52,16 @@ const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage }) => {
   const authInitialized = useRef(false);
 
   useEffect(() => {
-    // We let App.tsx handle getRedirectResult.
-    // Inside Login, we just check if someone is ALREADY logged in (but has no profile).
-
-    const checkUser = () => {
-      const user = auth.currentUser;
-      if (user) {
-        console.log("Login: Current Firebase user found:", user.uid);
-        if (user.displayName) {
-          // Profile exists in Google but maybe not in Firestore yet
-          onLogin(user.email || user.uid, user.displayName, user.uid);
-        } else {
-          // Need to ask for name
-          setFirebaseUid(user.uid);
-          setPhoneNumber(user.email || user.uid);
-          setStep('nameEntry');
-        }
-      }
-    };
-
-    checkUser();
-    const unsub = auth.onAuthStateChanged((user) => {
-      if (user) {
-        console.log("Login: Auth status changed to user:", user.uid);
-        checkUser();
-      }
-    });
-
-    return () => unsub();
-  }, [onLogin]);
+    // We let App.tsx handle the initial auth check and view redirection.
+    // If we are at the login view and have an auth user but no display name,
+    // we stay here but show the name entry step.
+    const user = auth.currentUser;
+    if (user && !user.displayName) {
+      setFirebaseUid(user.uid);
+      setPhoneNumber(user.email || user.uid);
+      setStep('nameEntry');
+    }
+  }, []);
 
 
   useEffect(() => {

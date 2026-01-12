@@ -39,7 +39,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
 
   const activePrompts = prompts;
 
-  const connectedFamilies = families.filter(f => user.families.includes(f.id));
+  const connectedFamilies = families.filter(f => user.families?.includes(f.id));
   const activeFamily = connectedFamilies.find(f => f.id === activeFamilyId) || connectedFamilies[0];
 
   useEffect(() => {
