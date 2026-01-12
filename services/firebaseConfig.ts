@@ -16,6 +16,9 @@ const firebaseConfig = {
     measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
+console.log("Firebase Init: Project ID is", firebaseConfig.projectId ? "set" : "MISSING");
+if (!firebaseConfig.apiKey) console.warn("Firebase Init: API Key is MISSING!");
+
 // Singleton initialization
 let app: FirebaseApp;
 try {

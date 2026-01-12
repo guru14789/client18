@@ -69,9 +69,9 @@ const App: React.FC = () => {
       try {
         if (firebaseUser) {
           console.log("App: Fetching Firestore profile for:", firebaseUser.uid);
-          // Set a timeout for Firestore fetch just in case
+          // Set a slightly longer timeout for Firestore fetch
           const profilePromise = getDoc(doc(db, "users", firebaseUser.uid));
-          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Firestore timeout")), 5000));
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Firestore timeout")), 15000));
 
           const userDoc = await Promise.race([profilePromise, timeoutPromise]) as any;
 
@@ -262,8 +262,21 @@ const App: React.FC = () => {
       console.log("App: Saving user profile to Firestore...");
 
       if (firebaseUid !== 'demo-uid-123') {
-        await setDoc(doc(db, "users", firebaseUid), newUser, { merge: true });
-        console.log("App: User profile saved successfully!");
+        // Create a promise for the Firestore write
+        const savePromise = setDoc(doc(db, "users", firebaseUid), newUser, { merge: true });
+
+        // Add a timeout fallback for the write operation
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Database save timed out")), 10000)
+        );
+
+        try {
+          await Promise.race([savePromise, timeoutPromise]);
+          console.log("App: User profile saved successfully!");
+        } catch (saveErr) {
+          console.warn("App: Database save timed out or failed, proceeding with local state...", saveErr);
+          // We proceed anyway to let the user into the app
+        }
       } else {
         console.log("App: Demo user, skipping Firestore save");
       }
