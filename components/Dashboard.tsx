@@ -1,19 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { Users, Archive, Plus, Video, X, Globe, MapPin, Info, ThumbsUp } from 'lucide-react';
 import { User, Family, Question, Language } from '../types';
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { translateQuestion } from '../services/geminiService';
 import { t } from '../services/i18n';
 import { LocalizedText } from './LocalizedText';
-
-interface Member {
-  id: string;
-  name: string;
-  role: string;
-  avatar: string;
-  isOnline: boolean;
-}
 
 interface DashboardProps {
   user: User;
@@ -29,18 +18,13 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRecord, onAddFamily, currentLanguage, activeFamilyId, onSwitchFamily, prompts, onToggleUpvote }) => {
-  const [selectedFamilyMembers, setSelectedFamilyMembers] = useState<{ name: string, members: Member[] } | null>(null);
   const [isCreatingFamily, setIsCreatingFamily] = useState(false);
   const [isSwitchingFamily, setIsSwitchingFamily] = useState(false);
   const [newFamilyName, setNewFamilyName] = useState('');
   const [newFamilyLang, setNewFamilyLang] = useState<Language>(Language.TAMIL);
   const [greeting, setGreeting] = useState('Hello');
-  const [locationName, setLocationName] = useState<string | null>(null);
 
-  const activePrompts = prompts;
-
-  const connectedFamilies = families.filter(f => user.families?.includes(f.id));
-  const activeFamily = connectedFamilies.find(f => f.id === activeFamilyId) || connectedFamilies[0];
+  const activeFamily = families.find(f => f.id === activeFamilyId) || families[0];
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -55,39 +39,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
     setGreeting(langGreeting);
   }, [currentLanguage]);
 
-  useEffect(() => {
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(async (position) => {
-        // Location fetching disabled as Gemini key was removed
-      }, (error) => {
-        console.warn("Geolocation permission denied or error:", error.message);
-      });
-    }
-  }, []);
-
-  const getMockMembers = (familyId: string): Member[] => {
-    if (familyId === 'f1') {
-      return [
-        { id: 'm1', name: 'சந்தோஷ்', role: 'குடும்பத்தலைவர்', avatar: 'https://i.pravatar.cc/150?u=joe', isOnline: true },
-        { id: 'm2', name: 'அகிலா', role: 'மகள்', avatar: 'https://i.pravatar.cc/150?u=emma', isOnline: false },
-        { id: 'm3', name: 'மரியா', role: 'சகோதரி', avatar: 'https://i.pravatar.cc/150?u=maria', isOnline: true },
-        { id: 'm4', name: 'ரிச்சர்ட்', role: 'சித்தப்பா', avatar: 'https://i.pravatar.cc/150?u=ric', isOnline: false },
-      ];
-    }
-    return [
-      { id: 's1', name: 'Arjun Sharma', role: 'Cousin', avatar: 'https://i.pravatar.cc/150?u=arjun', isOnline: true },
-      { id: 's2', name: 'Priya Sharma', role: 'Mother', avatar: 'https://i.pravatar.cc/150?u=priya', isOnline: true },
-      { id: 's3', name: 'Rahul', role: 'Brother', avatar: 'https://i.pravatar.cc/150?u=rahul', isOnline: false },
-    ];
-  };
-
-  const handleFamilyClick = (family: Family) => {
-    setSelectedFamilyMembers({
-      name: family.name,
-      members: getMockMembers(family.id)
-    });
-  };
-
   const handleCreateFamily = () => {
     if (newFamilyName.trim()) {
       onAddFamily(newFamilyName, newFamilyLang);
@@ -96,36 +47,19 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
     }
   };
 
-  const handleToggleUpvote = (id: string) => {
-    onToggleUpvote(id);
-  };
-
-  const handleFamilySelection = (family: Family) => {
-    onSwitchFamily(family.id);
-    handleFamilyClick(family);
-  };
-
   return (
     <div className="bg-warmwhite dark:bg-charcoal flex-1 pb-32 transition-colors duration-300">
-      {/* Page Header */}
       <div className="px-6 pt-8 pb-4 flex items-start justify-between">
         <div>
           <h1 className="text-4xl font-black text-charcoal dark:text-warmwhite tracking-tighter leading-none">{t('dashboard.greeting', currentLanguage)} {user.name}</h1>
           <div className="flex items-center gap-2 mt-2">
             <p className="text-slate/60 dark:text-support/40 text-xl font-medium">{greeting}!</p>
-            {locationName && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 bg-primary/5 dark:bg-white/10 rounded-full border border-primary/10 dark:border-white/10 transition-colors">
-                <MapPin size={12} className="text-primary dark:text-white" />
-                <span className="text-[10px] font-bold text-primary dark:text-white uppercase tracking-wider">{locationName}</span>
-              </div>
-            )}
           </div>
         </div>
 
-        {/* Group Switcher - De-emphasized but accessible */}
         <button
           onClick={() => setIsSwitchingFamily(true)}
-          className="flex flex-col items-end gap-1 active:scale-95 transition-all"
+          className="flex flex-col items-end gap-1 active:scale-95 transition-all outline-none"
         >
           <div className="flex items-center gap-2 bg-white/40 dark:bg-white/5 border border-secondary/20 dark:border-white/10 px-4 py-2 rounded-2xl">
             <span className="text-[10px] font-black uppercase tracking-widest text-primary truncate max-w-[80px]">
@@ -186,14 +120,14 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
         </div>
 
         <div className="flex overflow-x-auto px-6 gap-4 pb-2 no-scrollbar">
-          {connectedFamilies.map((family) => (
+          {families.map((family) => (
             <div
               key={family.id}
               className={`flex items-center gap-3 border px-4 py-2 rounded-2xl shrink-0 cursor-pointer active:scale-95 transition-all ${family.id === activeFamilyId
                 ? 'bg-primary/10 border-primary shadow-sm'
                 : 'bg-white/40 dark:bg-white/5 border-secondary/20 dark:border-white/10'
                 }`}
-              onClick={() => handleFamilySelection(family)}
+              onClick={() => onSwitchFamily(family.id)}
             >
               <Users size={14} className={family.id === activeFamilyId ? "text-primary" : "text-slate/60"} />
               <span className={`text-[11px] font-bold uppercase tracking-wider ${family.id === activeFamilyId ? "text-primary" : "text-slate/60"}`}>
@@ -222,7 +156,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
           <h3 className="text-[14px] font-black text-charcoal/40 dark:text-warmwhite/40 tracking-[0.2em] uppercase">{t('dashboard.prompts', currentLanguage)}</h3>
         </div>
 
-        {activePrompts.map((q) => (
+        {prompts.map((q) => (
           <div key={q.id} className="bg-white dark:bg-white/5 rounded-[44px] p-8 flex flex-col gap-8 border border-secondary/20 dark:border-white/10 relative transition-all shadow-sm">
             <div className="flex items-start gap-6">
               <div className="w-16 h-16 rounded-[24px] overflow-hidden shrink-0 border-4 border-warmwhite dark:border-charcoal/50 shadow-xl bg-support/20 dark:bg-white/10 flex items-center justify-center text-primary dark:text-white font-black text-2xl">
@@ -238,9 +172,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
                     storedTranslation={q.translation}
                   />
                 </h4>
-                {q.translation && q.translation !== q.text && q.language !== currentLanguage && (
-                  <p className="text-primary dark:text-support/60 italic text-sm font-semibold mt-2">{q.translation}</p>
-                )}
               </div>
             </div>
 
@@ -278,52 +209,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
         ))}
       </div>
 
-      {/* Selected Family Modal */}
-      {selectedFamilyMembers && (
-        <div className="fixed inset-0 z-[200] flex items-end justify-center">
-          <div
-            className="absolute inset-0 bg-charcoal/60 backdrop-blur-sm animate-in fade-in duration-300"
-            onClick={() => setSelectedFamilyMembers(null)}
-          ></div>
-          <div className="relative w-full max-w-md bg-warmwhite dark:bg-charcoal rounded-t-[56px] shadow-[0_-20px_80px_rgba(0,0,0,0.4)] animate-in slide-in-from-bottom duration-500 p-10 border-t border-white/20 dark:border-white/10 safe-area-bottom">
-            <div className="flex items-center justify-between mb-10">
-              <div>
-                <h3 className="text-3xl font-black text-charcoal dark:text-warmwhite tracking-tighter">
-                  <LocalizedText
-                    text={selectedFamilyMembers.name}
-                    targetLanguage={currentLanguage}
-                    originalLanguage={selectedFamilyMembers.motherTongue}
-                  />
-                </h3>
-                <p className="text-slate font-bold text-sm uppercase tracking-widest mt-1 opacity-60">{selectedFamilyMembers.members.length} {t('dashboard.members', currentLanguage)}</p>
-              </div>
-              <button
-                onClick={() => setSelectedFamilyMembers(null)}
-                className="p-4 bg-secondary/30 dark:bg-white/10 rounded-full text-slate dark:text-support/60 hover:bg-secondary/50 transition-colors"
-              >
-                <X size={24} />
-              </button>
-            </div>
-
-            <div className="space-y-8 max-h-[50vh] overflow-y-auto no-scrollbar pb-10">
-              {selectedFamilyMembers.members.map((member) => (
-                <div key={member.id} className="flex items-center gap-5">
-                  <div className="w-16 h-16 rounded-[24px] overflow-hidden border-2 border-white dark:border-charcoal shadow-xl bg-support/10">
-                    <img src={member.avatar} alt={member.name} className="w-full h-full object-cover" />
-                  </div>
-                  <div>
-                    <h4 className="font-black text-charcoal dark:text-warmwhite text-lg tracking-tight">{member.name}</h4>
-                    <p className="text-slate dark:text-support/60 text-[10px] font-black uppercase tracking-[0.2em] opacity-40">
-                      <LocalizedText text={member.role} targetLanguage={currentLanguage} />
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Family Switcher Modal */}
       {isSwitchingFamily && (
         <div className="fixed inset-0 z-[200] flex items-end justify-center">
@@ -346,7 +231,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
             </div>
 
             <div className="space-y-4 max-h-[50vh] overflow-y-auto no-scrollbar pb-6">
-              {connectedFamilies.map((family) => (
+              {families.map((family) => (
                 <button
                   key={family.id}
                   onClick={() => {

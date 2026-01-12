@@ -274,6 +274,80 @@ export const getUserDrafts = async (userId: string): Promise<Memory[]> => {
 };
 
 /**
+ * Like a memory
+ */
+export const likeMemory = async (memoryId: string, userId: string): Promise<void> => {
+    try {
+        const memoryRef = doc(db, COLLECTIONS.MEMORIES, memoryId);
+        const memorySnap = await getDoc(memoryRef);
+        if (memorySnap.exists()) {
+            const currentLikes = memorySnap.data().likes || [];
+            if (!currentLikes.includes(userId)) {
+                await updateDoc(memoryRef, {
+                    likes: [...currentLikes, userId],
+                    updatedAt: Timestamp.now()
+                });
+            }
+        }
+    } catch (error) {
+        console.error("Error liking memory:", error);
+        throw error;
+    }
+};
+
+/**
+ * Unlike a memory
+ */
+export const unlikeMemory = async (memoryId: string, userId: string): Promise<void> => {
+    try {
+        const memoryRef = doc(db, COLLECTIONS.MEMORIES, memoryId);
+        const memorySnap = await getDoc(memoryRef);
+        if (memorySnap.exists()) {
+            const currentLikes = memorySnap.data().likes || [];
+            await updateDoc(memoryRef, {
+                likes: currentLikes.filter((id: string) => id !== userId),
+                updatedAt: Timestamp.now()
+            });
+        }
+    } catch (error) {
+        console.error("Error unliking memory:", error);
+        throw error;
+    }
+};
+
+/**
+ * Add a comment to a memory
+ */
+export const addCommentToMemory = async (
+    memoryId: string,
+    userId: string,
+    userName: string,
+    text: string
+): Promise<void> => {
+    try {
+        const memoryRef = doc(db, COLLECTIONS.MEMORIES, memoryId);
+        const memorySnap = await getDoc(memoryRef);
+        if (memorySnap.exists()) {
+            const currentComments = memorySnap.data().comments || [];
+            const newComment = {
+                id: Date.now().toString(),
+                userId,
+                userName,
+                text,
+                timestamp: new Date().toISOString()
+            };
+            await updateDoc(memoryRef, {
+                comments: [...currentComments, newComment],
+                updatedAt: Timestamp.now()
+            });
+        }
+    } catch (error) {
+        console.error("Error adding comment:", error);
+        throw error;
+    }
+};
+
+/**
  * Delete a memory
  */
 export const deleteMemory = async (memoryId: string): Promise<void> => {
@@ -483,5 +557,25 @@ export const listenToUser = (
         } else {
             callback(null);
         }
+    });
+};
+/**
+ * Listen to user families in real-time
+ */
+export const listenToUserFamilies = (
+    userId: string,
+    callback: (families: Family[]) => void
+): (() => void) => {
+    const q = query(
+        collection(db, COLLECTIONS.FAMILIES),
+        where("members", "array-contains", userId)
+    );
+
+    return onSnapshot(q, (snapshot) => {
+        const families: Family[] = [];
+        snapshot.forEach((doc) => {
+            families.push({ id: doc.id, ...doc.data() } as Family);
+        });
+        callback(families);
     });
 };

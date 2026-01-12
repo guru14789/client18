@@ -42,6 +42,14 @@ export interface Family {
   isApproved: boolean; // Platform approval
 }
 
+export interface Comment {
+  id: string;
+  userId: string;
+  userName: string;
+  text: string;
+  timestamp: string;
+}
+
 export interface Memory {
   id: string;
   askerId?: string;
@@ -54,6 +62,9 @@ export interface Memory {
   questionText?: string;
   questionTranslation?: string;
   shareOption?: 'app_whatsapp' | 'app_only' | 'draft';
+  language?: Language;
+  likes?: string[]; // Array of user IDs
+  comments?: Comment[];
 }
 
 export interface Question {

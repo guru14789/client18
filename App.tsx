@@ -12,9 +12,33 @@ import {
   LayoutGrid,
   Users
 } from 'lucide-react';
-import { collection, query, where, onSnapshot, addDoc, serverTimestamp, orderBy, getDoc, doc, setDoc, updateDoc } from "firebase/firestore";
-import { onAuthStateChanged, getRedirectResult, GoogleAuthProvider } from "firebase/auth";
-import { db, auth } from './services/firebaseConfig';
+import { serverTimestamp } from "firebase/firestore";
+import {
+  auth,
+  onAuthStateChange, // Changed from onAuthStateChanged
+  listenToUser,
+  listenToUserFamilies,
+  listenToFamilyMemories,
+  listenToFamilyQuestions,
+  updateUserActiveFamily,
+  createQuestion,
+  updateQuestionUpvotes,
+  createOrUpdateUser,
+  createMemory,
+  createFamily,
+  addFamilyMember,
+  deleteMemory,
+  getFamilyDocuments // Fallback for docs if no listener yet
+} from './services/firebaseServices';
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  orderBy
+} from "firebase/firestore";
+import { db } from './services/firebaseConfig';
+
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import Feed from './components/Feed';
@@ -26,19 +50,13 @@ import Onboarding from './components/Onboarding';
 import Profile from './components/Profile';
 import Documents from './components/Documents';
 import { AppState, User, Memory, Family, Language, Question, FamilyDocument } from './types';
-import { LocalizedText } from './components/LocalizedText';
 import { t } from './services/i18n';
-
-const INITIAL_FAMILIES: Family[] = [
-  { id: 'f1', name: 'Santosh Family', motherTongue: Language.TAMIL, admins: [], members: [], inviteCode: 'TAMIL123', isApproved: true },
-  { id: 'f2', name: 'Sharma Clan', motherTongue: Language.HINDI, admins: [], members: [], inviteCode: 'SHARMA456', isApproved: true },
-];
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppState>('splash');
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [families, setFamilies] = useState<Family[]>(INITIAL_FAMILIES);
+  const [families, setFamilies] = useState<Family[]>([]);
   const [activeQuestion, setActiveQuestion] = useState<Question | null>(null);
   const [activeFamilyId, setActiveFamilyId] = useState<string | null>(null);
   const [recordMode, setRecordMode] = useState<'answer' | 'question'>('answer');
@@ -58,140 +76,222 @@ const App: React.FC = () => {
     return (saved as Language) || Language.TAMIL;
   });
 
-  // Auth State Listener
+  // 1. Auth Sync
   useEffect(() => {
-    let isMounted = true;
-
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (!isMounted) return;
-      console.log("App: Auth observer update. Firebase User:", firebaseUser?.uid || "null");
-
-      try {
-        if (firebaseUser) {
-          console.log("App: Fetching Firestore profile for:", firebaseUser.uid);
-          // Set a slightly longer timeout for Firestore fetch
-          const profilePromise = getDoc(doc(db, "users", firebaseUser.uid));
-          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Firestore timeout")), 15000));
-
-          const userDoc = await Promise.race([profilePromise, timeoutPromise]) as any;
-
-          if (userDoc.exists()) {
-            console.log("App: Firestore profile loaded successfully.");
-            const userData = userDoc.data() as User;
-            setUser(userData);
-            if (isMounted && userData.preferredLanguage) {
-              setLanguage(userData.preferredLanguage);
-            }
-          } else {
-            console.log("App: No Firestore profile found for authenticated user.");
-          }
-        } else {
-          console.log("App: No user logged in via Firebase Auth.");
-          setUser(null);
-        }
-      } catch (err) {
-        console.error("App: Auth initialization error:", err);
-      } finally {
-        console.log("App: Setting loading to false.");
+    const unsubAuth = onAuthStateChange((firebaseUser) => {
+      if (!firebaseUser) {
+        setUser(null);
         setLoading(false);
+        return;
+      }
+
+      // Listen to user profile
+      const unsubUser = listenToUser(firebaseUser.uid, (userData) => {
+        if (userData) {
+          setUser(userData);
+          if (userData.preferredLanguage) setLanguage(userData.preferredLanguage);
+          if (!activeFamilyId && userData.activeFamilyId) setActiveFamilyId(userData.activeFamilyId);
+        }
+        setLoading(false);
+      });
+
+      return () => unsubUser();
+    });
+
+    return () => unsubAuth();
+  }, [activeFamilyId]);
+
+  // 2. Family Sync
+  useEffect(() => {
+    if (!user) return;
+
+    const unsubFamilies = listenToUserFamilies(user.id, (userFamilies) => {
+      setFamilies(userFamilies);
+      if (userFamilies.length > 0 && !activeFamilyId) {
+        setActiveFamilyId(user.activeFamilyId || userFamilies[0].id);
       }
     });
 
-    return () => {
-      isMounted = false;
-      unsubscribe();
-    };
-  }, []);
-
-  // Sync Data with Firestore
-  useEffect(() => {
-    if (!user || !user.families || user.families.length === 0) return;
-
-    if (!activeFamilyId) {
-      setActiveFamilyId(user.activeFamilyId || user.families[0]);
-    }
-
-    const currentFamilyId = activeFamilyId || user.activeFamilyId || user.families[0];
-
-    try {
-      // Listen for Memories
-      const memoriesRef = collection(db, "memories");
-      const qMemories = query(
-        memoriesRef,
-        where("familyId", "==", currentFamilyId),
-        orderBy("timestamp", "desc")
-      );
-
-      const unsubMemories = onSnapshot(qMemories, (snapshot) => {
-        const mems = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })) as Memory[];
-        setMemories(mems.filter(m => !m.isDraft));
-        setDrafts(mems.filter(m => m.isDraft));
-      }, (err) => console.error("Memories error:", err));
-
-      // Listen for Documents
-      const docsRef = collection(db, "documents");
-      const qDocs = query(docsRef, where("familyId", "==", currentFamilyId), orderBy("timestamp", "desc"));
-      const unsubDocs = onSnapshot(qDocs, (snapshot) => {
-        const dsDetail = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })) as FamilyDocument[];
-        setDocuments(dsDetail);
-      }, (err) => console.error("Docs error:", err));
-
-      // Listen for Questions
-      const questionsRef = collection(db, "questions");
-      const qQuestions = query(questionsRef, where("familyId", "==", currentFamilyId));
-      const unsubQuestions = onSnapshot(qQuestions, (snapshot) => {
-        const qs = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })) as Question[];
-        setQPrompts(qs);
-      }, (err) => console.error("Questions error:", err));
-
-      return () => {
-        unsubMemories();
-        unsubDocs();
-        unsubQuestions();
-      };
-    } catch (err) {
-      console.error("Firestore error:", err);
-    }
+    return () => unsubFamilies();
   }, [user, activeFamilyId]);
+
+  // 3. Family Content Sync (Memories, Questions, Docs)
+  useEffect(() => {
+    if (!activeFamilyId) return;
+
+    // Memories Listener
+    const unsubMemories = listenToFamilyMemories(activeFamilyId, (familyMemories) => {
+      setMemories(familyMemories.filter(m => !m.isDraft));
+      // Re-fetch drafts for the user if needed, or filter here
+    }, true); // Include drafts for filtering
+
+    // We also need user-specific drafts regardless of family? 
+    // Usually drafts are scoped to user.
+
+    // Questions Listener
+    const unsubQuestions = listenToFamilyQuestions(activeFamilyId, (familyQuestions) => {
+      setQPrompts(familyQuestions);
+    });
+
+    // Documents Listener (Add to service later, for now manual)
+    const qDocs = query(
+      collection(db, "documents"),
+      where("familyId", "==", activeFamilyId),
+      orderBy("timestamp", "desc")
+    );
+    const unsubDocs = onSnapshot(qDocs, (snapshot) => {
+      const ds = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })) as FamilyDocument[];
+      setDocuments(ds);
+    });
+
+    return () => {
+      unsubMemories();
+      unsubQuestions();
+      unsubDocs();
+    };
+  }, [activeFamilyId]);
+
+  // 4. Drafts Sync (User specific)
+  useEffect(() => {
+    if (!user) return;
+    const qDrafts = query(
+      collection(db, "memories"),
+      where("responderId", "==", user.id),
+      where("isDraft", "==", true),
+      orderBy("timestamp", "desc")
+    );
+    const unsubDrafts = onSnapshot(qDrafts, (snapshot) => {
+      const d = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })) as Memory[];
+      setDrafts(d);
+    });
+    return () => unsubDrafts();
+  }, [user]);
 
   const switchFamily = async (familyId: string) => {
     setActiveFamilyId(familyId);
     if (user) {
-      try {
-        await setDoc(doc(db, "users", user.id), { ...user, activeFamilyId: familyId }, { merge: true });
-        setUser({ ...user, activeFamilyId: familyId });
-      } catch (err) {
-        console.error("Error updating active family:", err);
-      }
+      await updateUserActiveFamily(user.id, familyId);
     }
   };
 
   const handleAddQuestion = async (q: Question) => {
+    const { id, ...data } = q;
+    await createQuestion(data);
+  };
+
+  const handleAddFamily = async (name: string, motherTongue: Language) => {
+    if (!user) return;
     try {
-      // Remove the temporary ID generated in the component so Firestore can use its own
-      const { id, ...data } = q;
-      await addDoc(collection(db, "questions"), data);
+      const familyId = await createFamily({
+        name,
+        motherTongue,
+        admins: [user.id],
+        members: [user.id],
+        inviteCode: Math.random().toString(36).substring(2, 8).toUpperCase(),
+        isApproved: true
+      });
+
+      // Update user document to include this family
+      const updatedFamilies = [...(user.families || []), familyId];
+      await createOrUpdateUser(user.id, {
+        families: updatedFamilies,
+        activeFamilyId: familyId // Automatically switch to the new family
+      });
+
+      setActiveFamilyId(familyId);
     } catch (err) {
-      console.error("Error adding question:", err);
+      console.error("Error creating family:", err);
+      alert("Failed to create family circle.");
     }
   };
 
   const toggleUpvote = async (questionId: string) => {
     const q = qPrompts.find(p => p.id === questionId);
     if (!q) return;
-    try {
-      const qRef = doc(db, "questions", questionId);
-      const alreadyUpvoted = q.hasUpvoted;
-      await updateDoc(qRef, {
-        upvotes: alreadyUpvoted ? q.upvotes - 1 : q.upvotes + 1,
-        hasUpvoted: !alreadyUpvoted
-      });
-    } catch (err) {
-      console.error("Error toggling upvote:", err);
+    const newUpvotes = q.hasUpvoted ? q.upvotes - 1 : q.upvotes + 1;
+    await updateQuestionUpvotes(questionId, newUpvotes);
+  };
+
+  const handleLanguageChange = async (lang: Language) => {
+    setLanguage(lang);
+    localStorage.setItem('inai_language', lang);
+    if (user) {
+      await createOrUpdateUser(user.id, { preferredLanguage: lang });
     }
   };
 
-  // Theme Management
+  // View logic
+  useEffect(() => {
+    if (loading) return;
+    if (view === 'splash') {
+      const onboarded = localStorage.getItem('inai_onboarding_done');
+      if (!onboarded) setView('onboarding');
+      else setView(user ? 'home' : 'login');
+    } else if (user && view === 'login') {
+      setView('home');
+    } else if (!user && !['splash', 'onboarding', 'login'].includes(view)) {
+      setView('login');
+    }
+  }, [loading, user, view]);
+
+  const handleLogin = useCallback(async (phoneNumber: string, name: string, firebaseUid: string) => {
+    const newUser: User = {
+      id: firebaseUid,
+      name,
+      phoneNumber,
+      families: families.length > 0 ? families.map(f => f.id) : [],
+      avatarUrl: `https://i.pravatar.cc/150?u=${firebaseUid}`,
+      role: 'admin',
+      preferredLanguage: language,
+      activeFamilyId: activeFamilyId || undefined
+    };
+
+    try {
+      await createOrUpdateUser(firebaseUid, newUser);
+      setUser(newUser);
+      setView('home');
+    } catch (err) {
+      console.error("Login save error:", err);
+      alert("Account created but profile couldn't be saved. Proceeding...");
+      setUser(newUser);
+      setView('home');
+    }
+  }, [families, language, activeFamilyId]);
+
+  const handleRecordingComplete = async (newMemory: Memory) => {
+    try {
+      if (recordMode === 'question') {
+        const questionData: Omit<Question, 'id'> = {
+          askerId: user?.id || '',
+          askerName: user?.name || '',
+          text: t('questions.video_question_default', language),
+          translation: t('record.mode.question', language),
+          language,
+          upvotes: 0,
+          isVideoQuestion: true,
+          videoUrl: newMemory.videoUrl,
+          familyId: newMemory.familyId
+        };
+        await createQuestion(questionData);
+        setView('questions');
+      } else {
+        const { id, ...data } = newMemory;
+        await createMemory(data);
+        setView('feed');
+      }
+      setActiveQuestion(null);
+    } catch (err) {
+      console.error("Record complete error:", err);
+    }
+  };
+
+  const handleLogout = async () => {
+    await auth.signOut();
+    setUser(null);
+    setView('login');
+  };
+
+  // Theme
   useEffect(() => {
     localStorage.setItem('inai_theme', theme);
     const root = window.document.documentElement;
@@ -204,141 +304,10 @@ const App: React.FC = () => {
     }
   }, [theme]);
 
-  // Language Management
-  const handleLanguageChange = async (lang: Language) => {
-    setLanguage(lang);
-    localStorage.setItem('inai_language', lang);
-    if (user) {
-      try {
-        await updateDoc(doc(db, "users", user.id), { preferredLanguage: lang });
-        setUser({ ...user, preferredLanguage: lang });
-      } catch (err) {
-        console.error("Error saving language preference:", err);
-      }
-    }
-  };
-
-  useEffect(() => {
-    if (language) {
-      console.log("App: Language synced in session:", language);
-    }
-  }, [language]);
-
-  // Global View Transition & Auth-View Sync
-  useEffect(() => {
-    if (loading) return;
-
-    if (view === 'splash') {
-      const onboarded = localStorage.getItem('inai_onboarding_done');
-      if (!onboarded) {
-        setView('onboarding');
-      } else {
-        setView(user ? 'home' : 'login');
-      }
-    } else if (user && view === 'login') {
-      // Auto-navigate to home if user is detected while on login screen
-      setView('home');
-    } else if (!user && !['splash', 'onboarding', 'login'].includes(view)) {
-      // Force back to login if user is lost
-      setView('login');
-    }
-  }, [loading, user, view]);
-
-  const handleLogin = useCallback(async (phoneNumber: string, name: string, firebaseUid: string) => {
-    console.log("App: handleLogin triggered for:", name, firebaseUid);
-
-    const newUser: User = {
-      id: firebaseUid,
-      name,
-      phoneNumber,
-      families: ['f1', 'f2'],
-      avatarUrl: `https://i.pravatar.cc/150?u=${firebaseUid}`,
-      role: 'admin',
-      preferredLanguage: language,
-      activeFamilyId: 'f1'
-    };
-
-    try {
-      console.log("App: Saving user profile to Firestore...");
-
-      if (firebaseUid !== 'demo-uid-123') {
-        // Create a promise for the Firestore write
-        const savePromise = setDoc(doc(db, "users", firebaseUid), newUser, { merge: true });
-
-        // Add a timeout fallback for the write operation
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error("Database save timed out")), 10000)
-        );
-
-        try {
-          await Promise.race([savePromise, timeoutPromise]);
-          console.log("App: User profile saved successfully!");
-        } catch (saveErr) {
-          console.warn("App: Database save timed out or failed, proceeding with local state...", saveErr);
-          // We proceed anyway to let the user into the app
-        }
-      } else {
-        console.log("App: Demo user, skipping Firestore save");
-      }
-
-      // Set user state and navigate
-      setUser(newUser);
-      console.log("App: User state set, navigating to home...");
-      setView('home');
-      console.log("App: Navigation complete!");
-
-    } catch (err) {
-      console.error("App: Login error:", err);
-      alert(`Login failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    }
-  }, [language]);
-
-  const handleRecordingComplete = async (newMemory: Memory) => {
-    try {
-      const sanitizedData = JSON.parse(JSON.stringify({
-        ...newMemory,
-        timestamp: new Date().toISOString(),
-        serverTimestamp: serverTimestamp()
-      }));
-
-      if (recordMode === 'question') {
-        const questionData: Question = {
-          id: Date.now().toString(),
-          askerId: user?.id || '',
-          askerName: user?.name || '',
-          text: t('questions.video_question_default', language),
-          translation: t('record.mode.question', language),
-          language,
-          upvotes: 0,
-          isVideoQuestion: true,
-          videoUrl: newMemory.videoUrl,
-          familyId: newMemory.familyId
-        };
-        await addDoc(collection(db, "questions"), questionData);
-        setView('questions');
-      } else {
-        await addDoc(collection(db, "memories"), sanitizedData);
-        setView('feed');
-      }
-      setActiveQuestion(null);
-    } catch (err) {
-      console.error("Record complete error:", err);
-    }
-  };
-
-  const activeFamily = families.find(f => f.id === activeFamilyId);
-
-  const handleLogout = async () => {
-    await auth.signOut();
-    setUser(null);
-    setView('login');
-  };
-
   if (view === 'splash') return <SplashScreen currentLanguage={language} />;
 
   const hideFrame = ['splash', 'onboarding', 'login', 'record', 'nameEntry'].includes(view);
 
-  console.log(`[RENDER] Current View: ${view}, Has User: ${!!user}`);
   return (
     <div className="flex flex-col h-screen max-w-md mx-auto bg-warmwhite dark:bg-charcoal text-charcoal dark:text-warmwhite shadow-xl relative overflow-hidden transition-colors duration-300">
       {!hideFrame && <div className="safe-area-top bg-warmwhite dark:bg-charcoal shrink-0 z-[100] w-full transition-colors" />}
@@ -357,12 +326,12 @@ const App: React.FC = () => {
         <div className="flex-1 view-transition">
           {view === 'onboarding' && <Onboarding onComplete={() => { localStorage.setItem('inai_onboarding_done', 'true'); setView('login'); }} currentLanguage={language} />}
           {view === 'login' && <Login onLogin={handleLogin} currentLanguage={language} />}
-          {view === 'home' && user && <Dashboard user={user} families={families} prompts={qPrompts} onNavigate={setView} onRecord={(q) => { if (q) setActiveQuestion(q); setRecordMode('answer'); setView('record'); }} onAddFamily={() => { }} currentLanguage={language} activeFamilyId={activeFamilyId} onSwitchFamily={switchFamily} onToggleUpvote={toggleUpvote} />}
+          {view === 'home' && user && <Dashboard user={user} families={families} prompts={qPrompts} onNavigate={setView} onRecord={(q) => { if (q) setActiveQuestion(q); setRecordMode('answer'); setView('record'); }} onAddFamily={handleAddFamily} currentLanguage={language} activeFamilyId={activeFamilyId} onSwitchFamily={switchFamily} onToggleUpvote={toggleUpvote} />}
           {view === 'feed' && user && <Feed memories={memories} user={user} families={families} currentLanguage={language} />}
           {view === 'questions' && user && <Questions user={user} families={families} questions={qPrompts} onAnswer={(q) => { setActiveQuestion(q); setRecordMode('answer'); setView('record'); }} onRecordQuestion={() => { setActiveQuestion(null); setRecordMode('question'); setView('record'); }} onToggleUpvote={toggleUpvote} onAddQuestion={handleAddQuestion} activeFamilyId={activeFamilyId} currentLanguage={language} />}
           {view === 'documents' && user && <Documents user={user} families={families} documents={documents} setDocuments={setDocuments} currentLanguage={language} />}
           {view === 'record' && user && <RecordMemory user={user} question={activeQuestion} mode={recordMode} onCancel={() => { setView('home'); setActiveQuestion(null); }} onComplete={handleRecordingComplete} families={families} activeFamilyId={activeFamilyId} currentLanguage={language} />}
-          {view === 'drafts' && <Drafts drafts={drafts} onPublish={(m) => handleRecordingComplete({ ...m, isDraft: false })} onDelete={() => { }} />}
+          {view === 'drafts' && <Drafts drafts={drafts} onPublish={(m) => handleRecordingComplete({ ...m, isDraft: false })} onDelete={(id) => deleteMemory(id)} currentLanguage={language} onBack={() => setView('home')} />}
           {view === 'profile' && user && <Profile user={user} families={families} onLogout={handleLogout} currentTheme={theme} onThemeChange={setTheme} currentLanguage={language} onLanguageChange={handleLanguageChange} />}
         </div>
       </main>

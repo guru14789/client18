@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { FileText, Upload, Plus, Trash2, Loader2, Info, Search, FileCode, Clock, Eye, X, AlertCircle, Archive, Shield, Smartphone } from 'lucide-react';
 import { collection, addDoc, deleteDoc, doc, serverTimestamp } from "firebase/firestore";
 import { db } from '../services/firebaseConfig';
+import { uploadDocument } from '../services/firebaseStorage';
 import { User, Family, FamilyDocument, Language } from '../types';
 import { t } from '../services/i18n';
 import { generateDocumentContext } from '../services/geminiService';
@@ -51,9 +52,15 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
     setUploadProgress(0);
 
     try {
-      // 1. Prepare Local URL instead of Firebase Storage
-      const localUrl = URL.createObjectURL(file);
-      setUploadProgress(50); // Immediate jump to show activity
+      const docId = Date.now().toString();
+
+      // 1. Upload to Firebase Storage
+      const downloadURL = await uploadDocument(
+        file,
+        targetFamilyId,
+        docId,
+        (progress) => setUploadProgress(Math.round(progress))
+      );
 
       // 2. Generate AI Summary (Uses Gemini)
       let aiSummary = "";
@@ -65,8 +72,6 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
         aiSummary = t('documents.ai_fallback', currentLanguage);
       }
 
-      setUploadProgress(100);
-
       // 3. Save Metadata to Firestore
       const newDocData = {
         name: file.name,
@@ -76,8 +81,8 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
         serverTimestamp: serverTimestamp(),
         familyId: targetFamilyId,
         aiSummary,
-        fileUrl: localUrl,
-        storagePath: `local/${Date.now()}_${file.name}`,
+        fileUrl: downloadURL,
+        storagePath: `documents/${targetFamilyId}/${docId}_${Date.now()}_${file.name}`,
         uploaderId: user.id
       };
 

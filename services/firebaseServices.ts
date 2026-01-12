@@ -36,6 +36,9 @@ export {
     getFamilyMemories,
     getUserDrafts,
     deleteMemory,
+    likeMemory,
+    unlikeMemory,
+    addCommentToMemory,
     // Question operations
     createQuestion,
     getFamilyQuestions,
@@ -47,7 +50,8 @@ export {
     // Real-time listeners
     listenToFamilyMemories,
     listenToFamilyQuestions,
-    listenToUser
+    listenToUser,
+    listenToUserFamilies
 } from './firebaseDatabase';
 
 // Storage Services

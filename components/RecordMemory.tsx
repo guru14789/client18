@@ -11,12 +11,14 @@ import {
   SwitchCamera,
   Square,
   Loader2,
-  FilePlus
+  FilePlus,
+  CloudUpload
 } from 'lucide-react';
 import { User, Question, Memory, Family, Language } from '../types';
 import { t } from '../services/i18n';
 import { translateQuestion } from '../services/geminiService';
 import { LocalizedText } from './LocalizedText';
+import { uploadMemoryVideo, uploadQuestionVideo } from '../services/firebaseStorage';
 
 interface RecordMemoryProps {
   user: User;
@@ -42,6 +44,7 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [recordedUrl, setRecordedUrl] = useState<string | null>(null);
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [savingOption, setSavingOption] = useState<'app_whatsapp' | 'app_only' | 'draft' | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -172,15 +175,32 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
 
     setSavingOption(shareOption);
     setStage('processing');
-    try {
-      // 1. Create a Local URL instead of uploading to Firebase Storage
-      // This bypasses Storage CORS issues for development
-      const localVideoUrl = URL.createObjectURL(videoBlob);
-      const downloadURL = localVideoUrl;
+    setUploadProgress(0);
 
-      // 2. Pass to parent with the permanent URL
+    try {
+      const memoryId = existingDraftId || Date.now().toString();
+
+      // 1. Upload to Firebase Storage
+      let downloadURL: string;
+      if (mode === 'question') {
+        downloadURL = await uploadQuestionVideo(
+          videoBlob,
+          targetFamilyId,
+          memoryId,
+          (progress) => setUploadProgress(Math.round(progress))
+        );
+      } else {
+        downloadURL = await uploadMemoryVideo(
+          videoBlob,
+          targetFamilyId,
+          memoryId,
+          (progress) => setUploadProgress(Math.round(progress))
+        );
+      }
+
+      // 2. Prepare Memory object with the permanent URL
       const newMemory: Memory = {
-        id: existingDraftId || Date.now().toString(),
+        id: memoryId,
         responderId: user.id,
         videoUrl: downloadURL,
         timestamp: new Date().toISOString(),
@@ -203,7 +223,7 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
       onComplete(newMemory);
     } catch (err) {
       console.error("Error uploading video:", err);
-      // Revert stage so user can try again
+      alert("Failed to upload video. Please check your internet and try again.");
       setStage('review');
     }
   };
@@ -270,10 +290,25 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
           </div>
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center gap-4">
-            <Loader2 size={48} className="animate-spin text-primary" />
-            <p className="font-bold uppercase tracking-widest text-xs opacity-60">
-              {savingOption === 'draft' ? t('record.save_draft', currentLanguage) + '...' : t('record.publish', currentLanguage) + '...'}
-            </p>
+            <div className="relative w-24 h-24 flex items-center justify-center">
+              <Loader2 size={48} className="animate-spin text-primary absolute" />
+              <CloudUpload size={24} className="text-primary/60" />
+            </div>
+            <div className="flex flex-col items-center gap-2">
+              <p className="font-black uppercase tracking-widest text-sm text-primary">
+                {uploadProgress}%
+              </p>
+              <p className="font-bold uppercase tracking-[0.2em] text-[10px] opacity-40">
+                {savingOption === 'draft' ? t('record.save_draft', currentLanguage) : t('record.publish', currentLanguage)}
+              </p>
+            </div>
+            {/* Progress Bar */}
+            <div className="w-48 h-1 bg-white/10 rounded-full overflow-hidden mt-2">
+              <div
+                className="h-full bg-primary transition-all duration-300"
+                style={{ width: `${uploadProgress}%` }}
+              ></div>
+            </div>
           </div>
         )}
         <div className="absolute inset-0 bg-black/10 pointer-events-none" />
