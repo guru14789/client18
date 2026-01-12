@@ -53,29 +53,34 @@ const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage }) => {
   const authInitialized = useRef(false);
 
   useEffect(() => {
-    const checkExistingUser = async () => {
-      const fbUser = auth.currentUser;
-      if (fbUser) {
-        try {
+    const checkRedirectAndProfile = async () => {
+      try {
+        setLoading(true);
+        // 1. Handle Google Redirect Result first
+        const result = await getRedirectResult(auth);
+        let fbUser = result?.user || auth.currentUser;
+
+        if (fbUser) {
           const profile = await getUser(fbUser.uid);
           if (profile && profile.name) {
-            // Already has a profile, App.tsx should handle redirect but we confirm here
             const phone = fbUser.phoneNumber || fbUser.email || fbUser.uid;
             onLogin(phone, profile.name, fbUser.uid);
           } else {
-            // No profile name found, show name entry
             setFirebaseUid(fbUser.uid);
             setPhoneNumber(fbUser.phoneNumber || fbUser.email || fbUser.uid);
             setName(fbUser.displayName || '');
             setStep('nameEntry');
           }
-        } catch (err) {
-          console.error("Error checking existing user profile:", err);
         }
+      } catch (err: any) {
+        console.error("Error handling redirect/profile check:", err);
+        setError(err.message || "Authentication failed.");
+      } finally {
+        setLoading(false);
       }
     };
 
-    checkExistingUser();
+    checkRedirectAndProfile();
   }, []);
 
 
@@ -105,7 +110,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage }) => {
       try {
         console.log("Login: Initializing reCAPTCHA verifier...");
         (window as any).recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-          'size': 'normal',
+          'size': 'invisible',
           'callback': () => {
             console.log("reCAPTCHA solved successfully");
             setError(null);
@@ -284,40 +289,18 @@ const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage }) => {
             </button>
             <button
               onClick={async () => {
-                console.log("Login: Google Popup clicked");
+                console.log("Login: Google Redirect clicked");
                 setError(null);
                 setLoading(true);
                 try {
                   const provider = new GoogleAuthProvider();
-                  // Force selection of account to avoid silent failures
                   provider.setCustomParameters({ prompt: 'select_account' });
-
-                  const result = await signInWithPopup(auth, provider);
-                  console.log("Login: Popup successful, user:", result.user.uid);
-
-                  const fbUser = result.user;
-                  const profile = await getUser(fbUser.uid);
-
-                  if (profile && profile.name) {
-                    onLogin(fbUser.email || fbUser.uid, profile.name, fbUser.uid);
-                  } else {
-                    // Force name entry for new profile
-                    setFirebaseUid(fbUser.uid);
-                    setPhoneNumber(fbUser.email || fbUser.uid);
-                    setName(fbUser.displayName || '');
-                    setStep('nameEntry');
-                  }
+                  // Use Redirect instead of Popup to avoid COOP errors
+                  await signInWithRedirect(auth, provider);
                 } catch (err: any) {
-                  console.error("Login: Google popup error:", err);
-                  if (err.code === 'auth/popup-closed-by-user') {
-                    setError(t('login.error_popup_closed', currentLanguage));
-                  } else if (err.code === 'auth/operation-not-allowed') {
-                    setError(t('login.error_google_disabled', currentLanguage));
-                  } else {
-                    setError(err.message || "Google login failed.");
-                  }
-                } finally {
-                  setLoading(false);
+                  console.error("Login: Google redirect error:", err);
+                  setError(err.message || "Google login failed.");
+                  setLoading(false); // Only reset if redirect didn't happen
                 }
               }}
               disabled={loading}
@@ -379,6 +362,8 @@ const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage }) => {
                 {error}
               </div>
             )}
+
+            <div id="recaptcha-container" className="flex justify-center my-4"></div>
 
             <div className="mt-auto pb-16">
               <button
@@ -535,7 +520,6 @@ const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage }) => {
   return (
     <div className="relative h-screen w-full overflow-hidden">
       {renderContent()}
-      <div id="recaptcha-container"></div>
     </div>
   );
 };

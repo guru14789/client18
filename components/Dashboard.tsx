@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Archive, Plus, Video, X, Globe, MapPin, Info, ThumbsUp } from 'lucide-react';
+import { Users, Archive, Plus, Video, X, Globe, MapPin, Info, ThumbsUp, Play } from 'lucide-react';
 import { User, Family, Question, Language } from '../types';
 import { t } from '../services/i18n';
 import { LocalizedText } from './LocalizedText';
@@ -175,6 +175,28 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
               </div>
             </div>
 
+            {q.isVideoQuestion && q.videoUrl && (
+              <div
+                className="relative w-full aspect-video rounded-[32px] overflow-hidden bg-charcoal group cursor-pointer border border-secondary/10 dark:border-white/5 active:scale-[0.98] transition-all shadow-inner"
+                onClick={() => onRecord(q)}
+              >
+                <video
+                  src={q.videoUrl}
+                  className="w-full h-full object-cover"
+                  muted
+                  playsInline
+                />
+                <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                  <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-xl border border-white/30 flex items-center justify-center shadow-2xl scale-110 group-hover:scale-125 transition-transform">
+                    <Play size={28} className="text-white fill-white ml-1" />
+                  </div>
+                </div>
+                <div className="absolute top-4 right-4 px-3 py-1.5 bg-accent/90 backdrop-blur-md rounded-full text-[9px] font-black text-white uppercase tracking-widest">
+                  Video {t('record.mode.question', currentLanguage)}
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center gap-4 pt-2 w-full h-[84px]">
               <button
                 onClick={() => onRecord(q)}
@@ -210,116 +232,120 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
       </div>
 
       {/* Family Switcher Modal */}
-      {isSwitchingFamily && (
-        <div className="fixed inset-0 z-[200] flex items-end justify-center">
-          <div
-            className="absolute inset-0 bg-charcoal/60 backdrop-blur-sm animate-in fade-in duration-300"
-            onClick={() => setIsSwitchingFamily(false)}
-          ></div>
-          <div className="relative w-full max-w-md bg-warmwhite dark:bg-charcoal rounded-t-[56px] shadow-[0_-20px_80px_rgba(0,0,0,0.4)] animate-in slide-in-from-bottom duration-500 p-10 border-t border-white/20 dark:border-white/10 safe-area-bottom">
-            <div className="flex items-center justify-between mb-8">
-              <div>
-                <h3 className="text-3xl font-black text-charcoal dark:text-warmwhite tracking-tighter">{t('dashboard.families_title', currentLanguage)}</h3>
-                <p className="text-slate font-bold text-sm uppercase tracking-widest mt-1 opacity-60">{t('dashboard.families_subtitle', currentLanguage)}</p>
+      {
+        isSwitchingFamily && (
+          <div className="fixed inset-0 z-[200] flex items-end justify-center">
+            <div
+              className="absolute inset-0 bg-charcoal/60 backdrop-blur-sm animate-in fade-in duration-300"
+              onClick={() => setIsSwitchingFamily(false)}
+            ></div>
+            <div className="relative w-full max-w-md bg-warmwhite dark:bg-charcoal rounded-t-[56px] shadow-[0_-20px_80px_rgba(0,0,0,0.4)] animate-in slide-in-from-bottom duration-500 p-10 border-t border-white/20 dark:border-white/10 safe-area-bottom">
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h3 className="text-3xl font-black text-charcoal dark:text-warmwhite tracking-tighter">{t('dashboard.families_title', currentLanguage)}</h3>
+                  <p className="text-slate font-bold text-sm uppercase tracking-widest mt-1 opacity-60">{t('dashboard.families_subtitle', currentLanguage)}</p>
+                </div>
+                <button
+                  onClick={() => setIsSwitchingFamily(false)}
+                  className="p-4 bg-secondary/30 dark:bg-white/10 rounded-full"
+                >
+                  <X size={24} />
+                </button>
               </div>
+
+              <div className="space-y-4 max-h-[50vh] overflow-y-auto no-scrollbar pb-6">
+                {families.map((family) => (
+                  <button
+                    key={family.id}
+                    onClick={() => {
+                      onSwitchFamily(family.id);
+                      setIsSwitchingFamily(false);
+                    }}
+                    className={`w-full flex items-center justify-between p-6 rounded-[32px] transition-all ${family.id === activeFamilyId
+                      ? 'bg-primary text-white shadow-xl shadow-primary/30 scale-105'
+                      : 'bg-white dark:bg-white/5 border border-secondary/20 dark:border-white/10 text-charcoal dark:text-warmwhite'
+                      }`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className={`p-3 rounded-2xl ${family.id === activeFamilyId ? 'bg-white/20' : 'bg-primary/10'}`}>
+                        <Users size={20} className={family.id === activeFamilyId ? 'text-white' : 'text-primary'} />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-black text-lg leading-none">
+                          <LocalizedText
+                            text={family.name}
+                            targetLanguage={currentLanguage}
+                            originalLanguage={family.motherTongue}
+                          />
+                        </p>
+                        <p className={`text-[10px] font-bold uppercase tracking-widest mt-1 ${family.id === activeFamilyId ? 'text-white/60' : 'text-slate/40'}`}>
+                          {family.id === activeFamilyId ? t('dashboard.active_context', currentLanguage) : t('dashboard.switch_context', currentLanguage)}
+                        </p>
+                      </div>
+                    </div>
+                    {family.id === activeFamilyId && (
+                      <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center text-primary">
+                        <Info size={14} strokeWidth={4} />
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+
               <button
-                onClick={() => setIsSwitchingFamily(false)}
-                className="p-4 bg-secondary/30 dark:bg-white/10 rounded-full"
+                onClick={() => {
+                  setIsSwitchingFamily(false);
+                  setIsCreatingFamily(true);
+                }}
+                className="w-full py-5 rounded-[28px] border-2 border-dashed border-secondary/40 text-slate/60 font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 hover:bg-primary/5 transition-all mt-4"
               >
-                <X size={24} />
+                <Plus size={16} /> {t('dashboard.create_new', currentLanguage)}
               </button>
             </div>
-
-            <div className="space-y-4 max-h-[50vh] overflow-y-auto no-scrollbar pb-6">
-              {families.map((family) => (
-                <button
-                  key={family.id}
-                  onClick={() => {
-                    onSwitchFamily(family.id);
-                    setIsSwitchingFamily(false);
-                  }}
-                  className={`w-full flex items-center justify-between p-6 rounded-[32px] transition-all ${family.id === activeFamilyId
-                    ? 'bg-primary text-white shadow-xl shadow-primary/30 scale-105'
-                    : 'bg-white dark:bg-white/5 border border-secondary/20 dark:border-white/10 text-charcoal dark:text-warmwhite'
-                    }`}
-                >
-                  <div className="flex items-center gap-4">
-                    <div className={`p-3 rounded-2xl ${family.id === activeFamilyId ? 'bg-white/20' : 'bg-primary/10'}`}>
-                      <Users size={20} className={family.id === activeFamilyId ? 'text-white' : 'text-primary'} />
-                    </div>
-                    <div className="text-left">
-                      <p className="font-black text-lg leading-none">
-                        <LocalizedText
-                          text={family.name}
-                          targetLanguage={currentLanguage}
-                          originalLanguage={family.motherTongue}
-                        />
-                      </p>
-                      <p className={`text-[10px] font-bold uppercase tracking-widest mt-1 ${family.id === activeFamilyId ? 'text-white/60' : 'text-slate/40'}`}>
-                        {family.id === activeFamilyId ? t('dashboard.active_context', currentLanguage) : t('dashboard.switch_context', currentLanguage)}
-                      </p>
-                    </div>
-                  </div>
-                  {family.id === activeFamilyId && (
-                    <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center text-primary">
-                      <Info size={14} strokeWidth={4} />
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
-
-            <button
-              onClick={() => {
-                setIsSwitchingFamily(false);
-                setIsCreatingFamily(true);
-              }}
-              className="w-full py-5 rounded-[28px] border-2 border-dashed border-secondary/40 text-slate/60 font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 hover:bg-primary/5 transition-all mt-4"
-            >
-              <Plus size={16} /> {t('dashboard.create_new', currentLanguage)}
-            </button>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Branch Creation Modal */}
-      {isCreatingFamily && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
-          <div className="absolute inset-0 bg-charcoal/60 backdrop-blur-sm" onClick={() => setIsCreatingFamily(false)}></div>
-          <div className="relative w-full max-sm bg-warmwhite dark:bg-charcoal rounded-[44px] p-10 shadow-2xl border border-white/20 animate-in zoom-in-95 duration-200">
-            <h3 className="text-2xl font-black text-charcoal dark:text-warmwhite mb-8 tracking-tight">{t('dashboard.new_branch', currentLanguage)}</h3>
-            <div className="space-y-6">
-              <div>
-                <label className="text-[10px] font-black text-slate dark:text-support/60 uppercase tracking-widest block mb-2 px-1">{t('dashboard.name_label', currentLanguage)}</label>
-                <input
-                  type="text"
-                  className="w-full bg-white dark:bg-white/5 border border-secondary/30 dark:border-white/10 rounded-2xl p-4 text-charcoal dark:text-warmwhite outline-none focus:ring-4 focus:ring-primary/10 transition-all font-bold"
-                  placeholder={t('dashboard.name_placeholder', currentLanguage)}
-                  value={newFamilyName}
-                  onChange={(e) => setNewFamilyName(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="text-[10px] font-black text-slate dark:text-support/60 uppercase tracking-widest block mb-2 px-1">{t('dashboard.lang_label', currentLanguage)}</label>
-                <select
-                  className="w-full bg-white dark:bg-white/5 border border-secondary/30 dark:border-white/10 rounded-2xl p-4 text-charcoal dark:text-warmwhite outline-none font-bold appearance-none"
-                  value={newFamilyLang}
-                  onChange={(e) => setNewFamilyLang(e.target.value as Language)}
-                >
-                  {Object.values(Language).map(lang => (
-                    <option key={lang} value={lang}>{lang}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex gap-4 pt-4">
-                <button onClick={() => setIsCreatingFamily(false)} className="flex-1 py-4 text-slate dark:text-support/60 font-black uppercase tracking-widest text-xs">{t('questions.cancel', currentLanguage)}</button>
-                <button onClick={handleCreateFamily} className="flex-1 bg-primary text-white py-4 rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-primary/20">{t('dashboard.new', currentLanguage)}</button>
+      {
+        isCreatingFamily && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
+            <div className="absolute inset-0 bg-charcoal/60 backdrop-blur-sm" onClick={() => setIsCreatingFamily(false)}></div>
+            <div className="relative w-full max-sm bg-warmwhite dark:bg-charcoal rounded-[44px] p-10 shadow-2xl border border-white/20 animate-in zoom-in-95 duration-200">
+              <h3 className="text-2xl font-black text-charcoal dark:text-warmwhite mb-8 tracking-tight">{t('dashboard.new_branch', currentLanguage)}</h3>
+              <div className="space-y-6">
+                <div>
+                  <label className="text-[10px] font-black text-slate dark:text-support/60 uppercase tracking-widest block mb-2 px-1">{t('dashboard.name_label', currentLanguage)}</label>
+                  <input
+                    type="text"
+                    className="w-full bg-white dark:bg-white/5 border border-secondary/30 dark:border-white/10 rounded-2xl p-4 text-charcoal dark:text-warmwhite outline-none focus:ring-4 focus:ring-primary/10 transition-all font-bold"
+                    placeholder={t('dashboard.name_placeholder', currentLanguage)}
+                    value={newFamilyName}
+                    onChange={(e) => setNewFamilyName(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-slate dark:text-support/60 uppercase tracking-widest block mb-2 px-1">{t('dashboard.lang_label', currentLanguage)}</label>
+                  <select
+                    className="w-full bg-white dark:bg-white/5 border border-secondary/30 dark:border-white/10 rounded-2xl p-4 text-charcoal dark:text-warmwhite outline-none font-bold appearance-none"
+                    value={newFamilyLang}
+                    onChange={(e) => setNewFamilyLang(e.target.value as Language)}
+                  >
+                    {Object.values(Language).map(lang => (
+                      <option key={lang} value={lang}>{lang}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex gap-4 pt-4">
+                  <button onClick={() => setIsCreatingFamily(false)} className="flex-1 py-4 text-slate dark:text-support/60 font-black uppercase tracking-widest text-xs">{t('questions.cancel', currentLanguage)}</button>
+                  <button onClick={handleCreateFamily} className="flex-1 bg-primary text-white py-4 rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-primary/20">{t('dashboard.new', currentLanguage)}</button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 };
 

@@ -6,7 +6,8 @@ import {
   ChevronRight,
   Send,
   Languages,
-  Loader2
+  Loader2,
+  Play
 } from 'lucide-react';
 import { Question, User, Family, Language } from '../types';
 import { translateQuestion } from '../services/geminiService';
@@ -168,15 +169,23 @@ const Questions: React.FC<QuestionsProps> = ({ user, families, onAnswer, onRecor
                   </div>
 
                   {q.isVideoQuestion && q.videoUrl && (
-                    <div className="relative w-full aspect-video bg-black rounded-2xl overflow-hidden border border-white/10 group cursor-pointer" onClick={() => onAnswer(q)}>
-                      <video src={q.videoUrl} className="w-full h-full object-cover opacity-60" />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="p-3 bg-white/20 backdrop-blur-md rounded-full border border-white/20 scale-110 group-hover:scale-125 transition-transform">
-                          <Video size={24} className="text-white fill-white" />
+                    <div
+                      className="relative w-full aspect-video rounded-3xl overflow-hidden bg-charcoal group cursor-pointer border border-secondary/10 dark:border-white/5 active:scale-[0.98] transition-all shadow-inner mt-4"
+                      onClick={() => onAnswer(q)}
+                    >
+                      <video
+                        src={q.videoUrl}
+                        className="w-full h-full object-cover"
+                        muted
+                        playsInline
+                      />
+                      <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                        <div className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-xl border border-white/30 flex items-center justify-center shadow-2xl scale-110 group-hover:scale-125 transition-transform">
+                          <Play size={24} className="text-white fill-white ml-0.5" />
                         </div>
                       </div>
-                      <div className="absolute bottom-3 right-3 px-2 py-1 bg-black/40 backdrop-blur-md rounded-lg text-[9px] font-bold text-white uppercase tracking-widest border border-white/10">
-                        {t('record.mode.question', currentLanguage)}
+                      <div className="absolute top-3 right-3 px-2.5 py-1 bg-accent/90 backdrop-blur-md rounded-full text-[8px] font-black text-white uppercase tracking-widest border border-white/10">
+                        Video {t('record.mode.question', currentLanguage)}
                       </div>
                     </div>
                   )}
