@@ -32,6 +32,13 @@ export const COLLECTIONS = {
     NOTIFICATIONS: "notifications"
 };
 
+// Helper to remove undefined fields which Firestore doesn't support
+const clean = <T extends object>(data: T): T => {
+    return Object.fromEntries(
+        Object.entries(data).filter(([_, v]) => v !== undefined)
+    ) as T;
+};
+
 // ============================================
 // USER OPERATIONS
 // ============================================
@@ -42,8 +49,9 @@ export const COLLECTIONS = {
 export const createOrUpdateUser = async (userId: string, userData: Partial<User>): Promise<void> => {
     try {
         const userRef = doc(db, COLLECTIONS.USERS, userId);
+
         await setDoc(userRef, {
-            ...userData,
+            ...clean(userData),
             updatedAt: Timestamp.now()
         }, { merge: true });
         console.log("✅ User created/updated:", userId);
@@ -98,7 +106,7 @@ export const updateUserActiveFamily = async (userId: string, familyId: string): 
 export const createFamily = async (familyData: Omit<Family, 'id'>): Promise<string> => {
     try {
         const familyRef = await addDoc(collection(db, COLLECTIONS.FAMILIES), {
-            ...familyData,
+            ...clean(familyData),
             createdAt: Timestamp.now(),
             updatedAt: Timestamp.now()
         });
@@ -186,7 +194,7 @@ export const addFamilyMember = async (familyId: string, userId: string): Promise
 export const createMemory = async (memoryData: Omit<Memory, 'id'>): Promise<string> => {
     try {
         const memoryRef = await addDoc(collection(db, COLLECTIONS.MEMORIES), {
-            ...memoryData,
+            ...clean(memoryData),
             timestamp: memoryData.timestamp || Timestamp.now().toDate().toISOString(),
             createdAt: Timestamp.now()
         });
@@ -205,7 +213,7 @@ export const updateMemory = async (memoryId: string, updates: Partial<Memory>): 
     try {
         const memoryRef = doc(db, COLLECTIONS.MEMORIES, memoryId);
         await updateDoc(memoryRef, {
-            ...updates,
+            ...clean(updates),
             updatedAt: Timestamp.now()
         });
         console.log("✅ Memory updated:", memoryId);
@@ -370,7 +378,7 @@ export const deleteMemory = async (memoryId: string): Promise<void> => {
 export const createQuestion = async (questionData: Omit<Question, 'id'>): Promise<string> => {
     try {
         const questionRef = await addDoc(collection(db, COLLECTIONS.QUESTIONS), {
-            ...questionData,
+            ...clean(questionData),
             createdAt: Timestamp.now()
         });
         console.log("✅ Question created:", questionRef.id);
@@ -438,7 +446,7 @@ export const createDocument = async (
 ): Promise<string> => {
     try {
         const docRef = await addDoc(collection(db, COLLECTIONS.DOCUMENTS), {
-            ...documentData,
+            ...clean(documentData),
             timestamp: documentData.timestamp || Timestamp.now().toDate().toISOString(),
             createdAt: Timestamp.now()
         });

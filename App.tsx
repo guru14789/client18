@@ -243,7 +243,7 @@ const App: React.FC = () => {
       avatarUrl: `https://i.pravatar.cc/150?u=${firebaseUid}`,
       role: 'admin',
       preferredLanguage: language,
-      activeFamilyId: activeFamilyId || undefined
+      activeFamilyId: activeFamilyId || null
     };
 
     try {
