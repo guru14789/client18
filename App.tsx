@@ -84,6 +84,7 @@ const App: React.FC = () => {
       console.log("App: Auth state changed. UID:", firebaseUser?.uid);
       if (!firebaseUser) {
         // Log out happened - clear state
+        console.log("App: Clearing state on logout");
         setUser(null);
         setFamilies([]);
         setMemories([]);
@@ -95,26 +96,23 @@ const App: React.FC = () => {
       }
 
       // 2. Immediate transition: Set a basic user state from Auth data
-      const baseUser: User = {
-        id: firebaseUser.uid,
-        name: firebaseUser.displayName || 'Family Member',
-        phoneNumber: firebaseUser.phoneNumber || firebaseUser.email || '',
-        families: [],
-        avatarUrl: firebaseUser.photoURL || `https://i.pravatar.cc/150?u=${firebaseUser.uid}`,
-        role: 'user',
-        preferredLanguage: language,
-        activeFamilyId: null
-      };
-
+      // but only if we don't have a better one already
       setUser(prev => {
         if (prev?.id === firebaseUser.uid) return prev;
-        return baseUser;
+        return {
+          id: firebaseUser.uid,
+          name: firebaseUser.displayName || 'Family Member',
+          phoneNumber: firebaseUser.phoneNumber || firebaseUser.email || '',
+          avatarUrl: firebaseUser.photoURL || `https://i.pravatar.cc/150?u=${firebaseUser.uid}`,
+          role: 'user',
+          preferredLanguage: language
+        } as User;
       });
       setLoading(false);
     });
 
     return () => unsubAuth();
-  }, []); // Run on mount only
+  }, [language]); // Run on mount or when language changes
 
   // 1b. Profile Progression (Firestore)
   useEffect(() => {
@@ -126,12 +124,20 @@ const App: React.FC = () => {
       if (userData) {
         setUser(prev => {
           if (!prev) return userData;
-          // Only update if data has changed to prevent unnecessary re-renders
+          // Deep merge profile data
           if (JSON.stringify(prev) === JSON.stringify(userData)) return prev;
           return { ...prev, ...userData };
         });
-        if (userData.preferredLanguage) setLanguage(userData.preferredLanguage);
-        if (userData.activeFamilyId) setActiveFamilyId(prev => prev || userData.activeFamilyId);
+
+        if (userData.preferredLanguage && userData.preferredLanguage !== language) {
+          setLanguage(userData.preferredLanguage);
+        }
+
+        // Priority restoration of active family
+        if (userData.activeFamilyId) {
+          console.log("App: Restoring activeFamilyId from profile:", userData.activeFamilyId);
+          setActiveFamilyId(userData.activeFamilyId);
+        }
       }
     });
 
@@ -150,9 +156,17 @@ const App: React.FC = () => {
       // Auto-select family if none or invalid
       if (userFamilies.length > 0) {
         setActiveFamilyId(prev => {
+          // If we have a valid selection already, keep it
           if (prev && userFamilies.some(f => f.id === prev)) return prev;
-          // Priority: Profile's last choice > first in list
-          return user?.activeFamilyId || userFamilies[0].id;
+
+          // Try user's preferred family first (from profile)
+          const preferredId = user?.activeFamilyId;
+          if (preferredId && userFamilies.some(f => f.id === preferredId)) {
+            return preferredId;
+          }
+
+          // Default to the first one in the list
+          return userFamilies[0].id;
         });
       } else {
         setActiveFamilyId(null);
@@ -286,34 +300,35 @@ const App: React.FC = () => {
     console.log("App: handleLogin triggered for:", firebaseUid);
     try {
       // 1. Immediate UI Transition with base data
-      const partialUser: User = {
+      // Note: We don't initialize 'families' here to avoid wiping it in case of race conditions
+      const partialUser: Partial<User> = {
         id: firebaseUid,
         name: name || 'Family Member',
         phoneNumber: phoneNumber || '',
-        families: [],
         avatarUrl: `https://i.pravatar.cc/150?u=${firebaseUid}`,
         role: 'user',
-        preferredLanguage: language,
-        activeFamilyId: null
+        preferredLanguage: language
       };
 
-      setUser(partialUser);
+      setUser(prev => ({ ...prev, ...partialUser } as User));
       setView('home');
 
-      // 2. Background Sync (Ensures profile exists or merges updates)
+      // 2. Background Sync (Ensures profile exists or restores it)
       (async () => {
         try {
           const profile = await getUser(firebaseUid);
           if (profile) {
-            console.log("App: Existing profile found");
+            console.log("App: Existing profile restored during handleLogin");
             setUser(profile);
             if (profile.activeFamilyId) setActiveFamilyId(profile.activeFamilyId);
           } else {
-            console.log("App: Initializing new profile");
-            await createOrUpdateUser(firebaseUid, partialUser);
+            console.log("App: Initializing brand NEW profile during handleLogin");
+            // For a brand new profile, we provide empty arrays/defaults
+            const freshUser = { ...partialUser, families: [], activeFamilyId: null };
+            await createOrUpdateUser(firebaseUid, freshUser as User);
           }
         } catch (err) {
-          console.warn("App: Background sync warning:", err);
+          console.warn("App: Background sync warning in handleLogin:", err);
         }
       })();
     } catch (err) {
