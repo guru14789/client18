@@ -23,7 +23,8 @@ import {
   Trash2,
   Check,
   Globe,
-  Languages
+  Languages,
+  Archive
 } from 'lucide-react';
 import { User, Family, Language } from '../types';
 import { t } from '../services/i18n';
@@ -38,6 +39,7 @@ interface ProfileProps {
   onThemeChange: (theme: 'light' | 'dark' | 'system') => void;
   currentLanguage: Language;
   onLanguageChange: (lang: Language) => void;
+  onNavigate: (view: any) => void;
 }
 
 interface JoinRequest {
@@ -48,7 +50,7 @@ interface JoinRequest {
   timestamp: string;
 }
 
-const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentTheme, onThemeChange, currentLanguage, onLanguageChange }) => {
+const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentTheme, onThemeChange, currentLanguage, onLanguageChange, onNavigate }) => {
   const [activeSubView, setActiveSubView] = useState<SubView>('none');
   const [permissions, setPermissions] = useState<Record<string, PermissionState>>({
     camera: 'prompt',
@@ -438,6 +440,7 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
             <div className="bg-white dark:bg-white/5 rounded-[32px] px-6 py-1 shadow-sm border border-secondary/20 dark:border-white/10 mb-4 transition-colors">
               <ActionItem label={t('profile.branches', currentLanguage)} icon={PlusCircle} onClick={() => setActiveSubView('branches')} />
               <ActionItem label={t('profile.requests', currentLanguage)} icon={Mail} onClick={() => setActiveSubView('requests')} />
+              <ActionItem label={t('dashboard.vault', currentLanguage)} icon={Archive} onClick={() => onNavigate('documents')} />
             </div>
 
             <SectionHeader title={t('profile.account', currentLanguage)} icon={Shield} />

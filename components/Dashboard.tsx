@@ -107,48 +107,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
         </div>
       </div>
 
-      {/* Family Branches Section */}
-      <div className="mb-10 transition-opacity">
-        <div className="px-6 flex items-center justify-between mb-4">
-          <h3 className="text-[10px] font-black text-charcoal/40 dark:text-warmwhite/40 tracking-[0.2em] uppercase">{t('dashboard.circles', currentLanguage)}</h3>
-          <button
-            onClick={() => setIsCreatingFamily(true)}
-            className="text-primary dark:text-white font-black text-[9px] uppercase tracking-widest flex items-center gap-1 bg-primary/5 dark:bg-white/5 px-3 py-1.5 rounded-full"
-          >
-            <Plus size={12} /> {t('dashboard.new', currentLanguage)}
-          </button>
-        </div>
-
-        <div className="flex overflow-x-auto px-6 gap-4 pb-2 no-scrollbar">
-          {families.map((family) => (
-            <div
-              key={family.id}
-              className={`flex items-center gap-3 border px-4 py-2 rounded-2xl shrink-0 cursor-pointer active:scale-95 transition-all ${family.id === activeFamilyId
-                ? 'bg-primary/10 border-primary shadow-sm'
-                : 'bg-white/40 dark:bg-white/5 border-secondary/20 dark:border-white/10'
-                }`}
-              onClick={() => onSwitchFamily(family.id)}
-            >
-              <Users size={14} className={family.id === activeFamilyId ? "text-primary" : "text-slate/60"} />
-              <span className={`text-[11px] font-bold uppercase tracking-wider ${family.id === activeFamilyId ? "text-primary" : "text-slate/60"}`}>
-                <LocalizedText
-                  text={family.name}
-                  targetLanguage={currentLanguage}
-                  originalLanguage={family.motherTongue}
-                />
-              </span>
-            </div>
-          ))}
-
-          <div
-            className="flex items-center gap-3 bg-secondary/10 dark:bg-white/5 border border-secondary/20 dark:border-white/10 px-4 py-2 rounded-2xl shrink-0 cursor-pointer active:scale-95 transition-all"
-            onClick={() => onNavigate('documents')}
-          >
-            <Archive size={14} className="text-accent/60" />
-            <span className="text-[11px] font-bold text-accent/60 uppercase tracking-wider">{t('dashboard.vault', currentLanguage)}</span>
-          </div>
-        </div>
-      </div>
 
       {/* Active Prompts Section */}
       <div className="px-6 space-y-6">

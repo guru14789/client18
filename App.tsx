@@ -424,7 +424,7 @@ const App: React.FC = () => {
           {view === 'documents' && user && <Documents user={user} families={families} documents={documents} setDocuments={setDocuments} currentLanguage={language} />}
           {view === 'record' && user && <RecordMemory user={user} question={activeQuestion} mode={recordMode} onCancel={() => { setView('home'); setActiveQuestion(null); }} onComplete={handleRecordingComplete} families={families} activeFamilyId={activeFamilyId} currentLanguage={language} />}
           {view === 'drafts' && <Drafts drafts={drafts} onPublish={(m) => handleRecordingComplete({ ...m, isDraft: false })} onDelete={(id) => deleteMemory(id)} currentLanguage={language} onBack={() => setView('home')} />}
-          {view === 'profile' && user && <Profile user={user} families={families} onLogout={handleLogout} currentTheme={theme} onThemeChange={setTheme} currentLanguage={language} onLanguageChange={handleLanguageChange} />}
+          {view === 'profile' && user && <Profile user={user} families={families} onLogout={handleLogout} currentTheme={theme} onThemeChange={setTheme} currentLanguage={language} onLanguageChange={handleLanguageChange} onNavigate={setView} />}
         </div>
       </main>
 
