@@ -180,7 +180,7 @@ const App: React.FC = () => {
     });
 
     return () => unsubFamilies();
-  }, [user?.id, user?.activeFamilyId]);
+  }, [user?.id]);
 
   // 3. Family Content Sync (Memories, Questions, Docs)
   useEffect(() => {
@@ -329,9 +329,12 @@ const App: React.FC = () => {
             if (profile.activeFamilyId) setActiveFamilyId(profile.activeFamilyId);
           } else {
             console.log("App: Initializing brand NEW profile during handleLogin");
+            console.log("App: Initializing brand NEW profile during handleLogin");
             // For a brand new profile, we provide empty defaults
             // Notice we ONLY use createOrUpdateUser if the profile was NOT found
-            const freshUser = { ...partialUser, families: [], activeFamilyId: null };
+            // CRITICAL FIX: Do NOT set families to [] or activeFamilyId to null, 
+            // as this could overwrite existing data if getUser failed silently.
+            const freshUser = { ...partialUser };
             await createOrUpdateUser(firebaseUid, freshUser as User);
           }
         } catch (err) {
