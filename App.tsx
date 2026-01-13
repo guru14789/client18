@@ -306,8 +306,11 @@ const App: React.FC = () => {
   const handleLogin = useCallback(async (phoneNumber: string, name: string, firebaseUid: string) => {
     console.log("App: handleLogin triggered for:", firebaseUid);
     try {
-      // 1. Immediate UI Transition with base data
-      // Note: We don't initialize 'families' here to avoid wiping it in case of race conditions
+      setLoading(true);
+      // 1. Try to fetch existing profile first
+      const profile = await getUser(firebaseUid);
+
+      let finalUser: User;
       const partialUser: Partial<User> = {
         id: firebaseUid,
         name: name || 'Family Member',
@@ -317,48 +320,46 @@ const App: React.FC = () => {
         preferredLanguage: language
       };
 
-      setUser(prev => ({ ...prev, ...partialUser } as User));
+      if (profile) {
+        console.log("App: Existing profile restored during handleLogin");
+        finalUser = profile;
+      } else {
+        console.log("App: Initializing brand NEW profile during handleLogin");
+
+        // Safety Check: Does this user actually have families? 
+        // (Recover from missing profile doc scenario)
+        let existingFamilies: Family[] = [];
+        try {
+          existingFamilies = await getUserFamilies(firebaseUid);
+        } catch (e) {
+          console.warn("App: Failed to check existing families", e);
+        }
+
+        const freshUser: User = {
+          ...partialUser,
+          id: firebaseUid,
+          name: name || 'Family Member',
+          phoneNumber: phoneNumber || '',
+          avatarUrl: `https://i.pravatar.cc/150?u=${firebaseUid}`,
+          role: 'user',
+          preferredLanguage: language,
+          families: existingFamilies.map(f => f.id),
+          activeFamilyId: existingFamilies.length > 0 ? existingFamilies[0].id : undefined
+        } as User;
+
+        await createOrUpdateUser(firebaseUid, freshUser);
+        finalUser = freshUser;
+      }
+
+      setUser(finalUser);
+      if (finalUser.activeFamilyId) setActiveFamilyId(finalUser.activeFamilyId);
+
+      setLoading(false);
       setView('home');
 
-      // 2. Background Sync (Ensures profile exists or restores it)
-      (async () => {
-        try {
-          const profile = await getUser(firebaseUid);
-          if (profile) {
-            console.log("App: Existing profile restored during handleLogin");
-            setUser(profile);
-            if (profile.activeFamilyId) setActiveFamilyId(profile.activeFamilyId);
-          } else {
-            console.log("App: Initializing brand NEW profile during handleLogin");
-
-            // Safety Check: Does this user actually have families? 
-            // (Recover from missing profile doc scenario)
-            let existingFamilies: Family[] = [];
-            try {
-              existingFamilies = await getUserFamilies(firebaseUid);
-            } catch (e) {
-              console.warn("App: Failed to check existing families", e);
-            }
-
-            // CRITICAL FIX: Do NOT set families to [] or activeFamilyId to null, 
-            // as this could overwrite existing data if getUser failed silently.
-            const freshUser: User = {
-              ...partialUser,
-              families: existingFamilies.map(f => f.id),
-              activeFamilyId: existingFamilies.length > 0 ? existingFamilies[0].id : undefined
-            } as User;
-
-            await createOrUpdateUser(firebaseUid, freshUser);
-            // Update local state immediately with the "recovered" data
-            setUser(freshUser);
-            if (freshUser.activeFamilyId) setActiveFamilyId(freshUser.activeFamilyId);
-          }
-        } catch (err) {
-          console.warn("App: Background sync warning in handleLogin:", err);
-        }
-      })();
     } catch (err) {
       console.error("App: handleLogin fatal error:", err);
+      setLoading(false);
       setView('home');
     }
   }, [language]);
