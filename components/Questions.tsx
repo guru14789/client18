@@ -29,7 +29,7 @@ interface QuestionsProps {
 const Questions: React.FC<QuestionsProps> = ({ user, families, onAnswer, onRecordQuestion, currentLanguage, questions, onToggleUpvote, onAddQuestion, activeFamilyId }) => {
   const [isAsking, setIsAsking] = useState(false);
   const [newQuestionText, setNewQuestionText] = useState('');
-  const [targetFamilyId, setTargetFamilyId] = useState(activeFamilyId || user.families[0]);
+  const [targetFamilyId, setTargetFamilyId] = useState(activeFamilyId || families[0]?.id || '');
   const [isTranslating, setIsTranslating] = useState(false);
 
   // No local state for questions anymore
@@ -99,7 +99,7 @@ const Questions: React.FC<QuestionsProps> = ({ user, families, onAnswer, onRecor
                     value={targetFamilyId}
                     onChange={(e) => setTargetFamilyId(e.target.value)}
                   >
-                    {families.filter(f => user.families.includes(f.id)).map(f => (
+                    {families.map(f => (
                       <option key={f.id} value={f.id}>{f.name}</option>
                     ))}
                   </select>

@@ -61,7 +61,7 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
     { id: 'jr2', userName: 'Anjali Sharma', avatar: 'https://i.pravatar.cc/150?u=anjali', familyName: 'Sharma Clan', timestamp: '1d ago' }
   ]);
 
-  const userFamilies = families.filter(f => user.families.includes(f.id));
+  const userFamilies = families;
 
   const checkPermissions = async () => {
     try {

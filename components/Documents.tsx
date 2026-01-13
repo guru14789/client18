@@ -19,7 +19,7 @@ interface DocumentsProps {
 const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDocuments, currentLanguage }) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [targetFamilyId, setTargetFamilyId] = useState(user.families[0]);
+  const [targetFamilyId, setTargetFamilyId] = useState(families[0]?.id || '');
   const [searchQuery, setSearchQuery] = useState('');
   const [viewingDoc, setViewingDoc] = useState<FamilyDocument | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -168,7 +168,7 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
                 value={targetFamilyId}
                 onChange={(e) => setTargetFamilyId(e.target.value)}
               >
-                {families.filter(f => user.families.includes(f.id)).map(f => (
+                {families.map(f => (
                   <option key={f.id} value={f.id}>{f.name}</option>
                 ))}
               </select>
