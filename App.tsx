@@ -29,7 +29,8 @@ import {
   createFamily,
   addFamilyMember,
   deleteMemory,
-  getFamilyDocuments // Fallback for docs if no listener yet
+  getFamilyDocuments, // Fallback for docs if no listener yet
+  getUserFamilies // Query helper
 } from './services/firebaseServices';
 import {
   collection,
@@ -329,13 +330,28 @@ const App: React.FC = () => {
             if (profile.activeFamilyId) setActiveFamilyId(profile.activeFamilyId);
           } else {
             console.log("App: Initializing brand NEW profile during handleLogin");
-            console.log("App: Initializing brand NEW profile during handleLogin");
-            // For a brand new profile, we provide empty defaults
-            // Notice we ONLY use createOrUpdateUser if the profile was NOT found
+
+            // Safety Check: Does this user actually have families? 
+            // (Recover from missing profile doc scenario)
+            let existingFamilies: Family[] = [];
+            try {
+              existingFamilies = await getUserFamilies(firebaseUid);
+            } catch (e) {
+              console.warn("App: Failed to check existing families", e);
+            }
+
             // CRITICAL FIX: Do NOT set families to [] or activeFamilyId to null, 
             // as this could overwrite existing data if getUser failed silently.
-            const freshUser = { ...partialUser };
-            await createOrUpdateUser(firebaseUid, freshUser as User);
+            const freshUser: User = {
+              ...partialUser,
+              families: existingFamilies.map(f => f.id),
+              activeFamilyId: existingFamilies.length > 0 ? existingFamilies[0].id : undefined
+            } as User;
+
+            await createOrUpdateUser(firebaseUid, freshUser);
+            // Update local state immediately with the "recovered" data
+            setUser(freshUser);
+            if (freshUser.activeFamilyId) setActiveFamilyId(freshUser.activeFamilyId);
           }
         } catch (err) {
           console.warn("App: Background sync warning in handleLogin:", err);

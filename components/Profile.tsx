@@ -428,6 +428,7 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
               </div>
               <h2 className="text-2xl font-black text-charcoal dark:text-warmwhite tracking-tight leading-none">{user.name}</h2>
               <p className="text-slate dark:text-support/60 font-bold text-sm mt-2 opacity-60 tracking-tight">{user.phoneNumber}</p>
+              <p className="text-[10px] text-slate/30 dark:text-white/10 mt-1 font-mono">{user.id}</p>
             </div>
 
             <SectionHeader title={t('profile.system', currentLanguage)} icon={LockKeyhole} />
