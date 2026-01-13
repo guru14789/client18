@@ -80,20 +80,37 @@ const App: React.FC = () => {
   // 1. Auth Sync
   useEffect(() => {
     const unsubAuth = onAuthStateChange((firebaseUser) => {
+      console.log("App: Auth state changed. User:", firebaseUser?.uid);
       if (!firebaseUser) {
         setUser(null);
         setLoading(false);
         return;
       }
 
-      // Listen to user profile
+      // 2. Immediate transition: Set a basic user state from Auth data
+      // so the app can move to 'home' view while Firestore loads in the background
+      const baseUser: User = {
+        id: firebaseUser.uid,
+        name: firebaseUser.displayName || 'Family Member',
+        phoneNumber: firebaseUser.phoneNumber || firebaseUser.email || '',
+        families: [],
+        avatarUrl: firebaseUser.photoURL || `https://i.pravatar.cc/150?u=${firebaseUser.uid}`,
+        role: 'user',
+        preferredLanguage: language,
+        activeFamilyId: activeFamilyId || null
+      };
+
+      setUser(prev => prev || baseUser);
+      setLoading(false);
+
+      // 3. Progressive Enhancement: Listen to Firestore for the full profile
       const unsubUser = listenToUser(firebaseUser.uid, (userData) => {
+        console.log("App: Firestore user profile received:", userData ? "Success" : "No profile found");
         if (userData) {
           setUser(userData);
           if (userData.preferredLanguage) setLanguage(userData.preferredLanguage);
-          if (!activeFamilyId && userData.activeFamilyId) setActiveFamilyId(userData.activeFamilyId);
+          if (userData.activeFamilyId) setActiveFamilyId(userData.activeFamilyId);
         }
-        setLoading(false);
       });
 
       return () => unsubUser();
@@ -101,6 +118,17 @@ const App: React.FC = () => {
 
     return () => unsubAuth();
   }, [activeFamilyId]);
+
+  // Safety timeout for loading
+  useEffect(() => {
+    if (loading) {
+      const timer = setTimeout(() => {
+        console.warn("App: Loading safety timeout reached.");
+        setLoading(false);
+      }, 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [loading]);
 
   // 2. Family Sync
   useEffect(() => {
@@ -253,6 +281,7 @@ const App: React.FC = () => {
       await createOrUpdateUser(firebaseUid, newUser);
 
       // 3. Update local state
+      console.log("App: Setting user and view to home...");
       setUser(newUser);
       setView('home');
       console.log("✅ Profile synced and logged in:", firebaseUid);

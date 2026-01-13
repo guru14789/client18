@@ -54,34 +54,58 @@ const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage }) => {
 
   useEffect(() => {
     const checkRedirectAndProfile = async () => {
+      if (authInitialized.current) return;
+      authInitialized.current = true;
+
+      console.log("Login: Checking for Google redirect result...");
       try {
         setLoading(true);
         // 1. Handle Google Redirect Result first
         const result = await getRedirectResult(auth);
+        console.log("Login: getRedirectResult finished. Result:", result ? "User found" : "No redirect result");
+
         let fbUser = result?.user || auth.currentUser;
 
+        // Wait a small bit if auth.currentUser isn't populated yet but result was null
+        if (!fbUser) {
+          await new Promise(r => setTimeout(r, 500));
+          fbUser = auth.currentUser;
+        }
+
         if (fbUser) {
+          console.log("Login: Authenticated user detected:", fbUser.uid);
           const profile = await getUser(fbUser.uid);
+          console.log("Login: Firestore profile check:", profile ? "Profile exists" : "No profile found");
+
           if (profile && profile.name) {
             const phone = fbUser.phoneNumber || fbUser.email || fbUser.uid;
+            console.log("Login: Existing user, calling onLogin...");
             onLogin(phone, profile.name, fbUser.uid);
           } else {
+            console.log("Login: New user or missing name, going to nameEntry");
             setFirebaseUid(fbUser.uid);
             setPhoneNumber(fbUser.phoneNumber || fbUser.email || fbUser.uid);
             setName(fbUser.displayName || '');
             setStep('nameEntry');
           }
+        } else {
+          console.log("Login: No user authenticated yet.");
         }
       } catch (err: any) {
-        console.error("Error handling redirect/profile check:", err);
-        setError(err.message || "Authentication failed.");
+        console.error("Login: Redirect/profile check error:", err);
+        // Special handling for the common "offline" or "stale" error
+        if (err.message?.includes("offline") || err.code === "unavailable") {
+          setError("Cannot reach database. Check network or refresh.");
+        } else {
+          setError(err.message || "Authentication sync failed.");
+        }
       } finally {
         setLoading(false);
       }
     };
 
     checkRedirectAndProfile();
-  }, []);
+  }, [onLogin]);
 
 
   useEffect(() => {
