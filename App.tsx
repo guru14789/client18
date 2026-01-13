@@ -204,7 +204,7 @@ const App: React.FC = () => {
     const qDocs = query(
       collection(db, "documents"),
       where("familyId", "==", activeFamilyId),
-      orderBy("timestamp", "desc")
+      orderBy("createdAt", "desc")
     );
     const unsubDocs = onSnapshot(qDocs, (snapshot) => {
       const ds = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })) as FamilyDocument[];
@@ -329,7 +329,8 @@ const App: React.FC = () => {
             if (profile.activeFamilyId) setActiveFamilyId(profile.activeFamilyId);
           } else {
             console.log("App: Initializing brand NEW profile during handleLogin");
-            // For a brand new profile, we provide empty arrays/defaults
+            // For a brand new profile, we provide empty defaults
+            // Notice we ONLY use createOrUpdateUser if the profile was NOT found
             const freshUser = { ...partialUser, families: [], activeFamilyId: null };
             await createOrUpdateUser(firebaseUid, freshUser as User);
           }

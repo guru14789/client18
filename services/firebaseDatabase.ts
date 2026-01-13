@@ -108,7 +108,8 @@ export const createFamily = async (familyData: Omit<Family, 'id'>): Promise<stri
         const familyRef = await addDoc(collection(db, COLLECTIONS.FAMILIES), {
             ...clean(familyData),
             createdAt: Timestamp.now(),
-            updatedAt: Timestamp.now()
+            updatedAt: Timestamp.now(),
+            timestamp: new Date().toISOString()
         });
         console.log("✅ Family created:", familyRef.id);
         return familyRef.id;
@@ -377,8 +378,11 @@ export const deleteMemory = async (memoryId: string): Promise<void> => {
  */
 export const createQuestion = async (questionData: Omit<Question, 'id'>): Promise<string> => {
     try {
+        const now = new Date().toISOString();
         const questionRef = await addDoc(collection(db, COLLECTIONS.QUESTIONS), {
             ...clean(questionData),
+            upvotes: 0,
+            timestamp: now,
             createdAt: Timestamp.now()
         });
         console.log("✅ Question created:", questionRef.id);
@@ -510,7 +514,7 @@ export const listenToFamilyMemories = (
 ): (() => void) => {
     const constraints: QueryConstraint[] = [
         where("familyId", "==", familyId),
-        orderBy("timestamp", "desc")
+        orderBy("createdAt", "desc")
     ];
 
     if (!includeDrafts) {
@@ -538,7 +542,7 @@ export const listenToFamilyQuestions = (
     const q = query(
         collection(db, COLLECTIONS.QUESTIONS),
         where("familyId", "==", familyId),
-        orderBy("upvotes", "desc")
+        orderBy("createdAt", "desc")
     );
 
     return onSnapshot(q, (snapshot) => {
