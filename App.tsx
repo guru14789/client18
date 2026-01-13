@@ -77,18 +77,24 @@ const App: React.FC = () => {
     return (saved as Language) || Language.TAMIL;
   });
 
-  // 1. Auth Sync
+  // 1. Auth & Profile Sync
   useEffect(() => {
+    console.log("App: Auth Sync effect running...");
     const unsubAuth = onAuthStateChange((firebaseUser) => {
-      console.log("App: Auth state changed. User:", firebaseUser?.uid);
+      console.log("App: Auth state changed. UID:", firebaseUser?.uid);
       if (!firebaseUser) {
+        // Log out happened - clear state
         setUser(null);
+        setFamilies([]);
+        setMemories([]);
+        setQPrompts([]);
+        setDocuments([]);
+        setActiveFamilyId(null);
         setLoading(false);
         return;
       }
 
       // 2. Immediate transition: Set a basic user state from Auth data
-      // so the app can move to 'home' view while Firestore loads in the background
       const baseUser: User = {
         id: firebaseUser.uid,
         name: firebaseUser.displayName || 'Family Member',
@@ -97,52 +103,64 @@ const App: React.FC = () => {
         avatarUrl: firebaseUser.photoURL || `https://i.pravatar.cc/150?u=${firebaseUser.uid}`,
         role: 'user',
         preferredLanguage: language,
-        activeFamilyId: activeFamilyId || null
+        activeFamilyId: null
       };
 
-      setUser(prev => prev || baseUser);
-      setLoading(false);
-
-      // 3. Progressive Enhancement: Listen to Firestore for the full profile
-      const unsubUser = listenToUser(firebaseUser.uid, (userData) => {
-        console.log("App: Firestore user profile received:", userData ? "Success" : "No profile found");
-        if (userData) {
-          setUser(userData);
-          if (userData.preferredLanguage) setLanguage(userData.preferredLanguage);
-          if (userData.activeFamilyId) setActiveFamilyId(userData.activeFamilyId);
-        }
+      setUser(prev => {
+        if (prev?.id === firebaseUser.uid) return prev;
+        return baseUser;
       });
-
-      return () => unsubUser();
+      setLoading(false);
     });
 
     return () => unsubAuth();
-  }, [activeFamilyId]);
+  }, []); // Run on mount only
 
-  // Safety timeout for loading
+  // 1b. Profile Progression (Firestore)
   useEffect(() => {
-    if (loading) {
-      const timer = setTimeout(() => {
-        console.warn("App: Loading safety timeout reached.");
-        setLoading(false);
-      }, 6000);
-      return () => clearTimeout(timer);
-    }
-  }, [loading]);
+    if (!user?.id) return;
+
+    console.log("App: Listening to profile for:", user.id);
+    const unsubUser = listenToUser(user.id, (userData) => {
+      console.log("App: Profile update received:", userData ? "Success" : "Not found");
+      if (userData) {
+        setUser(prev => {
+          if (!prev) return userData;
+          // Only update if data has changed to prevent unnecessary re-renders
+          if (JSON.stringify(prev) === JSON.stringify(userData)) return prev;
+          return { ...prev, ...userData };
+        });
+        if (userData.preferredLanguage) setLanguage(userData.preferredLanguage);
+        if (userData.activeFamilyId) setActiveFamilyId(prev => prev || userData.activeFamilyId);
+      }
+    });
+
+    return () => unsubUser();
+  }, [user?.id]);
 
   // 2. Family Sync
   useEffect(() => {
-    if (!user) return;
+    if (!user?.id) return;
 
+    console.log("App: Listening to families for:", user.id);
     const unsubFamilies = listenToUserFamilies(user.id, (userFamilies) => {
+      console.log("App: Families received:", userFamilies.length);
       setFamilies(userFamilies);
-      if (userFamilies.length > 0 && !activeFamilyId) {
-        setActiveFamilyId(user.activeFamilyId || userFamilies[0].id);
+
+      // Auto-select family if none or invalid
+      if (userFamilies.length > 0) {
+        setActiveFamilyId(prev => {
+          if (prev && userFamilies.some(f => f.id === prev)) return prev;
+          // Priority: Profile's last choice > first in list
+          return user?.activeFamilyId || userFamilies[0].id;
+        });
+      } else {
+        setActiveFamilyId(null);
       }
     });
 
     return () => unsubFamilies();
-  }, [user, activeFamilyId]);
+  }, [user?.id, user?.activeFamilyId]);
 
   // 3. Family Content Sync (Memories, Questions, Docs)
   useEffect(() => {
@@ -252,56 +270,57 @@ const App: React.FC = () => {
   // View logic
   useEffect(() => {
     if (loading) return;
+    console.log("App: View logic check. view:", view, "user:", !!user);
     if (view === 'splash') {
       setView(user ? 'home' : 'login');
     } else if (user && view === 'login') {
+      console.log("App: Logged in user in login view, moving to home");
       setView('home');
     } else if (!user && !['splash', 'onboarding', 'login'].includes(view)) {
+      console.log("App: No user in app view, enforcing login");
       setView('login');
     }
   }, [loading, user, view]);
 
   const handleLogin = useCallback(async (phoneNumber: string, name: string, firebaseUid: string) => {
+    console.log("App: handleLogin triggered for:", firebaseUid);
     try {
-      // 1. Check if user already exists to avoid overwriting existing data (like families)
-      const existingUser = await getUser(firebaseUid);
-
-      const newUser: User = {
+      // 1. Immediate UI Transition with base data
+      const partialUser: User = {
         id: firebaseUid,
-        name: name || (existingUser?.name) || 'Family Member',
-        phoneNumber: phoneNumber || (existingUser?.phoneNumber) || '',
-        families: existingUser?.families || [],
-        avatarUrl: existingUser?.avatarUrl || `https://i.pravatar.cc/150?u=${firebaseUid}`,
-        role: existingUser?.role || 'user',
-        preferredLanguage: existingUser?.preferredLanguage || language,
-        activeFamilyId: existingUser?.activeFamilyId || activeFamilyId || null
-      };
-
-      // 2. Save/Update in Firestore
-      await createOrUpdateUser(firebaseUid, newUser);
-
-      // 3. Update local state
-      console.log("App: Setting user and view to home...");
-      setUser(newUser);
-      setView('home');
-      console.log("✅ Profile synced and logged in:", firebaseUid);
-    } catch (err) {
-      console.error("Login save error:", err);
-      // Fallback: Proceed with local state even if save fails, to keep app usable
-      const fallbackUser: User = {
-        id: firebaseUid,
-        name,
-        phoneNumber,
+        name: name || 'Family Member',
+        phoneNumber: phoneNumber || '',
         families: [],
         avatarUrl: `https://i.pravatar.cc/150?u=${firebaseUid}`,
         role: 'user',
         preferredLanguage: language,
-        activeFamilyId: activeFamilyId || null
+        activeFamilyId: null
       };
-      setUser(fallbackUser);
+
+      setUser(partialUser);
+      setView('home');
+
+      // 2. Background Sync (Ensures profile exists or merges updates)
+      (async () => {
+        try {
+          const profile = await getUser(firebaseUid);
+          if (profile) {
+            console.log("App: Existing profile found");
+            setUser(profile);
+            if (profile.activeFamilyId) setActiveFamilyId(profile.activeFamilyId);
+          } else {
+            console.log("App: Initializing new profile");
+            await createOrUpdateUser(firebaseUid, partialUser);
+          }
+        } catch (err) {
+          console.warn("App: Background sync warning:", err);
+        }
+      })();
+    } catch (err) {
+      console.error("App: handleLogin fatal error:", err);
       setView('home');
     }
-  }, [language, activeFamilyId]);
+  }, [language]);
 
   const handleRecordingComplete = async (newMemory: Memory) => {
     try {
@@ -331,9 +350,22 @@ const App: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    await auth.signOut();
-    setUser(null);
-    setView('login');
+    console.log("App: Logging out...");
+    try {
+      await auth.signOut();
+      // Auth listener handles most state clearing, but we force it here too
+      setUser(null);
+      setFamilies([]);
+      setMemories([]);
+      setQPrompts([]);
+      setDrafts([]);
+      setDocuments([]);
+      setActiveFamilyId(null);
+      setView('login');
+    } catch (err) {
+      console.error("Logout error:", err);
+      setView('login');
+    }
   };
 
   // Theme

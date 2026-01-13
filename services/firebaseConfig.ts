@@ -30,6 +30,18 @@ export const auth: Auth = getAuth(app);
 export const db: Firestore = getFirestore(app);
 export const storage: FirebaseStorage = getStorage(app);
 
+// Enable persistence for offline support and faster loads
+import { enableMultiTabIndexedDbPersistence } from "firebase/firestore";
+if (typeof window !== "undefined") {
+    enableMultiTabIndexedDbPersistence(db).catch((err) => {
+        if (err.code === 'failed-precondition') {
+            console.warn("Firestore persistence: multiple tabs open");
+        } else if (err.code === 'unimplemented') {
+            console.warn("Firestore persistence: browser not supported");
+        }
+    });
+}
+
 // Analytics setup
 let analytics: Analytics | null = null;
 if (typeof window !== "undefined") {

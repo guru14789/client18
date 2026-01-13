@@ -302,24 +302,13 @@ const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage }) => {
 
                   console.log("Login: Popup successful, user:", fbUser.uid);
 
-                  // Try to get profile but don't let it block the login if it fails (e.g. offline)
-                  try {
-                    const profile = await getUser(fbUser.uid);
-                    if (profile && profile.name) {
-                      const phone = fbUser.phoneNumber || fbUser.email || fbUser.uid;
-                      onLogin(phone, profile.name, fbUser.uid);
-                    } else {
-                      setFirebaseUid(fbUser.uid);
-                      setPhoneNumber(fbUser.phoneNumber || fbUser.email || fbUser.uid);
-                      setName(fbUser.displayName || '');
-                      setStep('nameEntry');
-                    }
-                  } catch (dbErr) {
-                    console.warn("Login: Database check failed after popup success:", dbErr);
-                    // Force login with Auth data
-                    const phone = fbUser.phoneNumber || fbUser.email || fbUser.uid;
-                    onLogin(phone, fbUser.displayName || 'Family Member', fbUser.uid);
-                  }
+                  const phone = fbUser.phoneNumber || fbUser.email || fbUser.uid;
+                  const displayName = fbUser.displayName || 'Family Member';
+
+                  // Simple logic: call onLogin immediately. 
+                  // If it's a first time user, App.tsx will handle the Firestore sync in the background.
+                  onLogin(phone, displayName, fbUser.uid);
+
                 } catch (err: any) {
                   console.error("Login: Google popup error:", err);
                   // Check if it's a "Popup blocked" or "Redirect needed" error
