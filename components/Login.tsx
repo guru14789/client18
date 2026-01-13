@@ -57,50 +57,39 @@ const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage }) => {
       if (authInitialized.current) return;
       authInitialized.current = true;
 
-      console.log("Login: Checking for Google redirect result...");
-      try {
-        setLoading(true);
-        // 1. Handle Google Redirect Result first
-        const result = await getRedirectResult(auth);
-        console.log("Login: getRedirectResult finished. Result:", result ? "User found" : "No redirect result");
+      // Small delay to let Firebase Auth initialize the persisted session
+      await new Promise(r => setTimeout(r, 800));
 
-        let fbUser = result?.user || auth.currentUser;
+      let fbUser = auth.currentUser;
 
-        // Wait a small bit if auth.currentUser isn't populated yet but result was null
-        if (!fbUser) {
-          await new Promise(r => setTimeout(r, 500));
-          fbUser = auth.currentUser;
-        }
+      if (!fbUser) {
+        try {
+          console.log("Login: Checking for Google redirect result as fallback...");
+          const result = await getRedirectResult(auth);
+          if (result) fbUser = result.user;
+        } catch (e) { }
+      }
 
-        if (fbUser) {
-          console.log("Login: Authenticated user detected:", fbUser.uid);
+      if (fbUser) {
+        console.log("Login: Session found for user:", fbUser.uid);
+        try {
+          setLoading(true);
           const profile = await getUser(fbUser.uid);
-          console.log("Login: Firestore profile check:", profile ? "Profile exists" : "No profile found");
 
-          if (profile && profile.name) {
-            const phone = fbUser.phoneNumber || fbUser.email || fbUser.uid;
-            console.log("Login: Existing user, calling onLogin...");
-            onLogin(phone, profile.name, fbUser.uid);
-          } else {
-            console.log("Login: New user or missing name, going to nameEntry");
-            setFirebaseUid(fbUser.uid);
-            setPhoneNumber(fbUser.phoneNumber || fbUser.email || fbUser.uid);
-            setName(fbUser.displayName || '');
-            setStep('nameEntry');
-          }
-        } else {
-          console.log("Login: No user authenticated yet.");
+          const phone = fbUser.phoneNumber || fbUser.email || fbUser.uid;
+          const name = profile?.name || fbUser.displayName || 'Family Member';
+
+          console.log("Login: Proceeding to onLogin with session...");
+          onLogin(phone, name, fbUser.uid);
+        } catch (err: any) {
+          console.warn("Login: Firestore check failed on mount, but user is authenticated. Proceeding...", err);
+          const phone = fbUser.phoneNumber || fbUser.email || fbUser.uid;
+          onLogin(phone, fbUser.displayName || 'Family Member', fbUser.uid);
+        } finally {
+          setLoading(false);
         }
-      } catch (err: any) {
-        console.error("Login: Redirect/profile check error:", err);
-        // Special handling for the common "offline" or "stale" error
-        if (err.message?.includes("offline") || err.code === "unavailable") {
-          setError("Cannot reach database. Check network or refresh.");
-        } else {
-          setError(err.message || "Authentication sync failed.");
-        }
-      } finally {
-        setLoading(false);
+      } else {
+        console.log("Login: No existing session found.");
       }
     };
 
@@ -302,17 +291,43 @@ const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage }) => {
             </button>
             <button
               onClick={async () => {
-                console.log("Login: Google Redirect clicked");
+                console.log("Login: Google Popup clicked");
                 setError(null);
                 setLoading(true);
                 try {
                   const provider = new GoogleAuthProvider();
                   provider.setCustomParameters({ prompt: 'select_account' });
-                  // Use Redirect instead of Popup to avoid COOP errors
-                  await signInWithRedirect(auth, provider);
+                  const result = await signInWithPopup(auth, provider);
+                  const fbUser = result.user;
+
+                  console.log("Login: Popup successful, user:", fbUser.uid);
+
+                  // Try to get profile but don't let it block the login if it fails (e.g. offline)
+                  try {
+                    const profile = await getUser(fbUser.uid);
+                    if (profile && profile.name) {
+                      const phone = fbUser.phoneNumber || fbUser.email || fbUser.uid;
+                      onLogin(phone, profile.name, fbUser.uid);
+                    } else {
+                      setFirebaseUid(fbUser.uid);
+                      setPhoneNumber(fbUser.phoneNumber || fbUser.email || fbUser.uid);
+                      setName(fbUser.displayName || '');
+                      setStep('nameEntry');
+                    }
+                  } catch (dbErr) {
+                    console.warn("Login: Database check failed after popup success:", dbErr);
+                    // Force login with Auth data
+                    const phone = fbUser.phoneNumber || fbUser.email || fbUser.uid;
+                    onLogin(phone, fbUser.displayName || 'Family Member', fbUser.uid);
+                  }
                 } catch (err: any) {
-                  console.error("Login: Google redirect error:", err);
-                  setError(err.message || "Google login failed.");
+                  console.error("Login: Google popup error:", err);
+                  // Check if it's a "Popup blocked" or "Redirect needed" error
+                  if (err.code === 'auth/popup-blocked') {
+                    setError("Popup blocked. Please allow popups or try again.");
+                  } else {
+                    setError(err.message || "Google login failed.");
+                  }
                   setLoading(false);
                 }
               }}
