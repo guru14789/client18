@@ -131,6 +131,12 @@ const App: React.FC = () => {
 
         if (userData.preferredLanguage && userData.preferredLanguage !== language) {
           setLanguage(userData.preferredLanguage);
+          localStorage.setItem('inai_language', userData.preferredLanguage);
+        }
+
+        if (userData.theme && userData.theme !== theme) {
+          setTheme(userData.theme);
+          localStorage.setItem('inai_theme', userData.theme);
         }
 
         // Priority restoration of active family
@@ -364,6 +370,14 @@ const App: React.FC = () => {
     }
   };
 
+  const handleThemeChange = async (newTheme: 'light' | 'dark' | 'system') => {
+    setTheme(newTheme);
+    localStorage.setItem('inai_theme', newTheme);
+    if (user) {
+      await createOrUpdateUser(user.id, { theme: newTheme });
+    }
+  };
+
   const handleLogout = async () => {
     console.log("App: Logging out...");
     try {
@@ -377,6 +391,8 @@ const App: React.FC = () => {
       setDocuments([]);
       setActiveFamilyId(null);
       setView('login');
+      // Clear local storage for preferences only if you want a complete reset
+      // keeping them usually provides a better UX for the next guest
     } catch (err) {
       console.error("Logout error:", err);
       setView('login');
@@ -424,7 +440,7 @@ const App: React.FC = () => {
           {view === 'documents' && user && <Documents user={user} families={families} documents={documents} setDocuments={setDocuments} currentLanguage={language} />}
           {view === 'record' && user && <RecordMemory user={user} question={activeQuestion} mode={recordMode} onCancel={() => { setView('home'); setActiveQuestion(null); }} onComplete={handleRecordingComplete} families={families} activeFamilyId={activeFamilyId} currentLanguage={language} />}
           {view === 'drafts' && <Drafts drafts={drafts} onPublish={(m) => handleRecordingComplete({ ...m, isDraft: false })} onDelete={(id) => deleteMemory(id)} currentLanguage={language} onBack={() => setView('home')} />}
-          {view === 'profile' && user && <Profile user={user} families={families} onLogout={handleLogout} currentTheme={theme} onThemeChange={setTheme} currentLanguage={language} onLanguageChange={handleLanguageChange} onNavigate={setView} />}
+          {view === 'profile' && user && <Profile user={user} families={families} onLogout={handleLogout} currentTheme={theme} onThemeChange={handleThemeChange} currentLanguage={language} onLanguageChange={handleLanguageChange} onNavigate={setView} />}
         </div>
       </main>
 

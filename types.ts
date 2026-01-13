@@ -23,6 +23,7 @@ export interface User {
   avatarUrl?: string;
   role?: 'admin' | 'user';
   preferredLanguage?: Language;
+  theme?: 'light' | 'dark' | 'system';
 }
 
 export interface GroupMembership {

@@ -225,20 +225,34 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
                       }`}
                   >
                     <div className="flex items-center gap-4">
-                      <div className={`p-3 rounded-2xl ${family.id === activeFamilyId ? 'bg-white/20' : 'bg-primary/10'}`}>
-                        <Users size={20} className={family.id === activeFamilyId ? 'text-white' : 'text-primary'} />
+                      <div className={`p-4 rounded-3xl ${family.id === activeFamilyId ? 'bg-white/20' : 'bg-primary/10'}`}>
+                        <Users size={24} className={family.id === activeFamilyId ? 'text-white' : 'text-primary'} />
                       </div>
                       <div className="text-left">
-                        <p className="font-black text-lg leading-none">
+                        <p className="font-black text-xl leading-tight">
                           <LocalizedText
                             text={family.name}
                             targetLanguage={currentLanguage}
                             originalLanguage={family.motherTongue}
                           />
                         </p>
-                        <p className={`text-[10px] font-bold uppercase tracking-widest mt-1 ${family.id === activeFamilyId ? 'text-white/60' : 'text-slate/40'}`}>
-                          {family.id === activeFamilyId ? t('dashboard.active_context', currentLanguage) : t('dashboard.switch_context', currentLanguage)}
-                        </p>
+                        <div className="flex items-center gap-3 mt-1.5">
+                          <div className="flex items-center -space-x-2">
+                            {family.members.slice(0, 3).map((mid) => (
+                              <div key={mid} className="w-5 h-5 rounded-full border-2 border-white dark:border-charcoal bg-support overflow-hidden">
+                                <img src={`https://i.pravatar.cc/150?u=${mid}`} className="w-full h-full object-cover" alt="Member" />
+                              </div>
+                            ))}
+                            {family.members.length > 3 && (
+                              <div className="w-5 h-5 rounded-full bg-black/10 dark:bg-white/10 flex items-center justify-center text-[7px] font-black text-charcoal dark:text-warmwhite border-2 border-white dark:border-charcoal backdrop-blur-sm">
+                                +{family.members.length - 3}
+                              </div>
+                            )}
+                          </div>
+                          <p className={`text-[10px] font-black uppercase tracking-widest ${family.id === activeFamilyId ? 'text-white/60' : 'text-slate/40'}`}>
+                            {family.members.length} {family.members.length === 1 ? t('dashboard.member', currentLanguage) : t('dashboard.members', currentLanguage)}
+                          </p>
+                        </div>
                       </div>
                     </div>
                     {family.id === activeFamilyId && (
