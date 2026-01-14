@@ -32,29 +32,28 @@ const Questions: React.FC<QuestionsProps> = ({ user, families, onAnswer, onRecor
   const [targetFamilyId, setTargetFamilyId] = useState(activeFamilyId || families[0]?.id || '');
   const [isTranslating, setIsTranslating] = useState(false);
 
-  // No local state for questions anymore
-
   const handleAsk = async () => {
     if (!newQuestionText) return;
 
     setIsTranslating(true);
     try {
-      // 1. Get an English version for the main text
       let englishText = newQuestionText;
       let translatedText = newQuestionText;
 
       if (currentLanguage !== Language.ENGLISH) {
         englishText = await translateQuestion(newQuestionText, Language.ENGLISH);
       } else {
-        translatedText = await translateQuestion(newQuestionText, Language.TAMIL); // Default translation to Tamil if original is English
+        translatedText = await translateQuestion(newQuestionText, Language.TAMIL);
       }
 
       const newQ: Question = {
         id: Date.now().toString(),
         askedBy: user.uid,
-        askedByName: user.name,
-        textEnglish: englishText,
-        textTranslated: translatedText,
+        askedByName: user.displayName,
+        text: {
+          english: englishText,
+          translated: translatedText
+        },
         type: 'text',
         upvotes: [],
         familyId: targetFamilyId || activeFamilyId || families[0]?.id || '',
@@ -148,7 +147,7 @@ const Questions: React.FC<QuestionsProps> = ({ user, families, onAnswer, onRecor
 
         <div className="space-y-4">
           {questions.sort((a, b) => (b.upvotes?.length || 0) - (a.upvotes?.length || 0)).map((q) => {
-            const hasUpvoted = q.upvotes?.includes(user.uid);
+            const hasUpvoted = (q.upvotes || []).includes(user.uid);
             return (
               <div key={q.id} className="bg-white dark:bg-white/5 border border-secondary/20 dark:border-white/10 rounded-[32px] p-6 shadow-sm space-y-4 transition-all hover:shadow-md active:scale-[0.99]">
                 <div className="flex justify-between items-start">
@@ -157,15 +156,15 @@ const Questions: React.FC<QuestionsProps> = ({ user, families, onAnswer, onRecor
                       <p className="text-[10px] font-bold text-accent uppercase tracking-wider">{q.askedByName} {t('questions.asked', currentLanguage)}</p>
                       <h3 className="text-lg font-bold text-charcoal dark:text-warmwhite leading-snug">
                         <LocalizedText
-                          text={q.textEnglish || ''}
+                          text={q.text.english || ''}
                           targetLanguage={currentLanguage}
                           originalLanguage={Language.ENGLISH}
-                          storedTranslation={q.textTranslated}
+                          storedTranslation={q.text.translated}
                         />
                       </h3>
-                      {q.textTranslated && q.textTranslated !== q.textEnglish && currentLanguage !== Language.ENGLISH && (
+                      {q.text.translated && q.text.translated !== q.text.english && currentLanguage !== Language.ENGLISH && (
                         <p className="text-primary dark:text-support/60 italic text-sm font-semibold mt-1">
-                          {q.textTranslated}
+                          {q.text.translated}
                         </p>
                       )}
                     </div>
@@ -197,13 +196,13 @@ const Questions: React.FC<QuestionsProps> = ({ user, families, onAnswer, onRecor
                 <div className="flex items-center justify-between pt-2">
                   <button
                     onClick={() => onToggleUpvote(q.id)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold border ${hasUpvoted
+                    className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold border ${(q.upvotes || []).includes(user.uid)
                       ? 'bg-primary text-white border-primary shadow-md'
                       : 'text-primary dark:text-white bg-support/10 dark:bg-white/10 border-support/10 dark:border-white/10'
                       }`}
                   >
-                    <ThumbsUp size={16} className={hasUpvoted ? 'text-white fill-white' : 'text-primary dark:text-white'} />
-                    <span className="text-sm">{q.upvotes?.length || 0}</span>
+                    <ThumbsUp size={16} className={(q.upvotes || []).includes(user.uid) ? 'text-white fill-white' : 'text-primary dark:text-white'} />
+                    <span className="text-sm">{(q.upvotes || []).length}</span>
                   </button>
 
                   <button

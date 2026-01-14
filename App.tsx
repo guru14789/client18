@@ -10,9 +10,10 @@ import {
   MapPin,
   User as UserIcon,
   LayoutGrid,
-  Users
+  Users,
+  Database
 } from 'lucide-react';
-import { serverTimestamp } from "firebase/firestore";
+import DeveloperTools from './components/DeveloperTools';
 import {
   auth,
   onAuthStateChange,
@@ -66,6 +67,7 @@ const App: React.FC = () => {
   const [qPrompts, setQPrompts] = useState<Question[]>([]);
   const [drafts, setDrafts] = useState<Memory[]>([]);
   const [documents, setDocuments] = useState<FamilyDocument[]>([]);
+  const [showDebug, setShowDebug] = useState(false);
 
   // Theme and Language State
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => {
@@ -92,17 +94,17 @@ const App: React.FC = () => {
     console.log("App: Syncing for user UID:", user.uid);
 
     // Initial sync of metadata from user profile
-    if (user.activeFamilyId && user.activeFamilyId !== activeFamilyId) {
-      console.log("App: Syncing activeFamilyId from profile:", user.activeFamilyId);
-      setActiveFamilyId(user.activeFamilyId);
+    if (user.defaultFamilyId && user.defaultFamilyId !== activeFamilyId) {
+      console.log("App: Syncing activeFamilyId from profile:", user.defaultFamilyId);
+      setActiveFamilyId(user.defaultFamilyId);
     }
 
     if (user.preferredLanguage && user.preferredLanguage !== language) {
       setLanguage(user.preferredLanguage);
     }
 
-    if (user.theme && user.theme !== theme) {
-      setTheme(user.theme);
+    if (user.settings?.theme && user.settings.theme !== theme) {
+      setTheme(user.settings.theme);
     }
 
     // Listens to families where user is a member
@@ -112,20 +114,19 @@ const App: React.FC = () => {
 
       // If we don't have an active family set yet, try to pick one
       if (userFamilies.length > 0 && !activeFamilyId) {
-        const preferredId = user.activeFamilyId;
+        const preferredId = user.defaultFamilyId;
         if (preferredId && userFamilies.some(f => f.id === preferredId)) {
           setActiveFamilyId(preferredId);
         } else {
           setActiveFamilyId(userFamilies[0].id);
         }
       } else if (userFamilies.length === 0) {
-        // Only clear if we explicitly know there are NO families
         setActiveFamilyId(null);
       }
     });
 
     return () => unsubFamilies();
-  }, [user?.uid, user?.activeFamilyId, user?.preferredLanguage, user?.theme]);
+  }, [user?.uid, user?.defaultFamilyId, user?.preferredLanguage, user?.settings?.theme]);
 
   // 3. Family Content Sync
   useEffect(() => {
@@ -146,7 +147,7 @@ const App: React.FC = () => {
     const qDocs = query(
       collection(db, "documents"),
       where("familyId", "==", activeFamilyId),
-      orderBy("createdAt", "desc")
+      orderBy("timestamp", "desc")
     );
     const unsubDocs = onSnapshot(qDocs, (snapshot) => {
       const ds = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })) as FamilyDocument[];
@@ -175,7 +176,7 @@ const App: React.FC = () => {
   const switchFamily = async (familyId: string) => {
     setActiveFamilyId(familyId);
     if (user) {
-      await createOrUpdateUser(user.uid, { activeFamilyId: familyId });
+      await createOrUpdateUser(user.uid, { defaultFamilyId: familyId });
     }
   };
 
@@ -192,13 +193,13 @@ const App: React.FC = () => {
         defaultLanguage,
         createdBy: user.uid,
         members: [user.uid],
-        inviteCode: Math.random().toString(36).substring(2, 8).toUpperCase()
+        admins: [user.uid]
       });
 
-      const updatedFamilies = [...(user.families || []), familyId];
+      const updatedFamilyIds = [...(user.familyIds || []), familyId];
       await createOrUpdateUser(user.uid, {
-        families: updatedFamilies,
-        activeFamilyId: familyId
+        familyIds: updatedFamilyIds,
+        defaultFamilyId: familyId
       });
 
       setActiveFamilyId(familyId);
@@ -225,9 +226,13 @@ const App: React.FC = () => {
       if (recordMode === 'question') {
         const questionData: Omit<Question, 'id'> = {
           askedBy: user?.uid || '',
-          askedByName: user?.name || '',
+          askedByName: user?.displayName || '',
           familyId: activeFamilyId || '',
           type: 'video',
+          text: {
+            english: 'Recorded Video Question', // Default placeholder
+            translated: 'பதியப்பட்ட வீடியோ கேள்வி'
+          },
           videoUrl: newMemory.videoUrl,
           upvotes: [],
           createdAt: new Date().toISOString()
@@ -249,13 +254,18 @@ const App: React.FC = () => {
     setTheme(newTheme);
     localStorage.setItem('inai_theme', newTheme);
     if (user) {
-      await createOrUpdateUser(user.uid, { theme: newTheme });
+      await createOrUpdateUser(user.uid, {
+        settings: {
+          ...user.settings,
+          theme: newTheme
+        }
+      });
     }
   };
 
   const handleLogin = useCallback(async (phoneNumber: string, name: string, firebaseUid: string) => {
     if (name) {
-      await createOrUpdateUser(firebaseUid, { name });
+      await createOrUpdateUser(firebaseUid, { displayName: name });
     }
   }, []);
 
@@ -268,16 +278,12 @@ const App: React.FC = () => {
   useEffect(() => {
     if (loading) return;
 
-    // If we have a user, ensure we are not on login/splash
     if (user) {
       if (['splash', 'login', 'onboarding'].includes(view)) {
-        console.log("App: User authenticated, entering Home");
         setView('home');
       }
     } else {
-      // No user
       if (!['splash', 'onboarding', 'login'].includes(view)) {
-        console.log("App: No user, enforcing login");
         setView('login');
       } else if (view === 'splash') {
         setView('login');
@@ -320,12 +326,24 @@ const App: React.FC = () => {
         <div className="flex-1 view-transition">
           {view === 'onboarding' && <Onboarding onComplete={() => { localStorage.setItem('inai_onboarding_done', 'true'); setView('login'); }} currentLanguage={language} />}
           {view === 'login' && <Login onLogin={handleLogin} currentLanguage={language} />}
-          {view === 'home' && user && <Dashboard user={user} families={families} prompts={qPrompts} onNavigate={setView} onRecord={(q) => { if (q) setActiveQuestion(q); setRecordMode('answer'); setView('record'); }} onAddFamily={handleAddFamily} currentLanguage={language} activeFamilyId={activeFamilyId} onSwitchFamily={switchFamily} onToggleUpvote={toggleUpvote} />}
+          {view === 'home' && user && (
+            <>
+              <Dashboard user={user} families={families} prompts={qPrompts} onNavigate={setView} onRecord={(q) => { if (q) setActiveQuestion(q); setRecordMode('answer'); setView('record'); }} onAddFamily={handleAddFamily} currentLanguage={language} activeFamilyId={activeFamilyId} onSwitchFamily={switchFamily} onToggleUpvote={toggleUpvote} />
+              {showDebug && <DeveloperTools user={user} onComplete={() => setShowDebug(false)} />}
+              <button
+                onClick={() => setShowDebug(!showDebug)}
+                className="mx-auto mt-4 mb-32 p-3 bg-secondary/10 dark:bg-white/5 rounded-full text-slate dark:text-support/20 hover:text-primary transition-colors flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"
+              >
+                <Database size={14} />
+                {showDebug ? "Hide Debug" : "Show Seed Tool"}
+              </button>
+            </>
+          )}
           {view === 'feed' && user && <Feed memories={memories} user={user} families={families} currentLanguage={language} />}
           {view === 'questions' && user && <Questions user={user} families={families} questions={qPrompts} onAnswer={(q) => { setActiveQuestion(q); setRecordMode('answer'); setView('record'); }} onRecordQuestion={() => { setActiveQuestion(null); setRecordMode('question'); setView('record'); }} onToggleUpvote={toggleUpvote} onAddQuestion={handleAddQuestion} activeFamilyId={activeFamilyId} currentLanguage={language} />}
           {view === 'documents' && user && <Documents user={user} families={families} documents={documents} setDocuments={setDocuments} currentLanguage={language} />}
           {view === 'record' && user && <RecordMemory user={user} question={activeQuestion} mode={recordMode} onCancel={() => { setView('home'); setActiveQuestion(null); }} onComplete={handleRecordingComplete} families={families} activeFamilyId={activeFamilyId} currentLanguage={language} />}
-          {view === 'drafts' && <Drafts drafts={drafts} onPublish={(m) => handleRecordingComplete({ ...m, isDraft: false })} onDelete={(id) => deleteMemory(id)} currentLanguage={language} onBack={() => setView('home')} />}
+          {view === 'drafts' && <Drafts drafts={drafts} onPublish={(m) => handleRecordingComplete({ ...m, status: 'published' })} onDelete={(id) => deleteMemory(id)} currentLanguage={language} onBack={() => setView('home')} />}
           {view === 'profile' && user && <Profile user={user} families={families} onLogout={handleLogout} currentTheme={theme} onThemeChange={handleThemeChange} currentLanguage={language} onLanguageChange={handleLanguageChange} onNavigate={setView} />}
         </div>
       </main>

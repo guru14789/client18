@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
@@ -149,7 +148,7 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
       setStage('review');
     };
 
-    mediaRecorder.start(1000); // Collect data in 1s chunks
+    mediaRecorder.start(1000);
     setIsCapturing(true);
   };
 
@@ -180,7 +179,6 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
     try {
       const memoryId = existingDraftId || Date.now().toString();
 
-      // 1. Upload to Firebase Storage
       let downloadURL: string;
       if (mode === 'question') {
         downloadURL = await uploadQuestionVideo(
@@ -196,17 +194,17 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
         );
       }
 
-      // 2. Prepare Memory object with the permanent URL
       const newMemory: Memory = {
         id: memoryId,
         authorId: user.uid,
         videoUrl: downloadURL,
         createdAt: new Date().toISOString(),
+        publishedAt: shareOption === 'draft' ? null : new Date().toISOString(),
         familyIds: targetFamilyId ? [targetFamilyId] : [],
         status: shareOption === 'draft' ? 'draft' : 'published',
         questionId: mode === 'answer' ? question?.id : undefined,
-        questionText: mode === 'answer' ? question?.textEnglish || question?.text : undefined,
-        language: mode === 'answer' ? question?.language : undefined,
+        questionText: mode === 'answer' ? (question?.text.english || "") : undefined,
+        language: mode === 'answer' ? Language.ENGLISH : undefined,
         likes: [],
         comments: []
       };
@@ -215,7 +213,8 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
         const template = mode === 'answer'
           ? t('record.whatsapp_template_answer', currentLanguage)
           : t('record.whatsapp_template_question', currentLanguage);
-        const text = template.replace('{question}', question?.text || "");
+        const qText = question?.text.english || "";
+        const text = template.replace('{question}', qText);
         const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text + "\n" + downloadURL)}`;
         window.open(whatsappUrl, '_blank');
       }
@@ -230,7 +229,6 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
 
   return (
     <div className="h-full flex flex-col bg-charcoal text-white overflow-hidden relative">
-      {/* Header Overlay */}
       <div className="absolute top-0 left-0 right-0 z-50">
         <div className="safe-area-top">
           <div className="p-6 flex items-center justify-between">
@@ -252,7 +250,6 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
         </div>
       </div>
 
-      {/* Main View Area */}
       <div className="absolute inset-0 z-0 bg-black">
         {stage !== 'review' && stage !== 'processing' ? (
           <video
@@ -273,18 +270,17 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
               controls
               className="w-full h-full object-contain"
             />
-            {/* Visual Question Context */}
             {question && (
               <div className="absolute top-24 left-6 right-6 z-40 bg-black/40 backdrop-blur-md rounded-2xl p-4 border border-white/20 pointer-events-none">
                 <p className="text-[9px] font-black text-accent uppercase mb-1 tracking-widest">{t('record.question_label', currentLanguage)}</p>
-                <p className="text-sm font-bold leading-tight">
+                <div className="text-sm font-bold leading-tight">
                   <LocalizedText
-                    text={question.text}
+                    text={question.text.english}
                     targetLanguage={currentLanguage}
-                    originalLanguage={question.language}
-                    storedTranslation={question.translation}
+                    originalLanguage={Language.ENGLISH}
+                    storedTranslation={question.text.translated}
                   />
-                </p>
+                </div>
               </div>
             )}
           </div>
@@ -302,7 +298,6 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
                 {savingOption === 'draft' ? t('record.save_draft', currentLanguage) : t('record.publish', currentLanguage)}
               </p>
             </div>
-            {/* Progress Bar */}
             <div className="w-48 h-1 bg-white/10 rounded-full overflow-hidden mt-2">
               <div
                 className="h-full bg-primary transition-all duration-300"
@@ -314,22 +309,21 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
         <div className="absolute inset-0 bg-black/10 pointer-events-none" />
       </div>
 
-      {/* Controls Overlay */}
       <div className="relative z-10 flex-1 flex flex-col justify-end p-8 pb-12 bg-gradient-to-t from-charcoal/90 via-transparent to-transparent">
         {stage === 'prep' && (
           <div className="w-full space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {question && (
               <div className="bg-white/10 backdrop-blur-xl rounded-[32px] p-8 border border-white/10 shadow-2xl text-left">
                 <p className="text-[10px] font-black text-accent uppercase mb-3 tracking-[0.2em]">{t('record.family_request', currentLanguage)}</p>
-                <h3 className="text-xl font-bold mb-2 leading-tight tracking-tight">
+                <div className="text-xl font-bold mb-2 leading-tight tracking-tight">
                   <LocalizedText
-                    text={question.text}
+                    text={question.text.english}
                     targetLanguage={currentLanguage}
-                    originalLanguage={question.language}
-                    storedTranslation={question.translation}
+                    originalLanguage={Language.ENGLISH}
+                    storedTranslation={question.text.translated}
                   />
-                </h3>
-                {question.translation && <p className="text-support/60 italic text-sm font-medium">{question.translation}</p>}
+                </div>
+                {question.text.translated && <p className="text-support/60 italic text-sm font-medium">{question.text.translated}</p>}
               </div>
             )}
 
@@ -355,14 +349,14 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
               <div className="flex flex-col items-center gap-6">
                 {question && (
                   <div className="bg-black/60 backdrop-blur-md p-5 rounded-3xl mb-8 border border-white/10 max-w-xs shadow-2xl">
-                    <p className="text-sm font-bold text-white text-center">
+                    <div className="text-sm font-bold text-white text-center">
                       <LocalizedText
-                        text={question.text}
+                        text={question.text.english}
                         targetLanguage={currentLanguage}
-                        originalLanguage={question.language}
-                        storedTranslation={question.translation}
+                        originalLanguage={Language.ENGLISH}
+                        storedTranslation={question.text.translated}
                       />
-                    </p>
+                    </div>
                   </div>
                 )}
                 <div className="w-28 h-28 rounded-full border-4 border-white/40 flex items-center justify-center p-1.5 hover:border-white transition-all shadow-2xl bg-white/5">

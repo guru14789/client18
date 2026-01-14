@@ -53,6 +53,7 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
 
     try {
       const docId = Date.now().toString();
+      const extension = file.name.split('.').pop() || 'pdf';
 
       // 1. Upload to Firebase Storage
       const downloadURL = await uploadDocument(
@@ -72,7 +73,6 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
       }
 
       // 3. Save Metadata to Firestore
-      const extension = file.name.split('.').pop() || 'pdf';
       const newDocData: Omit<FamilyDocument, 'id'> = {
         name: file.name,
         type: 'application/pdf',
@@ -81,7 +81,7 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
         familyId: targetFamilyId,
         aiSummary,
         fileUrl: downloadURL,
-        storagePath: `documents/${user.uid}/${docId}.${extension}`,
+        storagePath: `families/${targetFamilyId}/documents/${docId}.${extension}`,
         uploaderId: user.uid
       };
 
@@ -100,7 +100,6 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
     if (!confirm(t('documents.delete_confirm', currentLanguage))) return;
     try {
       await deleteDoc(doc(db, "documents", document.id));
-      // No storage deletion needed for local URLs
     } catch (err) {
       console.error("Error deleting document:", err);
     }
@@ -168,7 +167,7 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
                 onChange={(e) => setTargetFamilyId(e.target.value)}
               >
                 {families.map(f => (
-                  <option key={f.id} value={f.id}>{f.name}</option>
+                  <option key={f.id} value={f.id}>{f.familyName}</option>
                 ))}
               </select>
               <button
@@ -194,43 +193,46 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
           </div>
         ) : (
           <div className="space-y-5 pb-32">
-            {filteredDocs.map((doc) => (
-              <div key={doc.id} className="group bg-white dark:bg-white/5 border border-secondary/20 dark:border-white/10 rounded-[32px] p-6 shadow-sm hover:shadow-lg transition-all">
-                <div className="flex gap-4 items-start relative z-10">
-                  <div className="w-16 h-16 bg-support/10 dark:bg-white/10 rounded-2xl flex items-center justify-center text-primary dark:text-white shrink-0 group-hover:bg-primary group-hover:text-white transition-colors">
-                    <FileText size={30} />
-                  </div>
-                  <div className="flex-1 min-w-0 pr-4">
-                    <h4 className="font-black text-charcoal dark:text-warmwhite truncate text-lg tracking-tight">{doc.name}</h4>
-                    <div className="flex items-center gap-2 mt-2">
-                      <span className="text-[10px] font-black text-accent uppercase tracking-widest">
-                        {families.find(f => f.id === doc.familyId) ? (
-                          <LocalizedText
-                            text={families.find(f => f.id === doc.familyId)!.familyName}
-                            targetLanguage={currentLanguage}
-                            originalLanguage={families.find(f => f.id === doc.familyId)!.defaultLanguage}
-                          />
-                        ) : 'Unknown'}
-                      </span>
-                      <span className="w-1 h-1 bg-slate/20 rounded-full"></span>
-                      <span className="text-[10px] font-bold text-slate/40 uppercase">{doc.size}</span>
+            {filteredDocs.map((doc) => {
+              const family = families.find(f => f.id === doc.familyId);
+              return (
+                <div key={doc.id} className="group bg-white dark:bg-white/5 border border-secondary/20 dark:border-white/10 rounded-[32px] p-6 shadow-sm hover:shadow-lg transition-all">
+                  <div className="flex gap-4 items-start relative z-10">
+                    <div className="w-16 h-16 bg-support/10 dark:bg-white/10 rounded-2xl flex items-center justify-center text-primary dark:text-white shrink-0 group-hover:bg-primary group-hover:text-white transition-colors">
+                      <FileText size={30} />
+                    </div>
+                    <div className="flex-1 min-w-0 pr-4">
+                      <h4 className="font-black text-charcoal dark:text-warmwhite truncate text-lg tracking-tight">{doc.name}</h4>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="text-[10px] font-black text-accent uppercase tracking-widest">
+                          {family ? (
+                            <LocalizedText
+                              text={family.familyName}
+                              targetLanguage={currentLanguage}
+                              originalLanguage={family.defaultLanguage as any}
+                            />
+                          ) : 'Unknown'}
+                        </span>
+                        <span className="w-1 h-1 bg-slate/20 rounded-full"></span>
+                        <span className="text-[10px] font-bold text-slate/40 uppercase">{doc.size}</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <button onClick={() => setViewingDoc(doc)} className="p-3 bg-secondary/5 dark:bg-white/5 rounded-xl hover:bg-primary hover:text-white transition-all"><Eye size={18} /></button>
+                      <button onClick={() => deleteDocument(doc)} className="p-3 bg-secondary/5 dark:bg-white/5 rounded-xl hover:text-red-500 hover:bg-red-500/10 transition-all"><Trash2 size={18} /></button>
                     </div>
                   </div>
-                  <div className="flex flex-col gap-2">
-                    <button onClick={() => setViewingDoc(doc)} className="p-3 bg-secondary/5 dark:bg-white/5 rounded-xl hover:bg-primary hover:text-white transition-all"><Eye size={18} /></button>
-                    <button onClick={() => deleteDocument(doc)} className="p-3 bg-secondary/5 dark:bg-white/5 rounded-xl hover:text-red-500 hover:bg-red-500/10 transition-all"><Trash2 size={18} /></button>
-                  </div>
+                  {doc.aiSummary && (
+                    <div className="mt-5 bg-warmwhite dark:bg-charcoal/50 rounded-2xl p-5 flex gap-4 border border-secondary/10 dark:border-white/5 relative overflow-hidden">
+                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary/20"></div>
+                      <div className="text-xs text-slate/80 dark:text-support/80 italic font-bold leading-relaxed">
+                        <LocalizedText text={doc.aiSummary} targetLanguage={currentLanguage} />
+                      </div>
+                    </div>
+                  )}
                 </div>
-                {doc.aiSummary && (
-                  <div className="mt-5 bg-warmwhite dark:bg-charcoal/50 rounded-2xl p-5 flex gap-4 border border-secondary/10 dark:border-white/5 relative overflow-hidden">
-                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary/20"></div>
-                    <p className="text-xs text-slate/80 dark:text-support/80 italic font-bold leading-relaxed">
-                      <LocalizedText text={doc.aiSummary} targetLanguage={currentLanguage} />
-                    </p>
-                  </div>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

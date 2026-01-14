@@ -51,7 +51,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
     <div className="bg-warmwhite dark:bg-charcoal flex-1 pb-32 transition-colors duration-300">
       <div className="px-6 pt-8 pb-4 flex items-start justify-between">
         <div className="flex-1 min-w-0">
-          <h1 className="text-4xl font-black text-charcoal dark:text-warmwhite tracking-tighter leading-none truncate">{t('dashboard.greeting', currentLanguage)} {user.name}</h1>
+          <h1 className="text-4xl font-black text-charcoal dark:text-warmwhite tracking-tighter leading-none truncate">{t('dashboard.greeting', currentLanguage)} {user.displayName}</h1>
           <div className="flex items-center gap-2 mt-2">
             <p className="text-slate/60 dark:text-support/40 text-xl font-medium">{greeting}!</p>
           </div>
@@ -69,7 +69,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
                 <LocalizedText
                   text={activeFamily.familyName}
                   targetLanguage={currentLanguage}
-                  originalLanguage={activeFamily.defaultLanguage}
+                  originalLanguage={activeFamily.defaultLanguage as any}
                 />
               ) : t('dashboard.switch', currentLanguage)}
             </span>
@@ -109,7 +109,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
         </div>
       </div>
 
-
       {/* Active Prompts Section */}
       <div className="px-6 space-y-6">
         <div className="flex items-center justify-between">
@@ -128,10 +127,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
                   <p className="text-[11px] font-black text-accent/80 dark:text-accent uppercase tracking-[0.15em] mb-1.5">{q.askedByName} {t('questions.asked', currentLanguage)}</p>
                   <h4 className="text-[22px] font-bold text-charcoal dark:text-warmwhite leading-[1.2] tracking-tight">
                     <LocalizedText
-                      text={q.textEnglish || ''}
+                      text={q.text.english || ''}
                       targetLanguage={currentLanguage}
                       originalLanguage={Language.ENGLISH}
-                      storedTranslation={q.textTranslated}
+                      storedTranslation={q.text.translated}
                     />
                   </h4>
                 </div>
@@ -202,7 +201,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
               className="absolute inset-0 bg-charcoal/60 backdrop-blur-sm animate-in fade-in duration-300"
               onClick={() => setIsSwitchingFamily(false)}
             ></div>
-            <div className="relative w-full max-w-md bg-warmwhite dark:bg-charcoal rounded-t-[56px] shadow-[0_-20px_80px_rgba(0,0,0,0.4)] animate-in slide-in-from-bottom duration-500 p-10 border-t border-white/20 dark:border-white/10 safe-area-bottom">
+            <div className="relative w-full max-md bg-warmwhite dark:bg-charcoal rounded-t-[56px] shadow-[0_-20px_80px_rgba(0,0,0,0.4)] animate-in slide-in-from-bottom duration-500 p-10 border-t border-white/20 dark:border-white/10 safe-area-bottom">
               <div className="flex items-center justify-between mb-8">
                 <div>
                   <h3 className="text-3xl font-black text-charcoal dark:text-warmwhite tracking-tighter">{t('dashboard.families_title', currentLanguage)}</h3>
@@ -238,7 +237,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
                           <LocalizedText
                             text={family.familyName}
                             targetLanguage={currentLanguage}
-                            originalLanguage={family.defaultLanguage}
+                            originalLanguage={family.defaultLanguage as any}
                           />
                         </p>
                         <div className="flex items-center gap-3 mt-1.5">

@@ -42,7 +42,7 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage }
       const memory = memories.find(m => m.id === memoryId);
       if (!memory) return;
 
-      const isLiked = memory.likes?.includes(user.uid);
+      const isLiked = (memory.likes || []).includes(user.uid);
       if (isLiked) {
         await unlikeMemory(memoryId, user.uid);
       } else {
@@ -60,7 +60,7 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage }
     if (!newComment.trim() || isCommenting) return;
     setIsCommenting(true);
     try {
-      await addCommentToMemory(memoryId, user.uid, user.name, newComment);
+      await addCommentToMemory(memoryId, user.uid, user.displayName, newComment);
       setNewComment('');
     } catch (err: any) {
       console.error("Error adding comment:", err);
@@ -156,14 +156,13 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage }
       <div className="flex-1 px-4 overflow-y-auto no-scrollbar pb-32">
         <div className="grid grid-cols-2 gap-3 pt-2">
           {filteredMemories.map((memory) => {
-            const displayName = memory.authorId === user.uid ? user.name : "Family Member";
+            const displayName = memory.authorId === user.uid ? user.displayName : (t('feed.family_member', currentLanguage) || "Family Member");
             return (
               <div
                 key={memory.id}
                 onClick={() => setPlayingMemory(memory)}
                 className="relative aspect-[3/4.2] rounded-[24px] overflow-hidden bg-support/20 dark:bg-white/5 group cursor-pointer active:scale-[0.98] transition-all shadow-sm border border-secondary/10 dark:border-white/5"
               >
-                {/* Visual Placeholder for Video Thumbnail */}
                 <div className="absolute inset-0 bg-charcoal flex items-center justify-center">
                   {memory.thumbnailUrl ? (
                     <img src={memory.thumbnailUrl} className="w-full h-full object-cover" alt="Memory" />
@@ -241,14 +240,14 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage }
                   <button
                     onClick={() => handleLike(memory.id)}
                     disabled={isLiking}
-                    className={`p-4 backdrop-blur-xl rounded-full border border-white/10 transition-all active:scale-75 ${memory.likes?.includes(user.uid)
+                    className={`p-4 backdrop-blur-xl rounded-full border border-white/10 transition-all active:scale-75 ${(memory.likes || []).includes(user.uid)
                       ? 'bg-red-500 text-white border-red-400'
                       : 'bg-white/10 text-white'
                       }`}
                   >
-                    <Heart size={24} fill={memory.likes?.includes(user.uid) ? "currentColor" : "none"} />
+                    <Heart size={24} fill={(memory.likes || []).includes(user.uid) ? "currentColor" : "none"} />
                   </button>
-                  <span className="text-[10px] font-black text-white uppercase tracking-widest">{memory.likes?.length || 0}</span>
+                  <span className="text-[10px] font-black text-white uppercase tracking-widest">{(memory.likes || []).length}</span>
                 </div>
                 <div className="flex flex-col items-center gap-1">
                   <button
@@ -257,7 +256,7 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage }
                   >
                     <MessageCircle size={24} fill={showComments ? "currentColor" : "none"} />
                   </button>
-                  <span className="text-[10px] font-black text-white uppercase tracking-widest">{memory.comments?.length || 0}</span>
+                  <span className="text-[10px] font-black text-white uppercase tracking-widest">{(memory.comments || []).length}</span>
                 </div>
                 <button
                   onClick={() => handleShare(memory)}
@@ -271,7 +270,7 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage }
               {/* Bottom Content Overlay */}
               <div className="absolute bottom-0 left-0 right-0 p-8 pt-20 bg-gradient-to-t from-black via-black/40 to-transparent z-[210] pointer-events-none">
                 <div className="flex items-start gap-4 mb-6">
-                  <div className="w-14 h-14 rounded-2xl border-2 border-white/20 overflow-hidden shadow-2xl bg-support/20">
+                  <div className="w-14 h-14 rounded-2xl border-2 border-white/20 overflow-hidden shadow-2xl bg-support/20 px-0">
                     <img
                       src={memory.authorId === user.uid ? user.profilePhoto : `https://i.pravatar.cc/150?u=${memory.authorId}`}
                       className="w-full h-full object-cover"

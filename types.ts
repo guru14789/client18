@@ -1,41 +1,73 @@
 export enum Language {
-  SPANISH = 'Spanish',
-  HINDI = 'Hindi',
-  FRENCH = 'French',
-  GERMAN = 'German',
-  CHINESE = 'Chinese',
-  ARABIC = 'Arabic',
-  PORTUGUESE = 'Portuguese',
-  BENGALI = 'Bengali',
-  RUSSIAN = 'Russian',
-  JAPANESE = 'Japanese',
-  ITALIAN = 'Italian',
-  TAMIL = 'Tamil',
-  ENGLISH = 'English'
+  ENGLISH = 'en',
+  TAMIL = 'ta',
+  HINDI = 'hi',
+  MALAYALAM = 'ml',
+  TELUGU = 'te',
+  KANNADA = 'kn'
 }
 
 export interface User {
   uid: string;
-  name: string;
   phoneNumber: string;
-  createdAt: string; // ISO String
-  lastLoginAt: string; // ISO String
+  displayName: string;
   profilePhoto?: string;
-  draftCount?: number;
-  families: string[]; // Family IDs
-  activeFamilyId?: string;
+  createdAt: string; // ISO String or Timestamp representation
+  lastLoginAt: string; // ISO String
+  defaultFamilyId?: string;
+  familyIds: string[];
+  draftCount: number;
+  settings: {
+    theme: 'light' | 'dark' | 'system';
+    notificationsEnabled: boolean;
+  };
   preferredLanguage?: Language;
-  theme?: 'light' | 'dark' | 'system';
 }
 
 export interface Family {
   id: string;
   familyName: string;
-  createdBy: string; // User UID
-  members: string[]; // User UIDs
-  defaultLanguage: Language;
+  createdBy: string;
   createdAt: string;
-  inviteCode: string;
+  defaultLanguage: string;
+  members: string[];
+  admins: string[];
+  inviteCode?: string; // Kept for logic
+}
+
+export interface Memory {
+  id: string;
+  authorId: string;
+  familyIds: string[];
+  status: 'draft' | 'published';
+  videoUrl: string;
+  thumbnailUrl?: string;
+  duration?: number;
+  questionId?: string;
+  questionText?: string;
+  language?: Language;
+  createdAt: string;
+  publishedAt: string | null;
+  sharedExternally?: boolean;
+  views?: number;
+  likes: string[];
+  comments: Comment[];
+}
+
+export interface Question {
+  id: string;
+  familyId: string;
+  askedBy: string;
+  askedByName: string;
+  directedTo?: string | null;
+  type: 'text' | 'video';
+  text: {
+    english: string;
+    translated: string;
+  };
+  videoUrl?: string | null;
+  upvotes: string[];
+  createdAt: string;
 }
 
 export interface Comment {
@@ -46,44 +78,31 @@ export interface Comment {
   timestamp: string;
 }
 
-export interface Memory {
-  id: string;
-  familyIds: string[]; // Published to these families
-  authorId: string;
-  videoUrl: string; // Firebase Storage URL
-  thumbnailUrl?: string; // Firebase Storage URL
-  duration?: number;
-  status: 'draft' | 'published';
-  questionId?: string; // Linked question if any
-  questionText?: string; // Cached for feed
-  language?: Language; // Cached for feed
-  createdAt: string;
-  publishedAt?: string;
-  likes?: string[]; // User UIDs
-  comments?: Comment[];
-}
-
-export interface Question {
+export interface FamilyInvitation {
   id: string;
   familyId: string;
-  askedBy: string; // User UID
-  askedByName: string; // Cached for performance
-  directedTo?: string; // User UID
-  type: 'text' | 'video';
-  textEnglish?: string;
-  textTranslated?: string;
-  videoUrl?: string;
-  upvotes: string[]; // Array of User UIDs
+  phoneNumber: string;
+  invitedBy: string;
+  status: 'pending' | 'accepted' | 'expired';
   createdAt: string;
 }
 
 export interface Notification {
   id: string;
   userId: string;
-  type: 'new_memory' | 'new_question' | 'upvote' | 'comment';
+  type: 'new_memory' | 'question' | 'upvote';
+  title: string;
   message: string;
-  relatedId?: string; // ID of the memory/question/etc
   read: boolean;
+  createdAt: string;
+}
+
+export interface ActivityLog {
+  id: string;
+  actorId: string;
+  type: 'memory_published' | 'question_asked' | 'upvote';
+  targetId: string;
+  familyId: string;
   createdAt: string;
 }
 
@@ -95,9 +114,9 @@ export interface FamilyDocument {
   timestamp: string;
   familyId: string;
   aiSummary?: string;
-  fileUrl?: string;
-  storagePath?: string;
-  uploaderId?: string;
+  fileUrl: string;
+  storagePath: string;
+  uploaderId: string;
 }
 
-export type AppState = 'splash' | 'onboarding' | 'login' | 'nameEntry' | 'home' | 'feed' | 'questions' | 'record' | 'drafts' | 'documents' | 'profile';
+export type AppState = 'splash' | 'onboarding' | 'login' | 'home' | 'feed' | 'questions' | 'record' | 'drafts' | 'profile' | 'documents' | 'nameEntry';

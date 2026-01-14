@@ -16,11 +16,10 @@ import {
     Timestamp,
     arrayUnion,
     arrayRemove,
-    increment,
-    QueryConstraint
+    increment
 } from "firebase/firestore";
 import { db } from "./firebaseConfig";
-import { User, Family, Memory, Question, Notification, FamilyDocument, Comment } from "../types";
+import { User, Family, Memory, Question, Notification, FamilyDocument, Comment, FamilyInvitation, ActivityLog } from "../types";
 
 // Collection names
 export const COLLECTIONS = {
@@ -29,7 +28,9 @@ export const COLLECTIONS = {
     MEMORIES: "memories",
     QUESTIONS: "questions",
     DOCUMENTS: "documents",
-    NOTIFICATIONS: "notifications"
+    NOTIFICATIONS: "notifications",
+    INVITES: "invites",
+    ACTIVITY: "activity"
 };
 
 // Helper to remove undefined fields which Firestore doesn't support
@@ -47,6 +48,9 @@ export const createOrUpdateUser = async (userId: string, userData: Partial<User>
     try {
         const userRef = doc(db, COLLECTIONS.USERS, userId);
         const now = new Date().toISOString();
+
+        // Ensure settings object is initialized if providing theme or notificationsEnabled
+        const settings: any = userData.settings || {};
 
         await setDoc(userRef, {
             ...clean(userData),
@@ -84,6 +88,7 @@ export const createFamily = async (familyData: Omit<Family, 'id' | 'createdAt'>)
     try {
         const familyRef = await addDoc(collection(db, COLLECTIONS.FAMILIES), {
             ...clean(familyData),
+            admins: familyData.admins || [familyData.createdBy],
             createdAt: new Date().toISOString(),
             updatedAt: Timestamp.now()
         });
@@ -135,8 +140,8 @@ export const addFamilyMember = async (familyId: string, userId: string): Promise
         });
 
         await updateDoc(userRef, {
-            families: arrayUnion(familyId),
-            activeFamilyId: familyId,
+            familyIds: arrayUnion(familyId),
+            defaultFamilyId: familyId,
             updatedAt: Timestamp.now()
         });
 
@@ -153,9 +158,11 @@ export const addFamilyMember = async (familyId: string, userId: string): Promise
 
 export const createMemory = async (memoryData: Omit<Memory, 'id'>): Promise<string> => {
     try {
+        const now = new Date().toISOString();
         const memoryRef = await addDoc(collection(db, COLLECTIONS.MEMORIES), {
             ...clean(memoryData),
-            createdAt: new Date().toISOString(),
+            createdAt: now,
+            publishedAt: memoryData.status === 'published' ? now : null,
             serverCreatedAt: Timestamp.now()
         });
 
@@ -353,6 +360,39 @@ export const markNotificationRead = async (notifId: string): Promise<void> => {
         });
     } catch (error) {
         console.error("Error marking notification read:", error);
+        throw error;
+    }
+};
+
+// ============================================
+// ACTIVITY & INVITE OPERATIONS
+// ============================================
+
+export const createActivityLog = async (activityData: Omit<ActivityLog, 'id'>): Promise<string> => {
+    try {
+        const ref = await addDoc(collection(db, COLLECTIONS.ACTIVITY), {
+            ...clean(activityData),
+            createdAt: new Date().toISOString(),
+            serverCreatedAt: Timestamp.now()
+        });
+        return ref.id;
+    } catch (error) {
+        console.error("Error creating activity log:", error);
+        throw error;
+    }
+};
+
+export const createInvitation = async (inviteData: Omit<FamilyInvitation, 'id' | 'status' | 'createdAt'>): Promise<string> => {
+    try {
+        const ref = await addDoc(collection(db, COLLECTIONS.INVITES), {
+            ...clean(inviteData),
+            status: 'pending',
+            createdAt: new Date().toISOString(),
+            serverCreatedAt: Timestamp.now()
+        });
+        return ref.id;
+    } catch (error) {
+        console.error("Error creating invitation:", error);
         throw error;
     }
 };

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import {
   User as UserIcon,
@@ -58,7 +57,7 @@ interface JoinRequest {
 const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentTheme, onThemeChange, currentLanguage, onLanguageChange, onNavigate }) => {
   const [activeSubView, setActiveSubView] = useState<SubView>('none');
   const [isEditing, setIsEditing] = useState(false);
-  const [editName, setEditName] = useState(user.name);
+  const [editName, setEditName] = useState(user.displayName);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -75,10 +74,9 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
 
   const userFamilies = families;
 
-  // Sync edit name if user changes externally
   useEffect(() => {
-    setEditName(user.name);
-  }, [user.name]);
+    setEditName(user.displayName);
+  }, [user.displayName]);
 
   const checkPermissions = async () => {
     try {
@@ -138,7 +136,7 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
   const handleSaveProfile = async () => {
     if (!editName.trim()) return;
     try {
-      await createOrUpdateUser(user.uid, { name: editName.trim() });
+      await createOrUpdateUser(user.uid, { displayName: editName.trim() });
       setIsEditing(false);
     } catch (err) {
       console.error("Failed to update name", err);
@@ -311,12 +309,6 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
             );
           })}
         </div>
-
-        <div className="mt-12 p-8 text-center bg-secondary/10 dark:bg-white/5 rounded-[40px] border border-dashed border-secondary/40">
-          <p className="text-[10px] font-black text-slate/40 uppercase tracking-[0.2em] leading-relaxed">
-            {t('profile.theme.advisory', currentLanguage)}
-          </p>
-        </div>
       </div>
     );
   };
@@ -358,13 +350,6 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
               </button>
             );
           })}
-        </div>
-
-        <div className="mt-12 p-8 text-center bg-secondary/10 dark:bg-white/5 rounded-[40px] border border-dashed border-secondary/40">
-          <Globe className="text-primary/40 dark:text-white/20 mx-auto mb-4" size={32} />
-          <p className="text-[10px] font-black text-slate/40 uppercase tracking-[0.2em] leading-relaxed">
-            {t('profile.lang.advisory', currentLanguage)}
-          </p>
         </div>
       </div>
     );
@@ -448,13 +433,6 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
             );
           })}
         </div>
-
-        <div className="mt-12 p-8 text-center bg-secondary/10 dark:bg-white/5 rounded-[40px] border border-dashed border-secondary/40">
-          <Shield className="text-primary/40 dark:text-white/20 mx-auto mb-4" size={32} />
-          <p className="text-[10px] font-black text-slate/40 uppercase tracking-[0.2em] leading-relaxed">
-            {t('profile.perm.secure_advisory', currentLanguage)}
-          </p>
-        </div>
       </div >
     );
   };
@@ -477,14 +455,13 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
 
               <div className="relative mb-6">
                 <div className="w-24 h-24 rounded-[32px] overflow-hidden border-4 border-warmwhite dark:border-charcoal shadow-xl relative">
-                  <img src={user.profilePhoto} alt={user.name} className={`w-full h-full object-cover transition-opacity ${isUploading ? 'opacity-50' : ''}`} />
+                  <img src={user.profilePhoto} alt={user.displayName} className={`w-full h-full object-cover transition-opacity ${isUploading ? 'opacity-50' : ''}`} />
                   {isUploading && (
                     <div className="absolute inset-0 flex items-center justify-center">
                       <Loader2 className="w-8 h-8 text-primary animate-spin" />
                     </div>
                   )}
                 </div>
-                {/* Photo upload only visible in edit mode */}
                 {isEditing && (
                   <button
                     onClick={handleAvatarClick}
@@ -518,10 +495,10 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
                       onClick={handleSaveProfile}
                       className="flex-1 bg-primary text-white py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1 active:scale-95"
                     >
-                      <Save size={14} /> Full Save
+                      <Save size={14} /> Save
                     </button>
                     <button
-                      onClick={() => { setIsEditing(false); setEditName(user.name); }}
+                      onClick={() => { setIsEditing(false); setEditName(user.displayName); }}
                       className="flex-1 bg-secondary/20 dark:bg-white/10 text-charcoal dark:text-white py-2 rounded-xl text-xs font-bold uppercase tracking-wider active:scale-95"
                     >
                       Cancel
@@ -530,7 +507,7 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
                 </div>
               ) : (
                 <>
-                  <h2 className="text-2xl font-black text-charcoal dark:text-warmwhite tracking-tight leading-none">{user.name}</h2>
+                  <h2 className="text-2xl font-black text-charcoal dark:text-warmwhite tracking-tight leading-none">{user.displayName}</h2>
                   <p className="text-slate dark:text-support/60 font-bold text-sm mt-2 opacity-60 tracking-tight">{user.phoneNumber}</p>
                 </>
               )}

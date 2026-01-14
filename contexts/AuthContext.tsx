@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import {
     User as FirebaseUser,
@@ -54,7 +53,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 // Set up real-time listener for user profile
                 userUnsubscribe = listenToUser(user.uid, async (profile) => {
                     if (profile) {
-                        console.log("AuthContext: Profile found for", user.uid, "Families:", profile.families?.length || 0);
+                        console.log("AuthContext: Profile found for", user.uid, "Families:", profile.familyIds?.length || 0);
                         setCurrentUser(profile);
                         setLoading(false);
                     } else {
@@ -65,13 +64,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                             const now = new Date().toISOString();
                             const freshUser: User = {
                                 uid: user.uid,
-                                name: user.displayName || 'Family Member',
+                                displayName: user.displayName || 'Family Member',
                                 phoneNumber: user.phoneNumber || '',
                                 profilePhoto: user.photoURL || `https://i.pravatar.cc/150?u=${user.uid}`,
                                 createdAt: now,
                                 lastLoginAt: now,
-                                families: [],
-                                activeFamilyId: undefined
+                                familyIds: [],
+                                defaultFamilyId: undefined,
+                                draftCount: 0,
+                                settings: {
+                                    theme: 'system',
+                                    notificationsEnabled: true
+                                }
                             };
 
                             await createOrUpdateUser(user.uid, freshUser);
@@ -101,7 +105,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     const refreshProfile = async () => {
-        // No-op manually, as listener handles it, but kept for interface compatibility
         console.log("Profile refresh requested (handled by listener)");
     };
 
