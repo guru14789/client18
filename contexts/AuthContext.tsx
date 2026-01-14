@@ -61,23 +61,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                         console.log("AuthContext: No profile found, initializing new user...");
 
                         try {
-                            // Recover families if orphan
-                            let existingFamilies: Family[] = [];
-                            try {
-                                existingFamilies = await getUserFamilies(user.uid);
-                            } catch (e) {
-                                console.warn("Failed to check existing families", e);
-                            }
-
+                            const now = new Date().toISOString();
                             const freshUser: User = {
-                                id: user.uid,
+                                uid: user.uid,
                                 name: user.displayName || 'Family Member',
                                 phoneNumber: user.phoneNumber || '',
-                                avatarUrl: user.photoURL || `https://i.pravatar.cc/150?u=${user.uid}`,
-                                role: 'user',
-                                families: existingFamilies.map(f => f.id),
-                                activeFamilyId: existingFamilies.length > 0 ? existingFamilies[0].id : undefined
-                            } as User;
+                                profilePhoto: user.photoURL || `https://i.pravatar.cc/150?u=${user.uid}`,
+                                createdAt: now,
+                                lastLoginAt: now,
+                                families: [],
+                                activeFamilyId: undefined
+                            };
 
                             await createOrUpdateUser(user.uid, freshUser);
                             // The listener will catch the update and set state
@@ -95,7 +89,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         return () => {
             authUnsubscribe();
-            if (userUnsubscribe) userUnsubscribe();
+            if (userUnsubscribe) (userUnsubscribe as () => void)();
         };
     }, []);
 

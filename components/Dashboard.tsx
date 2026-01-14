@@ -65,9 +65,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
             <span className="text-[10px] font-black uppercase tracking-widest text-primary truncate max-w-[80px]">
               {activeFamily ? (
                 <LocalizedText
-                  text={activeFamily.name}
+                  text={activeFamily.familyName}
                   targetLanguage={currentLanguage}
-                  originalLanguage={activeFamily.motherTongue}
+                  originalLanguage={activeFamily.defaultLanguage}
                 />
               ) : t('dashboard.switch', currentLanguage)}
             </span>
@@ -114,79 +114,82 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
           <h3 className="text-[14px] font-black text-charcoal/40 dark:text-warmwhite/40 tracking-[0.2em] uppercase">{t('dashboard.prompts', currentLanguage)}</h3>
         </div>
 
-        {prompts.map((q) => (
-          <div key={q.id} className="bg-white dark:bg-white/5 rounded-[44px] p-8 flex flex-col gap-8 border border-secondary/20 dark:border-white/10 relative transition-all shadow-sm">
-            <div className="flex items-start gap-6">
-              <div className="w-16 h-16 rounded-[24px] overflow-hidden shrink-0 border-4 border-warmwhite dark:border-charcoal/50 shadow-xl bg-support/20 dark:bg-white/10 flex items-center justify-center text-primary dark:text-white font-black text-2xl">
-                {q.askerName.charAt(0)}
+        {prompts.map((q) => {
+          const hasUpvoted = q.upvotes?.includes(user.uid);
+          return (
+            <div key={q.id} className="bg-white dark:bg-white/5 rounded-[44px] p-8 flex flex-col gap-8 border border-secondary/20 dark:border-white/10 relative transition-all shadow-sm">
+              <div className="flex items-start gap-6">
+                <div className="w-16 h-16 rounded-[24px] overflow-hidden shrink-0 border-4 border-warmwhite dark:border-charcoal/50 shadow-xl bg-support/20 dark:bg-white/10 flex items-center justify-center text-primary dark:text-white font-black text-2xl">
+                  {q.askedByName.charAt(0)}
+                </div>
+                <div className="flex-1">
+                  <p className="text-[11px] font-black text-accent/80 dark:text-accent uppercase tracking-[0.15em] mb-1.5">{q.askedByName} {t('questions.asked', currentLanguage)}</p>
+                  <h4 className="text-[22px] font-bold text-charcoal dark:text-warmwhite leading-[1.2] tracking-tight">
+                    <LocalizedText
+                      text={q.textEnglish || ''}
+                      targetLanguage={currentLanguage}
+                      originalLanguage={Language.ENGLISH}
+                      storedTranslation={q.textTranslated}
+                    />
+                  </h4>
+                </div>
               </div>
-              <div className="flex-1">
-                <p className="text-[11px] font-black text-accent/80 dark:text-accent uppercase tracking-[0.15em] mb-1.5">{q.askerName} {t('questions.asked', currentLanguage)}</p>
-                <h4 className="text-[22px] font-bold text-charcoal dark:text-warmwhite leading-[1.2] tracking-tight">
-                  <LocalizedText
-                    text={q.text}
-                    targetLanguage={currentLanguage}
-                    originalLanguage={q.language}
-                    storedTranslation={q.translation}
-                  />
-                </h4>
-              </div>
-            </div>
 
-            {q.isVideoQuestion && q.videoUrl && (
-              <div
-                className="relative w-full aspect-video rounded-[32px] overflow-hidden bg-charcoal group cursor-pointer border border-secondary/10 dark:border-white/5 active:scale-[0.98] transition-all shadow-inner"
-                onClick={() => onRecord(q)}
-              >
-                <video
-                  src={q.videoUrl}
-                  className="w-full h-full object-cover"
-                  muted
-                  playsInline
-                />
-                <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                  <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-xl border border-white/30 flex items-center justify-center shadow-2xl scale-110 group-hover:scale-125 transition-transform">
-                    <Play size={28} className="text-white fill-white ml-1" />
+              {q.type === 'video' && q.videoUrl && (
+                <div
+                  className="relative w-full aspect-video rounded-[32px] overflow-hidden bg-charcoal group cursor-pointer border border-secondary/10 dark:border-white/5 active:scale-[0.98] transition-all shadow-inner"
+                  onClick={() => onRecord(q)}
+                >
+                  <video
+                    src={q.videoUrl}
+                    className="w-full h-full object-cover"
+                    muted
+                    playsInline
+                  />
+                  <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                    <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-xl border border-white/30 flex items-center justify-center shadow-2xl scale-110 group-hover:scale-125 transition-transform">
+                      <Play size={28} className="text-white fill-white ml-1" />
+                    </div>
+                  </div>
+                  <div className="absolute top-4 right-4 px-3 py-1.5 bg-accent/90 backdrop-blur-md rounded-full text-[9px] font-black text-white uppercase tracking-widest">
+                    Video {t('record.mode.question', currentLanguage)}
                   </div>
                 </div>
-                <div className="absolute top-4 right-4 px-3 py-1.5 bg-accent/90 backdrop-blur-md rounded-full text-[9px] font-black text-white uppercase tracking-widest">
-                  Video {t('record.mode.question', currentLanguage)}
-                </div>
-              </div>
-            )}
+              )}
 
-            <div className="flex items-center gap-4 pt-2 w-full h-[84px]">
-              <button
-                onClick={() => onRecord(q)}
-                className="flex-[1.4] h-full bg-primary text-white rounded-[32px] flex items-center justify-center gap-4 shadow-xl shadow-primary/20 active:scale-[0.98] transition-all px-4"
-              >
-                <Video size={24} className="text-white shrink-0" />
-                <div className="flex flex-col items-start leading-none gap-1">
-                  <span className="text-[14px] font-black uppercase tracking-tight">{t('dashboard.record', currentLanguage)}</span>
-                  <span className="text-[14px] font-black uppercase tracking-tight">{t('dashboard.story', currentLanguage)}</span>
-                </div>
-              </button>
+              <div className="flex items-center gap-4 pt-2 w-full h-[84px]">
+                <button
+                  onClick={() => onRecord(q)}
+                  className="flex-[1.4] h-full bg-primary text-white rounded-[32px] flex items-center justify-center gap-4 shadow-xl shadow-primary/20 active:scale-[0.98] transition-all px-4"
+                >
+                  <Video size={24} className="text-white shrink-0" />
+                  <div className="flex flex-col items-start leading-none gap-1">
+                    <span className="text-[14px] font-black uppercase tracking-tight">{t('dashboard.record', currentLanguage)}</span>
+                    <span className="text-[14px] font-black uppercase tracking-tight">{t('dashboard.story', currentLanguage)}</span>
+                  </div>
+                </button>
 
-              <button
-                onClick={() => onToggleUpvote(q.id)}
-                className={`flex-1 h-full rounded-[32px] flex flex-col items-center justify-center border transition-all active:scale-95 ${q.hasUpvoted
-                  ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20'
-                  : 'bg-charcoal/5 dark:bg-white/5 border-secondary/20 dark:border-white/10'
-                  }`}
-              >
-                <span className={`text-[24px] font-black leading-none tracking-tight ${q.hasUpvoted ? 'text-white' : 'text-charcoal dark:text-warmwhite'}`}>
-                  {q.upvotes}
-                </span>
-                <div className="flex items-center gap-1 mt-1">
-                  {q.hasUpvoted && <ThumbsUp size={8} className="text-white fill-white" />}
-                  <span className={`text-[9px] font-black uppercase tracking-[0.2em] ${q.hasUpvoted ? 'text-white/80' : 'text-slate dark:text-support/40'}`}>
-                    {q.hasUpvoted ? t('dashboard.upvoted', currentLanguage) : t('dashboard.upvotes', currentLanguage)}
+                <button
+                  onClick={() => onToggleUpvote(q.id)}
+                  className={`flex-1 h-full rounded-[32px] flex flex-col items-center justify-center border transition-all active:scale-95 ${hasUpvoted
+                    ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20'
+                    : 'bg-charcoal/5 dark:bg-white/5 border-secondary/20 dark:border-white/10'
+                    }`}
+                >
+                  <span className={`text-[24px] font-black leading-none tracking-tight ${hasUpvoted ? 'text-white' : 'text-charcoal dark:text-warmwhite'}`}>
+                    {q.upvotes?.length || 0}
                   </span>
-                </div>
-              </button>
+                  <div className="flex items-center gap-1 mt-1">
+                    {hasUpvoted && <ThumbsUp size={8} className="text-white fill-white" />}
+                    <span className={`text-[9px] font-black uppercase tracking-[0.2em] ${hasUpvoted ? 'text-white/80' : 'text-slate dark:text-support/40'}`}>
+                      {hasUpvoted ? t('dashboard.upvoted', currentLanguage) : t('dashboard.upvotes', currentLanguage)}
+                    </span>
+                  </div>
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Family Switcher Modal */}
@@ -231,9 +234,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
                       <div className="text-left">
                         <p className="font-black text-xl leading-tight">
                           <LocalizedText
-                            text={family.name}
+                            text={family.familyName}
                             targetLanguage={currentLanguage}
-                            originalLanguage={family.motherTongue}
+                            originalLanguage={family.defaultLanguage}
                           />
                         </p>
                         <div className="flex items-center gap-3 mt-1.5">

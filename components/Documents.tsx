@@ -57,7 +57,6 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
       // 1. Upload to Firebase Storage
       const downloadURL = await uploadDocument(
         file,
-        targetFamilyId,
         docId,
         (progress) => setUploadProgress(Math.round(progress))
       );
@@ -73,17 +72,17 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
       }
 
       // 3. Save Metadata to Firestore
-      const newDocData = {
+      const extension = file.name.split('.').pop() || 'pdf';
+      const newDocData: Omit<FamilyDocument, 'id'> = {
         name: file.name,
         type: 'application/pdf',
         size: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
         timestamp: new Date().toISOString(),
-        serverTimestamp: serverTimestamp(),
         familyId: targetFamilyId,
         aiSummary,
         fileUrl: downloadURL,
-        storagePath: `documents/${targetFamilyId}/${docId}_${Date.now()}_${file.name}`,
-        uploaderId: user.id
+        storagePath: `documents/${user.uid}/${docId}.${extension}`,
+        uploaderId: user.uid
       };
 
       await addDoc(collection(db, "documents"), newDocData);
@@ -207,9 +206,9 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
                       <span className="text-[10px] font-black text-accent uppercase tracking-widest">
                         {families.find(f => f.id === doc.familyId) ? (
                           <LocalizedText
-                            text={families.find(f => f.id === doc.familyId)!.name}
+                            text={families.find(f => f.id === doc.familyId)!.familyName}
                             targetLanguage={currentLanguage}
-                            originalLanguage={families.find(f => f.id === doc.familyId)!.motherTongue}
+                            originalLanguage={families.find(f => f.id === doc.familyId)!.defaultLanguage}
                           />
                         ) : 'Unknown'}
                       </span>

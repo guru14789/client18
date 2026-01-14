@@ -41,24 +41,24 @@ const Questions: React.FC<QuestionsProps> = ({ user, families, onAnswer, onRecor
     try {
       // 1. Get an English version for the main text
       let englishText = newQuestionText;
+      let translatedText = newQuestionText;
+
       if (currentLanguage !== Language.ENGLISH) {
         englishText = await translateQuestion(newQuestionText, Language.ENGLISH);
+      } else {
+        translatedText = await translateQuestion(newQuestionText, Language.TAMIL); // Default translation to Tamil if original is English
       }
-
-      // 2. The translation in the user's preferred language is the original text they typed
-      const preferredTranslation = newQuestionText;
 
       const newQ: Question = {
         id: Date.now().toString(),
-        askerId: user.id,
-        askerName: user.name,
-        text: englishText, // Main text is English for system-wide compatibility
-        translation: preferredTranslation, // Original input preserved as translation for display
-        language: currentLanguage,
-        upvotes: 0,
-        hasUpvoted: false,
-        isVideoQuestion: false,
-        familyId: targetFamilyId
+        askedBy: user.uid,
+        askedByName: user.name,
+        textEnglish: englishText,
+        textTranslated: translatedText,
+        type: 'text',
+        upvotes: [],
+        familyId: targetFamilyId || activeFamilyId || families[0]?.id || '',
+        createdAt: new Date().toISOString()
       };
 
       onAddQuestion(newQ);
@@ -100,7 +100,7 @@ const Questions: React.FC<QuestionsProps> = ({ user, families, onAnswer, onRecor
                     onChange={(e) => setTargetFamilyId(e.target.value)}
                   >
                     {families.map(f => (
-                      <option key={f.id} value={f.id}>{f.name}</option>
+                      <option key={f.id} value={f.id}>{f.familyName}</option>
                     ))}
                   </select>
                 </div>
@@ -147,73 +147,76 @@ const Questions: React.FC<QuestionsProps> = ({ user, families, onAnswer, onRecor
         )}
 
         <div className="space-y-4">
-          {questions.sort((a, b) => b.upvotes - a.upvotes).map((q) => (
-            <div key={q.id} className="bg-white dark:bg-white/5 border border-secondary/20 dark:border-white/10 rounded-[32px] p-6 shadow-sm space-y-4 transition-all hover:shadow-md active:scale-[0.99]">
-              <div className="flex justify-between items-start">
-                <div className="flex-1 space-y-3">
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-bold text-accent uppercase tracking-wider">{q.askerName} {t('questions.asked', currentLanguage)}</p>
-                    <h3 className="text-lg font-bold text-charcoal dark:text-warmwhite leading-snug">
-                      <LocalizedText
-                        text={q.text}
-                        targetLanguage={currentLanguage}
-                        originalLanguage={q.language}
-                        storedTranslation={q.translation}
-                      />
-                    </h3>
-                    {q.translation && q.translation !== q.text && q.language !== currentLanguage && (
-                      <p className="text-primary dark:text-support/60 italic text-sm font-semibold mt-1">
-                        {q.translation}
-                      </p>
-                    )}
-                  </div>
+          {questions.sort((a, b) => (b.upvotes?.length || 0) - (a.upvotes?.length || 0)).map((q) => {
+            const hasUpvoted = q.upvotes?.includes(user.uid);
+            return (
+              <div key={q.id} className="bg-white dark:bg-white/5 border border-secondary/20 dark:border-white/10 rounded-[32px] p-6 shadow-sm space-y-4 transition-all hover:shadow-md active:scale-[0.99]">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1 space-y-3">
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-bold text-accent uppercase tracking-wider">{q.askedByName} {t('questions.asked', currentLanguage)}</p>
+                      <h3 className="text-lg font-bold text-charcoal dark:text-warmwhite leading-snug">
+                        <LocalizedText
+                          text={q.textEnglish || ''}
+                          targetLanguage={currentLanguage}
+                          originalLanguage={Language.ENGLISH}
+                          storedTranslation={q.textTranslated}
+                        />
+                      </h3>
+                      {q.textTranslated && q.textTranslated !== q.textEnglish && currentLanguage !== Language.ENGLISH && (
+                        <p className="text-primary dark:text-support/60 italic text-sm font-semibold mt-1">
+                          {q.textTranslated}
+                        </p>
+                      )}
+                    </div>
 
-                  {q.isVideoQuestion && q.videoUrl && (
-                    <div
-                      className="relative w-full aspect-video rounded-3xl overflow-hidden bg-charcoal group cursor-pointer border border-secondary/10 dark:border-white/5 active:scale-[0.98] transition-all shadow-inner mt-4"
-                      onClick={() => onAnswer(q)}
-                    >
-                      <video
-                        src={q.videoUrl}
-                        className="w-full h-full object-cover"
-                        muted
-                        playsInline
-                      />
-                      <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                        <div className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-xl border border-white/30 flex items-center justify-center shadow-2xl scale-110 group-hover:scale-125 transition-transform">
-                          <Play size={24} className="text-white fill-white ml-0.5" />
+                    {q.type === 'video' && q.videoUrl && (
+                      <div
+                        className="relative w-full aspect-video rounded-3xl overflow-hidden bg-charcoal group cursor-pointer border border-secondary/10 dark:border-white/5 active:scale-[0.98] transition-all shadow-inner mt-4"
+                        onClick={() => onAnswer(q)}
+                      >
+                        <video
+                          src={q.videoUrl}
+                          className="w-full h-full object-cover"
+                          muted
+                          playsInline
+                        />
+                        <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                          <div className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-xl border border-white/30 flex items-center justify-center shadow-2xl scale-110 group-hover:scale-125 transition-transform">
+                            <Play size={24} className="text-white fill-white ml-0.5" />
+                          </div>
+                        </div>
+                        <div className="absolute top-3 right-3 px-2.5 py-1 bg-accent/90 backdrop-blur-md rounded-full text-[8px] font-black text-white uppercase tracking-widest border border-white/10">
+                          Video {t('record.mode.question', currentLanguage)}
                         </div>
                       </div>
-                      <div className="absolute top-3 right-3 px-2.5 py-1 bg-accent/90 backdrop-blur-md rounded-full text-[8px] font-black text-white uppercase tracking-widest border border-white/10">
-                        Video {t('record.mode.question', currentLanguage)}
-                      </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2">
+                  <button
+                    onClick={() => onToggleUpvote(q.id)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold border ${hasUpvoted
+                      ? 'bg-primary text-white border-primary shadow-md'
+                      : 'text-primary dark:text-white bg-support/10 dark:bg-white/10 border-support/10 dark:border-white/10'
+                      }`}
+                  >
+                    <ThumbsUp size={16} className={hasUpvoted ? 'text-white fill-white' : 'text-primary dark:text-white'} />
+                    <span className="text-sm">{q.upvotes?.length || 0}</span>
+                  </button>
+
+                  <button
+                    onClick={() => onAnswer(q)}
+                    className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-full text-sm font-bold shadow-md shadow-primary/10 hover:brightness-110 transition-all active:scale-95"
+                  >
+                    {t('questions.answer', currentLanguage)}
+                    <ChevronRight size={16} />
+                  </button>
                 </div>
               </div>
-
-              <div className="flex items-center justify-between pt-2">
-                <button
-                  onClick={() => onToggleUpvote(q.id)}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold border ${q.hasUpvoted
-                    ? 'bg-primary text-white border-primary shadow-md'
-                    : 'text-primary dark:text-white bg-support/10 dark:bg-white/10 border-support/10 dark:border-white/10'
-                    }`}
-                >
-                  <ThumbsUp size={16} className={q.hasUpvoted ? 'text-white fill-white' : 'text-primary dark:text-white'} />
-                  <span className="text-sm">{q.upvotes}</span>
-                </button>
-
-                <button
-                  onClick={() => onAnswer(q)}
-                  className="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-full text-sm font-bold shadow-md shadow-primary/10 hover:brightness-110 transition-all active:scale-95"
-                >
-                  {t('questions.answer', currentLanguage)}
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>

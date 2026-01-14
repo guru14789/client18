@@ -2,28 +2,50 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     
-    // Core Auth Helper
+    // Helper to check if user is signed in
     function isSignedIn() {
       return request.auth != null;
     }
-    
-    // Check if user matches the path
+
+    // Helper to check ownership based on path
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // --- User Specific Uploads ---
-    // Matches: users/{userId}/uploads/profiles/pic.jpg
-    match /users/{userId}/uploads/{allPaths=**} {
-      allow read: if isSignedIn(); // Allow others to see your avatar/content
-      allow write: if isOwner(userId); // Only you can upload to your folder
+    // Helper to get memory data from Firestore
+    function getMemoryData(memoryId) {
+      return firestore.get(/databases/(default)/documents/memories/$(memoryId)).data;
     }
 
-    // --- Fallback/Global (Debug Only - Optional) ---
-    // If your app is somehow uploading to root, this would catch it.
-    // Ideally, keep this strict or remove it for production.
-    match /{allPaths=**} {
-      allow read, write: if false; 
+    // Helper to check family membership
+    function isFamilyMember(familyId) {
+      return isSignedIn() && request.auth.uid in firestore.get(/databases/(default)/documents/families/$(familyId)).members;
+    }
+
+    // Videos
+    match /videos/{userId}/{memoryId} {
+      allow write: if isOwner(userId);
+      allow read: if isSignedIn() && (
+        isOwner(userId) || 
+        (getMemoryData(memoryId.replace('.mp4', '')).status == 'published' && 
+         isFamilyMember(getMemoryData(memoryId.replace('.mp4', '')).familyIds[0]))
+      );
+    }
+
+    // Thumbnails
+    match /thumbnails/{userId}/{memoryId} {
+      allow write: if isOwner(userId);
+      allow read: if isSignedIn() && (
+        isOwner(userId) || 
+        (getMemoryData(memoryId.replace('.jpg', '')).status == 'published' && 
+         isFamilyMember(getMemoryData(memoryId.replace('.jpg', '')).familyIds[0]))
+      );
+    }
+
+    // Profiles
+    match /profiles/{userId}/{allPaths=**} {
+      allow write: if isOwner(userId);
+      allow read: if isSignedIn();
     }
   }
 }

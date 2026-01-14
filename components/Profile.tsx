@@ -124,8 +124,8 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
 
     setIsUploading(true);
     try {
-      const downloadUrl = await uploadProfilePicture(file, user.id);
-      await createOrUpdateUser(user.id, { avatarUrl: downloadUrl });
+      const downloadUrl = await uploadProfilePicture(file, user.uid);
+      await createOrUpdateUser(user.uid, { profilePhoto: downloadUrl });
       console.log("Profile picture updated");
     } catch (err) {
       console.error("Failed to upload avatar", err);
@@ -138,7 +138,7 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
   const handleSaveProfile = async () => {
     if (!editName.trim()) return;
     try {
-      await createOrUpdateUser(user.id, { name: editName.trim() });
+      await createOrUpdateUser(user.uid, { name: editName.trim() });
       setIsEditing(false);
     } catch (err) {
       console.error("Failed to update name", err);
@@ -191,10 +191,10 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
                 <Users size={24} />
               </div>
               <div>
-                <p className="font-black text-charcoal dark:text-warmwhite leading-none text-lg">{family.name}</p>
+                <p className="font-black text-charcoal dark:text-warmwhite leading-none text-lg">{family.familyName}</p>
                 <div className="flex items-center gap-1.5 mt-2">
                   <Globe size={10} className="text-slate dark:text-support/40" />
-                  <p className="text-[10px] font-black text-slate dark:text-support/40 uppercase tracking-widest">{family.motherTongue}</p>
+                  <p className="text-[10px] font-black text-slate dark:text-support/40 uppercase tracking-widest">{family.defaultLanguage}</p>
                 </div>
               </div>
             </div>
@@ -477,7 +477,7 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
 
               <div className="relative mb-6">
                 <div className="w-24 h-24 rounded-[32px] overflow-hidden border-4 border-warmwhite dark:border-charcoal shadow-xl relative">
-                  <img src={user.avatarUrl} alt={user.name} className={`w-full h-full object-cover transition-opacity ${isUploading ? 'opacity-50' : ''}`} />
+                  <img src={user.profilePhoto} alt={user.name} className={`w-full h-full object-cover transition-opacity ${isUploading ? 'opacity-50' : ''}`} />
                   {isUploading && (
                     <div className="absolute inset-0 flex items-center justify-center">
                       <Loader2 className="w-8 h-8 text-primary animate-spin" />
@@ -535,7 +535,7 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
                 </>
               )}
 
-              <p className="text-[10px] text-slate/30 dark:text-white/10 mt-1 font-mono">{user.id}</p>
+              <p className="text-[10px] text-slate/30 dark:text-white/10 mt-1 font-mono">{user.uid}</p>
             </div>
 
             <SectionHeader title={t('profile.system', currentLanguage)} icon={LockKeyhole} />

@@ -37,16 +37,13 @@ const getUserId = (): string => {
  */
 export const uploadMemoryVideo = async (
     file: File | Blob,
-    familyId: string, // Kept for interface compatibility, but unused in path if we follow strictly users/{uid}
     memoryId: string,
     onProgress?: UploadProgressCallback
 ): Promise<string> => {
     try {
         const userId = getUserId();
-        const fileName = `memory_${memoryId}_${Date.now()}.webm`;
-        // Strict Requirement: /users/{uid}/uploads/{fileId}
-        // We structure it as users/{uid}/uploads/memories/{fileName} to keep it organized but under uid
-        const storageRef = ref(storage, `users/${userId}/uploads/memories/${fileName}`);
+        // Path Requirement: /videos/{uid}/{memoryId}.mp4
+        const storageRef = ref(storage, `videos/${userId}/${memoryId}.mp4`);
 
         return await uploadFile(storageRef, file, onProgress);
     } catch (error) {
@@ -56,18 +53,35 @@ export const uploadMemoryVideo = async (
 };
 
 /**
+ * Upload a memory thumbnail
+ */
+export const uploadMemoryThumbnail = async (
+    file: File | Blob,
+    memoryId: string
+): Promise<string> => {
+    try {
+        const userId = getUserId();
+        // Path Requirement: /thumbnails/{uid}/{memoryId}.jpg
+        const storageRef = ref(storage, `thumbnails/${userId}/${memoryId}.jpg`);
+
+        return await uploadFile(storageRef, file);
+    } catch (error) {
+        console.error("Error uploading memory thumbnail:", error);
+        throw error;
+    }
+};
+
+/**
  * Upload a question video
  */
 export const uploadQuestionVideo = async (
     file: File | Blob,
-    familyId: string,
     questionId: string,
     onProgress?: UploadProgressCallback
 ): Promise<string> => {
     try {
         const userId = getUserId();
-        const fileName = `question_${questionId}_${Date.now()}.webm`;
-        const storageRef = ref(storage, `users/${userId}/uploads/questions/${fileName}`);
+        const storageRef = ref(storage, `videos/${userId}/question_${questionId}.mp4`);
 
         return await uploadFile(storageRef, file, onProgress);
     } catch (error) {
@@ -77,39 +91,44 @@ export const uploadQuestionVideo = async (
 };
 
 /**
- * Upload a document (PDF)
+ * Upload profile picture
  */
 export const uploadDocument = async (
     file: File,
-    familyId: string,
-    documentId: string,
-    onProgress?: UploadProgressCallback
+    docId: string,
+    onProgress?: (progress: number) => void
 ): Promise<string> => {
-    try {
-        const userId = getUserId();
-        const fileName = `doc_${documentId}_${Date.now()}_${file.name}`;
-        const storageRef = ref(storage, `users/${userId}/uploads/documents/${fileName}`);
+    const user = auth.currentUser;
+    if (!user) throw new Error("User not authenticated");
 
-        return await uploadFile(storageRef, file, onProgress);
-    } catch (error) {
-        console.error("Error uploading document:", error);
-        throw error;
-    }
+    const extension = file.name.split('.').pop() || 'pdf';
+    const filePath = `documents/${user.uid}/${docId}.${extension}`;
+    const storageRef = ref(storage, filePath);
+    const uploadTask = uploadBytesResumable(storageRef, file);
+
+    return new Promise((resolve, reject) => {
+        uploadTask.on(
+            'state_changed',
+            (snapshot) => {
+                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                if (onProgress) onProgress(progress);
+            },
+            (error) => reject(error),
+            async () => {
+                const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                resolve(downloadURL);
+            }
+        );
+    });
 };
 
-/**
- * Upload profile picture
- */
 export const uploadProfilePicture = async (
     file: File | Blob,
     userId: string
 ): Promise<string> => {
     try {
-        const fileName = `profile_${userId}_${Date.now()}.jpg`;
-        // Profile pics can stay in a public-ish folder OR under users. 
-        // Let's put it under users for consistency but maybe in a 'public' subfolder if we need public read?
-        // Prompt says "Store uploads under: /users/{uid}/uploads/{fileId}"
-        const storageRef = ref(storage, `users/${userId}/uploads/profiles/${fileName}`);
+        const fileName = `profile_${userId}.jpg`;
+        const storageRef = ref(storage, `profiles/${userId}/${fileName}`);
 
         return await uploadFile(storageRef, file);
     } catch (error) {

@@ -185,14 +185,12 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
       if (mode === 'question') {
         downloadURL = await uploadQuestionVideo(
           videoBlob,
-          targetFamilyId,
           memoryId,
           (progress) => setUploadProgress(Math.round(progress))
         );
       } else {
         downloadURL = await uploadMemoryVideo(
           videoBlob,
-          targetFamilyId,
           memoryId,
           (progress) => setUploadProgress(Math.round(progress))
         );
@@ -201,14 +199,16 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
       // 2. Prepare Memory object with the permanent URL
       const newMemory: Memory = {
         id: memoryId,
-        responderId: user.id,
+        authorId: user.uid,
         videoUrl: downloadURL,
-        timestamp: new Date().toISOString(),
-        familyId: targetFamilyId,
-        isDraft: shareOption === 'draft',
-        questionText: mode === 'answer' ? question?.text : undefined,
-        questionTranslation: mode === 'answer' ? question?.translation : undefined,
-        shareOption: shareOption,
+        createdAt: new Date().toISOString(),
+        familyIds: targetFamilyId ? [targetFamilyId] : [],
+        status: shareOption === 'draft' ? 'draft' : 'published',
+        questionId: mode === 'answer' ? question?.id : undefined,
+        questionText: mode === 'answer' ? question?.textEnglish || question?.text : undefined,
+        language: mode === 'answer' ? question?.language : undefined,
+        likes: [],
+        comments: []
       };
 
       if (shareOption === 'app_whatsapp') {

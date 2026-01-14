@@ -15,32 +15,27 @@ export enum Language {
 }
 
 export interface User {
-  id: string;
+  uid: string;
   name: string;
   phoneNumber: string;
+  createdAt: string; // ISO String
+  lastLoginAt: string; // ISO String
+  profilePhoto?: string;
+  draftCount?: number;
   families: string[]; // Family IDs
   activeFamilyId?: string;
-  avatarUrl?: string;
-  role?: 'admin' | 'user';
   preferredLanguage?: Language;
   theme?: 'light' | 'dark' | 'system';
 }
 
-export interface GroupMembership {
-  userId: string;
-  role: 'admin' | 'member';
-  status: 'pending' | 'active';
-  joinedAt: string;
-}
-
 export interface Family {
   id: string;
-  name: string;
-  motherTongue: Language;
-  admins: string[]; // User IDs
-  members: string[]; // User IDs
+  familyName: string;
+  createdBy: string; // User UID
+  members: string[]; // User UIDs
+  defaultLanguage: Language;
+  createdAt: string;
   inviteCode: string;
-  isApproved: boolean; // Platform approval
 }
 
 export interface Comment {
@@ -53,34 +48,43 @@ export interface Comment {
 
 export interface Memory {
   id: string;
-  askerId?: string;
-  responderId: string;
-  videoUrl: string;
-  timestamp: string;
-  familyId: string;
-  isDraft: boolean;
-  questionId?: string;
-  questionText?: string;
-  questionTranslation?: string;
-  shareOption?: 'app_whatsapp' | 'app_only' | 'draft';
-  language?: Language;
-  likes?: string[]; // Array of user IDs
+  familyIds: string[]; // Published to these families
+  authorId: string;
+  videoUrl: string; // Firebase Storage URL
+  thumbnailUrl?: string; // Firebase Storage URL
+  duration?: number;
+  status: 'draft' | 'published';
+  questionId?: string; // Linked question if any
+  questionText?: string; // Cached for feed
+  language?: Language; // Cached for feed
+  createdAt: string;
+  publishedAt?: string;
+  likes?: string[]; // User UIDs
   comments?: Comment[];
 }
 
 export interface Question {
   id: string;
-  askerId: string;
-  askerName: string;
-  text: string;
-  translation?: string;
-  language: Language;
-  upvotes: number;
-  hasUpvoted?: boolean;
-  directedTo?: string; // User ID
-  isVideoQuestion: boolean;
+  familyId: string;
+  askedBy: string; // User UID
+  askedByName: string; // Cached for performance
+  directedTo?: string; // User UID
+  type: 'text' | 'video';
+  textEnglish?: string;
+  textTranslated?: string;
   videoUrl?: string;
-  familyId: string; // Scoped to family
+  upvotes: string[]; // Array of User UIDs
+  createdAt: string;
+}
+
+export interface Notification {
+  id: string;
+  userId: string;
+  type: 'new_memory' | 'new_question' | 'upvote' | 'comment';
+  message: string;
+  relatedId?: string; // ID of the memory/question/etc
+  read: boolean;
+  createdAt: string;
 }
 
 export interface FamilyDocument {

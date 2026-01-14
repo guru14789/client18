@@ -21,17 +21,17 @@ import {
   listenToUserFamilies,
   listenToFamilyMemories,
   listenToFamilyQuestions,
-  updateUserActiveFamily,
+  upvoteQuestion,
   createQuestion,
-  updateQuestionUpvotes,
   createOrUpdateUser,
   createMemory,
+  deleteMemory,
+  likeMemory,
+  unlikeMemory,
+  addCommentToMemory,
   createFamily,
   addFamilyMember,
-  deleteMemory,
-  getFamilyDocuments, // Fallback for docs if no listener yet
-  getUserFamilies, // Query helper
-  listenToFamilyDocuments
+  listenToUserDrafts
 } from './services/firebaseServices';
 import {
   collection,
@@ -81,8 +81,7 @@ const App: React.FC = () => {
   // 1. Auth Context consumption
   const { currentUser: user, loading, logout, refreshProfile } = useAuth();
 
-  // 1b. Additional Profile Sync (Theme/Language) - The Context handles the user object, 
-  // but we still need to react to side effects like Theme Application
+  // 1b. Additional Profile Sync (Theme/Language)
   useEffect(() => {
     if (!user) return;
 
@@ -96,33 +95,21 @@ const App: React.FC = () => {
       localStorage.setItem('inai_theme', user.theme);
     }
 
-    // Auto-active family restoration
     if (user.activeFamilyId && user.activeFamilyId !== activeFamilyId) {
-      // Only set if we haven't manually switched (or initial load)
-      // We'll trust the profile's active family as the source of truth on load
       setActiveFamilyId(user.activeFamilyId);
     }
-  }, [user?.id, user?.preferredLanguage, user?.theme, user?.activeFamilyId]);
-  // Note: user object reference might change, be careful with deep dependency.
-  // Using specific fields is safer.
+  }, [user?.uid, user?.preferredLanguage, user?.theme, user?.activeFamilyId]);
 
   // 2. Family Sync
-  // We still listen to families independently to ensure the list is live
-  // Use user.id from context
   useEffect(() => {
-    if (!user?.id) {
+    if (!user?.uid) {
       setFamilies([]);
       return;
     }
 
-    console.log("App: Listening to families for:", user.id);
-    const unsubFamilies = listenToUserFamilies(user.id, (userFamilies) => {
-      console.log("App: Families received:", userFamilies.length, userFamilies);
+    const unsubFamilies = listenToUserFamilies(user.uid, (userFamilies) => {
       setFamilies(userFamilies);
-
-      // Auto-select family logic
-      if (userFamilies.length > 0 && !activeFamilyId) { // ... existing logic
-        // If no active family set locally, use profile's or first one
+      if (userFamilies.length > 0 && !activeFamilyId) {
         const preferredId = user.activeFamilyId;
         if (preferredId && userFamilies.some(f => f.id === preferredId)) {
           setActiveFamilyId(preferredId);
@@ -135,36 +122,23 @@ const App: React.FC = () => {
     });
 
     return () => unsubFamilies();
-  }, [user?.id]); // Re-subscribe if user ID changes (login/logout/switch)
+  }, [user?.uid]);
 
   // 3. Family Content Sync
   useEffect(() => {
-    setMemories([]); // Clear previous family data
+    setMemories([]);
     setQPrompts([]);
     setDocuments([]);
 
     if (!activeFamilyId) return;
 
-    // Memories
     const unsubMemories = listenToFamilyMemories(activeFamilyId, (familyMemories) => {
-      setMemories(familyMemories.filter(m => !m.isDraft));
-    }, true);
+      setMemories(familyMemories);
+    });
 
-    // Questions
     const unsubQuestions = listenToFamilyQuestions(activeFamilyId, (familyQuestions) => {
       setQPrompts(familyQuestions);
     });
-
-    // Documents - NOW using real-time listener
-    // We import listenToFamilyDocuments dynamically or assume it's available via service update
-    // (I added it to firebaseDatabase.ts in previous step)
-    // imports were updated via 'firebaseServices' export? 
-    // I need to ensure I import 'listenToFamilyDocuments' in App imports. 
-    // I'll add the import to the top of the file in a separate edit or mixed here if possible? 
-    // I can't easily add import with this tool usage unless I replace the whole file or top block.
-    // I will stick to the 'onSnapshot' manual approach here primarily but use the service function if I can, 
-    // but to be safe and atomic, I'll keep the manual listener or cleaner: use the new function.
-    // Since I cannot guarantee import update in this block, I will use Query here but cleaner.
 
     const qDocs = query(
       collection(db, "documents"),
@@ -185,27 +159,20 @@ const App: React.FC = () => {
 
   // 4. Drafts Sync
   useEffect(() => {
-    if (!user) {
+    if (!user?.uid) {
       setDrafts([]);
       return;
     }
-    const qDrafts = query(
-      collection(db, "memories"),
-      where("responderId", "==", user.id),
-      where("isDraft", "==", true),
-      orderBy("createdAt", "desc")
-    );
-    const unsubDrafts = onSnapshot(qDrafts, (snapshot) => {
-      const d = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })) as Memory[];
-      setDrafts(d);
+    const unsubDrafts = listenToUserDrafts(user.uid, (userDrafts) => {
+      setDrafts(userDrafts);
     });
     return () => unsubDrafts();
-  }, [user?.id]);
+  }, [user?.uid]);
 
   const switchFamily = async (familyId: string) => {
     setActiveFamilyId(familyId);
     if (user) {
-      await updateUserActiveFamily(user.id, familyId);
+      await createOrUpdateUser(user.uid, { activeFamilyId: familyId });
     }
   };
 
@@ -214,20 +181,19 @@ const App: React.FC = () => {
     await createQuestion(data);
   };
 
-  const handleAddFamily = async (name: string, motherTongue: Language) => {
+  const handleAddFamily = async (familyName: string, defaultLanguage: Language) => {
     if (!user) return;
     try {
       const familyId = await createFamily({
-        name,
-        motherTongue,
-        admins: [user.id],
-        members: [user.id],
-        inviteCode: Math.random().toString(36).substring(2, 8).toUpperCase(),
-        isApproved: true
+        familyName,
+        defaultLanguage,
+        createdBy: user.uid,
+        members: [user.uid],
+        inviteCode: Math.random().toString(36).substring(2, 8).toUpperCase()
       });
 
       const updatedFamilies = [...(user.families || []), familyId];
-      await createOrUpdateUser(user.id, {
+      await createOrUpdateUser(user.uid, {
         families: updatedFamilies,
         activeFamilyId: familyId
       });
@@ -235,22 +201,19 @@ const App: React.FC = () => {
       setActiveFamilyId(familyId);
     } catch (err) {
       console.error("Error creating family:", err);
-      alert("Failed to create family circle.");
     }
   };
 
   const toggleUpvote = async (questionId: string) => {
-    const q = qPrompts.find(p => p.id === questionId);
-    if (!q) return;
-    const newUpvotes = q.hasUpvoted ? q.upvotes - 1 : q.upvotes + 1;
-    await updateQuestionUpvotes(questionId, newUpvotes);
+    if (!user) return;
+    await upvoteQuestion(questionId, user.uid);
   };
 
   const handleLanguageChange = async (lang: Language) => {
     setLanguage(lang);
     localStorage.setItem('inai_language', lang);
     if (user) {
-      await createOrUpdateUser(user.id, { preferredLanguage: lang });
+      await createOrUpdateUser(user.uid, { preferredLanguage: lang });
     }
   };
 
@@ -258,15 +221,13 @@ const App: React.FC = () => {
     try {
       if (recordMode === 'question') {
         const questionData: Omit<Question, 'id'> = {
-          askerId: user?.id || '',
-          askerName: user?.name || '',
-          text: t('questions.video_question_default', language),
-          translation: t('record.mode.question', language),
-          language,
-          upvotes: 0,
-          isVideoQuestion: true,
+          askedBy: user?.uid || '',
+          askedByName: user?.name || '',
+          familyId: activeFamilyId || '',
+          type: 'video',
           videoUrl: newMemory.videoUrl,
-          familyId: newMemory.familyId
+          upvotes: [],
+          createdAt: new Date().toISOString()
         };
         await createQuestion(questionData);
         setView('questions');
@@ -285,13 +246,12 @@ const App: React.FC = () => {
     setTheme(newTheme);
     localStorage.setItem('inai_theme', newTheme);
     if (user) {
-      await createOrUpdateUser(user.id, { theme: newTheme });
+      await createOrUpdateUser(user.uid, { theme: newTheme });
     }
   };
 
   const handleLogin = useCallback(async (phoneNumber: string, name: string, firebaseUid: string) => {
-    console.log("App: handleLogin callback (Update Name)");
-    if (name && name !== 'Family Member') {
+    if (name) {
       await createOrUpdateUser(firebaseUid, { name });
     }
   }, []);

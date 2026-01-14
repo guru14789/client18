@@ -2,103 +2,93 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Core Auth Helper
+    // --- Helper Functions ---
+    
     function isSignedIn() {
       return request.auth != null;
     }
     
-    // Check if user is accessing their own data
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
     
-    // Check family membership
-    // This looks up the family document to verify the user is in the 'members' array
+    function getFamily(familyId) {
+      return get(/databases/$(database)/documents/families/$(familyId)).data;
+    }
+    
     function isFamilyMember(familyId) {
-       // Note: This 'get' costs 1 read operation.
-       let familyData = get(/databases/$(database)/documents/families/$(familyId)).data;
-       return isSignedIn() && (request.auth.uid in familyData.members);
+      return isSignedIn() && (request.auth.uid in getFamily(familyId).members);
+    }
+
+    function isFamilyMemberFromData(data) {
+      return isSignedIn() && (request.auth.uid in data.members);
     }
 
     // --- Users Collection ---
-    // users/{uid}
-    // strictly one document per user
     match /users/{userId} {
-      // Allow read for authenticated users (to see names/avatars of family members)
       allow read: if isSignedIn();
-      // Write only by owner
       allow write: if isOwner(userId);
-
-      // User Private Data Subcollections
-      // users/{uid}/documents/...
-      match /documents/{docId} {
-        allow read, write: if isOwner(userId);
-      }
-      
-      // users/{uid}/uploads/...
-      // Access controlled by Storage, but metadata here if needed
-      match /uploads/{uploadId} {
-        allow read, write: if isOwner(userId);
-      }
     }
 
     // --- Families Collection ---
     match /families/{familyId} {
-      // Creation allowed by any auth user
-      allow create: if isSignedIn();
-      
-      // Read/Update only by members
-      // The `in` operator checks if the user's UID is present in the `members` array
+      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
       allow read, update: if isSignedIn() && (request.auth.uid in resource.data.members);
-      
-      // Delete restricted to admins (first member or explicit admin role)
-      // For now, allow any member to delete for simplicity, or restrict strictly:
-      allow delete: if isSignedIn() && (request.auth.uid in resource.data.members);
+      allow delete: if isSignedIn() && resource.data.createdBy == request.auth.uid;
     }
 
-    // --- Shared Family Content (Memories, Questions, Docs) ---
-    // These collections are effectively "sub-resources" of a family, logic-wise
-    
-    // Memories
+    // --- Memories Collection ---
     match /memories/{memoryId} {
-      // Read: Must be member of the family this memory belongs to
+      // Read: Published to family OR is the author's draft
+      allow read: if isSignedIn() && (
+        (resource.data.status == 'published' && exists(/databases/$(database)/documents/families/$(resource.data.familyIds[0])) && isFamilyMember(resource.data.familyIds[0])) ||
+        (resource.data.authorId == request.auth.uid)
+      );
+      
+      // Create: Must be the author
+      allow create: if isSignedIn() && 
+                    request.resource.data.authorId == request.auth.uid &&
+                    request.resource.data.status in ['draft', 'published'];
+                    
+      // Update: Author can update anything, Family members can only update 'likes' and 'comments'
+      allow update: if isSignedIn() && (
+        (resource.data.authorId == request.auth.uid) ||
+        (resource.data.status == 'published' && isFamilyMember(resource.data.familyIds[0]) && 
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'comments']))
+      );
+      
+      allow delete: if isSignedIn() && resource.data.authorId == request.auth.uid;
+    }
+
+    // --- Questions Collection ---
+    match /questions/{questionId} {
       allow read: if isSignedIn() && isFamilyMember(resource.data.familyId);
       
-      // Create: Must be member of the target family
-      // AND user must be the author (responderId or logic dependent)
       allow create: if isSignedIn() && 
                     isFamilyMember(request.resource.data.familyId) &&
-                    request.resource.data.responderId == request.auth.uid;
+                    request.resource.data.askedBy == request.auth.uid;
                     
-      // Update: Must be member AND owner (or implement admin logic)
+      // Anyone in family can upvote
       allow update: if isSignedIn() && 
                     isFamilyMember(resource.data.familyId) &&
-                    (request.auth.uid == resource.data.responderId || request.auth.uid in resource.data.likes); 
-      
-      allow delete: if isSignedIn() && resource.data.responderId == request.auth.uid;
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes']);
+                    
+      allow delete: if isSignedIn() && resource.data.askedBy == request.auth.uid;
     }
 
-    // Questions
-    match /questions/{questionId} {
-      // Anyone in the family can see questions
-      allow read: if isSignedIn() && isFamilyMember(resource.data.familyId);
-      // Anyone in family can ask
-      allow create: if isSignedIn() && isFamilyMember(request.resource.data.familyId);
-      // Upvotes / Updates
-      allow update: if isSignedIn() && isFamilyMember(resource.data.familyId);
+    // --- Notifications Collection ---
+    match /notifications/{notificationId} {
+      // Only the target user can read/write their own notifications
+      allow read, update: if isSignedIn() && request.auth.uid == resource.data.userId;
+      // System/Other users can create notifications for this user
+      allow create: if isSignedIn(); 
     }
 
-    // Documents (Shared Family Documents)
+    // --- Documents (Legacy/Compatibility) ---
     match /documents/{docId} {
       allow read: if isSignedIn() && isFamilyMember(resource.data.familyId);
       allow create: if isSignedIn() && isFamilyMember(request.resource.data.familyId);
       allow update, delete: if isSignedIn() && isFamilyMember(resource.data.familyId);
-    }
-    
-    // Notifications
-    match /notifications/{notificationId} {
-      // Only the target user can read/write their own notifications
-      allow read, write: if isSignedIn() && request.auth.uid == resource.data.userId;
     }
   }
 }

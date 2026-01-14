@@ -24,43 +24,38 @@ export {
     // User operations
     createOrUpdateUser,
     getUser,
-    updateUserActiveFamily,
     // Family operations
     createFamily,
     getFamily,
-    getUserFamilies,
     addFamilyMember,
     // Memory operations
     createMemory,
-    updateMemory,
-    getFamilyMemories,
-    getUserDrafts,
+    publishMemory,
     deleteMemory,
     likeMemory,
     unlikeMemory,
     addCommentToMemory,
     // Question operations
     createQuestion,
-    getFamilyQuestions,
-    updateQuestionUpvotes,
-    // Document operations
-    createDocument,
-    getFamilyDocuments,
-    deleteDocument,
+    upvoteQuestion,
+    // Notification operations
+    createNotification,
+    markNotificationRead,
     // Real-time listeners
     listenToFamilyMemories,
+    listenToUserDrafts,
     listenToFamilyQuestions,
+    listenToUserNotifications,
     listenToUser,
-    listenToUserFamilies,
-    listenToFamilyDocuments
+    listenToUserFamilies
 } from './firebaseDatabase';
 
 // Storage Services
 export {
     STORAGE_PATHS,
     uploadMemoryVideo,
+    uploadMemoryThumbnail,
     uploadQuestionVideo,
-    uploadDocument,
     uploadProfilePicture,
     deleteFile,
     deleteFileByPath,
@@ -74,10 +69,7 @@ export {
     requestNotificationPermission,
     saveFCMToken,
     onForegroundMessage,
-    createNotification,
     notifyFamilyMembers,
-    markNotificationAsRead,
-    getUserNotifications,
     initializeFCM
 } from './firebaseMessaging';
 
