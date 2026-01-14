@@ -21,7 +21,7 @@ interface QuestionsProps {
   onRecordQuestion: () => void;
   currentLanguage: Language;
   questions: Question[];
-  onToggleUpvote: (id: string) => void;
+  onToggleUpvote: (id: string, askedBy: string) => void;
   onAddQuestion: (q: Question) => void;
   activeFamilyId: string | null;
 }
@@ -195,7 +195,7 @@ const Questions: React.FC<QuestionsProps> = ({ user, families, onAnswer, onRecor
 
                 <div className="flex items-center justify-between pt-2">
                   <button
-                    onClick={() => onToggleUpvote(q.id)}
+                    onClick={() => onToggleUpvote(q.id, q.askedBy)}
                     className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all font-bold border ${(q.upvotes || []).includes(user.uid)
                       ? 'bg-primary text-white border-primary shadow-md'
                       : 'text-primary dark:text-white bg-support/10 dark:bg-white/10 border-support/10 dark:border-white/10'

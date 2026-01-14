@@ -6,10 +6,8 @@ import {
     createQuestion,
     createMemory,
     createOrUpdateUser,
-    COLLECTIONS
-} from '../services/firebaseDatabase';
-import { collection, addDoc } from 'firebase/firestore';
-import { db } from '../services/firebaseConfig';
+    createDocument
+} from '../services/firebaseServices';
 
 interface DeveloperToolsProps {
     user: User | null;
@@ -136,7 +134,7 @@ const DeveloperTools: React.FC<DeveloperToolsProps> = ({ user, onComplete }) => 
             ];
 
             for (const d of docs) {
-                await addDoc(collection(db, COLLECTIONS.DOCUMENTS), d);
+                await createDocument(d);
             }
 
             console.log("✅ Dummy data seeded successfully!");
@@ -171,10 +169,10 @@ const DeveloperTools: React.FC<DeveloperToolsProps> = ({ user, onComplete }) => 
                     onClick={seedData}
                     disabled={loading}
                     className={`w-full py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all active:scale-95 shadow-lg ${status === 'success'
-                            ? 'bg-green-500 text-white shadow-green-500/20'
-                            : status === 'error'
-                                ? 'bg-red-500 text-white shadow-red-500/20'
-                                : 'bg-primary text-white shadow-primary/20 hover:brightness-110'
+                        ? 'bg-green-500 text-white shadow-green-500/20'
+                        : status === 'error'
+                            ? 'bg-red-500 text-white shadow-red-500/20'
+                            : 'bg-primary text-white shadow-primary/20 hover:brightness-110'
                         }`}
                 >
                     {loading ? (

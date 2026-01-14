@@ -16,7 +16,8 @@ import {
     Timestamp,
     arrayUnion,
     arrayRemove,
-    increment
+    increment,
+    collectionGroup
 } from "firebase/firestore";
 import { db } from "./firebaseConfig";
 import { User, Family, Memory, Question, Notification, FamilyDocument, Comment, FamilyInvitation, ActivityLog } from "../types";
@@ -25,9 +26,9 @@ import { User, Family, Memory, Question, Notification, FamilyDocument, Comment, 
 export const COLLECTIONS = {
     USERS: "users",
     FAMILIES: "families",
-    MEMORIES: "memories",
-    QUESTIONS: "questions",
-    DOCUMENTS: "documents",
+    MEMORIES: "memories", // Sub-collection under user
+    QUESTIONS: "questions", // Sub-collection under user
+    DOCUMENTS: "documents", // Sub-collection under user
     NOTIFICATIONS: "notifications",
     INVITES: "invites",
     ACTIVITY: "activity"
@@ -48,9 +49,6 @@ export const createOrUpdateUser = async (userId: string, userData: Partial<User>
     try {
         const userRef = doc(db, COLLECTIONS.USERS, userId);
         const now = new Date().toISOString();
-
-        // Ensure settings object is initialized if providing theme or notificationsEnabled
-        const settings: any = userData.settings || {};
 
         await setDoc(userRef, {
             ...clean(userData),
@@ -153,13 +151,15 @@ export const addFamilyMember = async (familyId: string, userId: string): Promise
 };
 
 // ============================================
-// MEMORY OPERATIONS
+// MEMORY OPERATIONS (Stored under /users/{uid}/memories)
 // ============================================
 
 export const createMemory = async (memoryData: Omit<Memory, 'id'>): Promise<string> => {
     try {
         const now = new Date().toISOString();
-        const memoryRef = await addDoc(collection(db, COLLECTIONS.MEMORIES), {
+        const userMemoriesRef = collection(db, COLLECTIONS.USERS, memoryData.authorId, COLLECTIONS.MEMORIES);
+
+        const memoryRef = await addDoc(userMemoriesRef, {
             ...clean(memoryData),
             createdAt: now,
             publishedAt: memoryData.status === 'published' ? now : null,
@@ -173,7 +173,7 @@ export const createMemory = async (memoryData: Omit<Memory, 'id'>): Promise<stri
             });
         }
 
-        console.log("✅ Memory created:", memoryRef.id);
+        console.log("✅ Memory created in user sub-collection:", memoryRef.id);
         return memoryRef.id;
     } catch (error) {
         console.error("Error creating memory:", error);
@@ -181,9 +181,9 @@ export const createMemory = async (memoryData: Omit<Memory, 'id'>): Promise<stri
     }
 };
 
-export const publishMemory = async (memoryId: string, familyIds: string[]): Promise<void> => {
+export const publishMemory = async (memoryId: string, authorId: string, familyIds: string[]): Promise<void> => {
     try {
-        const memoryRef = doc(db, COLLECTIONS.MEMORIES, memoryId);
+        const memoryRef = doc(db, COLLECTIONS.USERS, authorId, COLLECTIONS.MEMORIES, memoryId);
         const memorySnap = await getDoc(memoryRef);
 
         if (!memorySnap.exists()) throw new Error("Memory not found");
@@ -197,7 +197,7 @@ export const publishMemory = async (memoryId: string, familyIds: string[]): Prom
         });
 
         if (data.status === 'draft') {
-            const userRef = doc(db, COLLECTIONS.USERS, data.authorId);
+            const userRef = doc(db, COLLECTIONS.USERS, authorId);
             await updateDoc(userRef, {
                 draftCount: increment(-1)
             });
@@ -210,15 +210,15 @@ export const publishMemory = async (memoryId: string, familyIds: string[]): Prom
     }
 };
 
-export const deleteMemory = async (memoryId: string): Promise<void> => {
+export const deleteMemory = async (memoryId: string, authorId: string): Promise<void> => {
     try {
-        const memoryRef = doc(db, COLLECTIONS.MEMORIES, memoryId);
+        const memoryRef = doc(db, COLLECTIONS.USERS, authorId, COLLECTIONS.MEMORIES, memoryId);
         const memorySnap = await getDoc(memoryRef);
 
         if (memorySnap.exists()) {
             const data = memorySnap.data();
             if (data.status === 'draft') {
-                const userRef = doc(db, COLLECTIONS.USERS, data.authorId);
+                const userRef = doc(db, COLLECTIONS.USERS, authorId);
                 await updateDoc(userRef, {
                     draftCount: increment(-1)
                 });
@@ -233,9 +233,9 @@ export const deleteMemory = async (memoryId: string): Promise<void> => {
     }
 };
 
-export const likeMemory = async (memoryId: string, userId: string): Promise<void> => {
+export const likeMemory = async (memoryId: string, authorId: string, userId: string): Promise<void> => {
     try {
-        const memoryRef = doc(db, COLLECTIONS.MEMORIES, memoryId);
+        const memoryRef = doc(db, COLLECTIONS.USERS, authorId, COLLECTIONS.MEMORIES, memoryId);
         await updateDoc(memoryRef, {
             likes: arrayUnion(userId)
         });
@@ -245,9 +245,9 @@ export const likeMemory = async (memoryId: string, userId: string): Promise<void
     }
 };
 
-export const unlikeMemory = async (memoryId: string, userId: string): Promise<void> => {
+export const unlikeMemory = async (memoryId: string, authorId: string, userId: string): Promise<void> => {
     try {
-        const memoryRef = doc(db, COLLECTIONS.MEMORIES, memoryId);
+        const memoryRef = doc(db, COLLECTIONS.USERS, authorId, COLLECTIONS.MEMORIES, memoryId);
         await updateDoc(memoryRef, {
             likes: arrayRemove(userId)
         });
@@ -257,9 +257,9 @@ export const unlikeMemory = async (memoryId: string, userId: string): Promise<vo
     }
 };
 
-export const addCommentToMemory = async (memoryId: string, userId: string, userName: string, text: string): Promise<void> => {
+export const addCommentToMemory = async (memoryId: string, authorId: string, userId: string, userName: string, text: string): Promise<void> => {
     try {
-        const memoryRef = doc(db, COLLECTIONS.MEMORIES, memoryId);
+        const memoryRef = doc(db, COLLECTIONS.USERS, authorId, COLLECTIONS.MEMORIES, memoryId);
         const comment: Comment = {
             id: Math.random().toString(36).substring(2, 9),
             userId,
@@ -277,18 +277,19 @@ export const addCommentToMemory = async (memoryId: string, userId: string, userN
 };
 
 // ============================================
-// QUESTION OPERATIONS
+// QUESTION OPERATIONS (Stored under /users/{uid}/questions)
 // ============================================
 
 export const createQuestion = async (questionData: Omit<Question, 'id'>): Promise<string> => {
     try {
-        const questionRef = await addDoc(collection(db, COLLECTIONS.QUESTIONS), {
+        const userQuestionsRef = collection(db, COLLECTIONS.USERS, questionData.askedBy, COLLECTIONS.QUESTIONS);
+        const questionRef = await addDoc(userQuestionsRef, {
             ...clean(questionData),
             upvotes: [],
             createdAt: new Date().toISOString(),
             serverCreatedAt: Timestamp.now()
         });
-        console.log("✅ Question created:", questionRef.id);
+        console.log("✅ Question created in user sub-collection:", questionRef.id);
         return questionRef.id;
     } catch (error) {
         console.error("Error creating question:", error);
@@ -296,9 +297,9 @@ export const createQuestion = async (questionData: Omit<Question, 'id'>): Promis
     }
 };
 
-export const upvoteQuestion = async (questionId: string, userId: string): Promise<void> => {
+export const upvoteQuestion = async (questionId: string, askedBy: string, userId: string): Promise<void> => {
     try {
-        const questionRef = doc(db, COLLECTIONS.QUESTIONS, questionId);
+        const questionRef = doc(db, COLLECTIONS.USERS, askedBy, COLLECTIONS.QUESTIONS, questionId);
         const questionSnap = await getDoc(questionRef);
 
         if (questionSnap.exists()) {
@@ -319,17 +320,33 @@ export const upvoteQuestion = async (questionId: string, userId: string): Promis
     }
 };
 
-export const getFamilyQuestions = async (familyId: string): Promise<Question[]> => {
+// ================= ==========================
+// DOCUMENT OPERATIONS (Stored under /users/{uid}/documents)
+// ============================================
+
+export const createDocument = async (docData: Omit<FamilyDocument, 'id'>): Promise<string> => {
     try {
-        const q = query(
-            collection(db, COLLECTIONS.QUESTIONS),
-            where("familyId", "==", familyId),
-            orderBy("createdAt", "desc")
-        );
-        const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Question));
+        const userDocsRef = collection(db, COLLECTIONS.USERS, docData.uploaderId, COLLECTIONS.DOCUMENTS);
+        const docRef = await addDoc(userDocsRef, {
+            ...clean(docData),
+            timestamp: new Date().toISOString(),
+            serverCreatedAt: Timestamp.now()
+        });
+        console.log("✅ Document created in user sub-collection:", docRef.id);
+        return docRef.id;
     } catch (error) {
-        console.error("Error getting family questions:", error);
+        console.error("Error creating document:", error);
+        throw error;
+    }
+};
+
+export const deleteDocument = async (docId: string, uploaderId: string): Promise<void> => {
+    try {
+        const docRef = doc(db, COLLECTIONS.USERS, uploaderId, COLLECTIONS.DOCUMENTS, docId);
+        await deleteDoc(docRef);
+        console.log("✅ Document deleted:", docId);
+    } catch (error) {
+        console.error("Error deleting document:", error);
         throw error;
     }
 };
@@ -398,7 +415,7 @@ export const createInvitation = async (inviteData: Omit<FamilyInvitation, 'id' |
 };
 
 // ============================================
-// REAL-TIME LISTENERS
+// REAL-TIME LISTENERS (Using collectionGroup for global family feed)
 // ============================================
 
 export const listenToFamilyMemories = (
@@ -406,7 +423,7 @@ export const listenToFamilyMemories = (
     callback: (memories: Memory[]) => void
 ): (() => void) => {
     const q = query(
-        collection(db, COLLECTIONS.MEMORIES),
+        collectionGroup(db, COLLECTIONS.MEMORIES),
         where("familyIds", "array-contains", familyId),
         where("status", "==", "published"),
         orderBy("createdAt", "desc")
@@ -425,9 +442,9 @@ export const listenToUserDrafts = (
     userId: string,
     callback: (drafts: Memory[]) => void
 ): (() => void) => {
+    const userMemoriesRef = collection(db, COLLECTIONS.USERS, userId, COLLECTIONS.MEMORIES);
     const q = query(
-        collection(db, COLLECTIONS.MEMORIES),
-        where("authorId", "==", userId),
+        userMemoriesRef,
         where("status", "==", "draft"),
         orderBy("createdAt", "desc")
     );
@@ -446,7 +463,7 @@ export const listenToFamilyQuestions = (
     callback: (questions: Question[]) => void
 ): (() => void) => {
     const q = query(
-        collection(db, COLLECTIONS.QUESTIONS),
+        collectionGroup(db, COLLECTIONS.QUESTIONS),
         where("familyId", "==", familyId),
         orderBy("createdAt", "desc")
     );
@@ -457,6 +474,25 @@ export const listenToFamilyQuestions = (
             questions.push({ id: doc.id, ...doc.data() } as Question);
         });
         callback(questions);
+    });
+};
+
+export const listenToFamilyDocuments = (
+    familyId: string,
+    callback: (docs: FamilyDocument[]) => void
+): (() => void) => {
+    const q = query(
+        collectionGroup(db, COLLECTIONS.DOCUMENTS),
+        where("familyId", "==", familyId),
+        orderBy("timestamp", "desc")
+    );
+
+    return onSnapshot(q, (snapshot) => {
+        const docs: FamilyDocument[] = [];
+        snapshot.forEach((doc) => {
+            docs.push({ id: doc.id, ...doc.data() } as FamilyDocument);
+        });
+        callback(docs);
     });
 };
 

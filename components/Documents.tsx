@@ -1,8 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { FileText, Upload, Plus, Trash2, Loader2, Info, Search, FileCode, Clock, Eye, X, AlertCircle, Archive, Shield, Smartphone } from 'lucide-react';
-import { collection, addDoc, deleteDoc, doc, serverTimestamp } from "firebase/firestore";
-import { db } from '../services/firebaseConfig';
-import { uploadDocument } from '../services/firebaseStorage';
+import { createDocument, deleteDocument as deleteDocService, uploadDocument } from '../services/firebaseServices';
 import { User, Family, FamilyDocument, Language } from '../types';
 import { t } from '../services/i18n';
 import { generateDocumentContext } from '../services/geminiService';
@@ -85,7 +83,7 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
         uploaderId: user.uid
       };
 
-      await addDoc(collection(db, "documents"), newDocData);
+      await createDocument(newDocData);
       setIsUploading(false);
       setUploadProgress(0);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -99,7 +97,7 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
   const deleteDocument = async (document: FamilyDocument) => {
     if (!confirm(t('documents.delete_confirm', currentLanguage))) return;
     try {
-      await deleteDoc(doc(db, "documents", document.id));
+      await deleteDocService(document.id, user.uid);
     } catch (err) {
       console.error("Error deleting document:", err);
     }

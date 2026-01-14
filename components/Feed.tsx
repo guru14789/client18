@@ -44,9 +44,9 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage }
 
       const isLiked = (memory.likes || []).includes(user.uid);
       if (isLiked) {
-        await unlikeMemory(memoryId, user.uid);
+        await unlikeMemory(memoryId, memory.authorId, user.uid);
       } else {
-        await likeMemory(memoryId, user.uid);
+        await likeMemory(memoryId, memory.authorId, user.uid);
       }
     } catch (err: any) {
       console.error("Error toggling like:", err);
@@ -60,7 +60,9 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage }
     if (!newComment.trim() || isCommenting) return;
     setIsCommenting(true);
     try {
-      await addCommentToMemory(memoryId, user.uid, user.displayName, newComment);
+      const memory = memories.find(m => m.id === memoryId);
+      if (!memory) return;
+      await addCommentToMemory(memoryId, memory.authorId, user.uid, user.displayName, newComment);
       setNewComment('');
     } catch (err: any) {
       console.error("Error adding comment:", err);

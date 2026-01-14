@@ -32,7 +32,8 @@ import {
   addCommentToMemory,
   createFamily,
   addFamilyMember,
-  listenToUserDrafts
+  listenToUserDrafts,
+  listenToFamilyDocuments
 } from './services/firebaseServices';
 import {
   collection,
@@ -144,14 +145,8 @@ const App: React.FC = () => {
       setQPrompts(familyQuestions);
     });
 
-    const qDocs = query(
-      collection(db, "documents"),
-      where("familyId", "==", activeFamilyId),
-      orderBy("timestamp", "desc")
-    );
-    const unsubDocs = onSnapshot(qDocs, (snapshot) => {
-      const ds = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })) as FamilyDocument[];
-      setDocuments(ds);
+    const unsubDocs = listenToFamilyDocuments(activeFamilyId, (docs) => {
+      setDocuments(docs);
     });
 
     return () => {
@@ -208,9 +203,9 @@ const App: React.FC = () => {
     }
   };
 
-  const toggleUpvote = async (questionId: string) => {
+  const toggleUpvote = async (questionId: string, askedBy: string) => {
     if (!user) return;
-    await upvoteQuestion(questionId, user.uid);
+    await upvoteQuestion(questionId, askedBy, user.uid);
   };
 
   const handleLanguageChange = async (lang: Language) => {
@@ -343,7 +338,7 @@ const App: React.FC = () => {
           {view === 'questions' && user && <Questions user={user} families={families} questions={qPrompts} onAnswer={(q) => { setActiveQuestion(q); setRecordMode('answer'); setView('record'); }} onRecordQuestion={() => { setActiveQuestion(null); setRecordMode('question'); setView('record'); }} onToggleUpvote={toggleUpvote} onAddQuestion={handleAddQuestion} activeFamilyId={activeFamilyId} currentLanguage={language} />}
           {view === 'documents' && user && <Documents user={user} families={families} documents={documents} setDocuments={setDocuments} currentLanguage={language} />}
           {view === 'record' && user && <RecordMemory user={user} question={activeQuestion} mode={recordMode} onCancel={() => { setView('home'); setActiveQuestion(null); }} onComplete={handleRecordingComplete} families={families} activeFamilyId={activeFamilyId} currentLanguage={language} />}
-          {view === 'drafts' && <Drafts drafts={drafts} onPublish={(m) => handleRecordingComplete({ ...m, status: 'published' })} onDelete={(id) => deleteMemory(id)} currentLanguage={language} onBack={() => setView('home')} />}
+          {view === 'drafts' && <Drafts drafts={drafts} onPublish={(m) => handleRecordingComplete({ ...m, status: 'published' })} onDelete={(id) => deleteMemory(id, user.uid)} currentLanguage={language} onBack={() => setView('home')} />}
           {view === 'profile' && user && <Profile user={user} families={families} onLogout={handleLogout} currentTheme={theme} onThemeChange={handleThemeChange} currentLanguage={language} onLanguageChange={handleLanguageChange} onNavigate={setView} />}
         </div>
       </main>

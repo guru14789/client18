@@ -14,7 +14,7 @@ interface DashboardProps {
   activeFamilyId: string | null;
   onSwitchFamily: (id: string) => void;
   prompts: Question[];
-  onToggleUpvote: (id: string) => void;
+  onToggleUpvote: (id: string, askedBy: string) => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRecord, onAddFamily, currentLanguage, activeFamilyId, onSwitchFamily, prompts, onToggleUpvote }) => {
@@ -171,7 +171,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
                 </button>
 
                 <button
-                  onClick={() => onToggleUpvote(q.id)}
+                  onClick={() => onToggleUpvote(q.id, q.askedBy)}
                   className={`flex-1 h-full rounded-[32px] flex flex-col items-center justify-center border transition-all active:scale-95 ${hasUpvoted
                     ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20'
                     : 'bg-charcoal/5 dark:bg-white/5 border-secondary/20 dark:border-white/10'

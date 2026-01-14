@@ -38,6 +38,9 @@ export {
     // Question operations
     createQuestion,
     upvoteQuestion,
+    // Document operations
+    createDocument,
+    deleteDocument,
     // Notification operations
     createNotification,
     markNotificationRead,
@@ -45,6 +48,7 @@ export {
     listenToFamilyMemories,
     listenToUserDrafts,
     listenToFamilyQuestions,
+    listenToFamilyDocuments,
     listenToUserNotifications,
     listenToUser,
     listenToUserFamilies
@@ -52,7 +56,6 @@ export {
 
 // Storage Services
 export {
-    STORAGE_PATHS,
     uploadMemoryVideo,
     uploadMemoryThumbnail,
     uploadQuestionVideo,
@@ -61,7 +64,8 @@ export {
     deleteFileByPath,
     listFilesInFolder,
     blobUrlToFile,
-    getStorageRef
+    getStorageRef,
+    uploadDocument
 } from './firebaseStorage';
 
 // Cloud Messaging (Notifications) Services

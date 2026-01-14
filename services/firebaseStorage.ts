@@ -12,12 +12,6 @@ import {
 } from "firebase/storage";
 import { storage, auth } from "./firebaseConfig";
 
-// Storage paths
-export const STORAGE_PATHS = {
-    UPLOADS: "uploads",
-    PROFILES: "profiles"
-};
-
 /**
  * Upload progress callback type
  */
@@ -37,13 +31,13 @@ const getUserId = (): string => {
  */
 export const uploadMemoryVideo = async (
     file: File | Blob,
-    memoryId: string,
+    memoryId: string, // this is the videoId
     onProgress?: UploadProgressCallback
 ): Promise<string> => {
     try {
         const userId = getUserId();
-        // Path Requirement: /videos/{uid}/{memoryId}.mp4
-        const storageRef = ref(storage, `videos/${userId}/${memoryId}.mp4`);
+        // Path Requirement: /users/{uid}/videos/{videoId}.mp4
+        const storageRef = ref(storage, `users/${userId}/videos/${memoryId}.mp4`);
 
         return await uploadFile(storageRef, file, onProgress);
     } catch (error) {
@@ -61,8 +55,8 @@ export const uploadMemoryThumbnail = async (
 ): Promise<string> => {
     try {
         const userId = getUserId();
-        // Path Requirement: /thumbnails/{uid}/{memoryId}.jpg
-        const storageRef = ref(storage, `thumbnails/${userId}/${memoryId}.jpg`);
+        // Path logic follows the video but in thumbnails folder
+        const storageRef = ref(storage, `users/${userId}/thumbnails/${memoryId}.jpg`);
 
         return await uploadFile(storageRef, file);
     } catch (error) {
@@ -81,7 +75,8 @@ export const uploadQuestionVideo = async (
 ): Promise<string> => {
     try {
         const userId = getUserId();
-        const storageRef = ref(storage, `videos/${userId}/question_${questionId}.mp4`);
+        // Stored under user's videos folder
+        const storageRef = ref(storage, `users/${userId}/videos/question_${questionId}.mp4`);
 
         return await uploadFile(storageRef, file, onProgress);
     } catch (error) {
@@ -91,7 +86,7 @@ export const uploadQuestionVideo = async (
 };
 
 /**
- * Upload profile picture
+ * Upload document
  */
 export const uploadDocument = async (
     file: File,
@@ -102,7 +97,8 @@ export const uploadDocument = async (
     if (!user) throw new Error("User not authenticated");
 
     const extension = file.name.split('.').pop() || 'pdf';
-    const filePath = `documents/${user.uid}/${docId}.${extension}`;
+    // Stored under user's documents folder
+    const filePath = `users/${user.uid}/documents/${docId}.${extension}`;
     const storageRef = ref(storage, filePath);
     const uploadTask = uploadBytesResumable(storageRef, file);
 
@@ -122,13 +118,16 @@ export const uploadDocument = async (
     });
 };
 
+/**
+ * Upload profile picture
+ */
 export const uploadProfilePicture = async (
     file: File | Blob,
     userId: string
 ): Promise<string> => {
     try {
-        const fileName = `profile_${userId}.jpg`;
-        const storageRef = ref(storage, `profiles/${userId}/${fileName}`);
+        // Path Requirement: /users/{uid}/profile/profile.jpg
+        const storageRef = ref(storage, `users/${userId}/profile/profile.jpg`);
 
         return await uploadFile(storageRef, file);
     } catch (error) {
@@ -168,7 +167,6 @@ const uploadFile = async (ref: StorageReference, file: File | Blob, onProgress?:
 
 /**
  * Delete a file from storage
- * @param fileUrl - Full download URL of the file
  */
 export const deleteFile = async (fileUrl: string): Promise<void> => {
     try {
@@ -183,7 +181,6 @@ export const deleteFile = async (fileUrl: string): Promise<void> => {
 
 /**
  * Delete a file by path
- * @param filePath - Storage path of the file
  */
 export const deleteFileByPath = async (filePath: string): Promise<void> => {
     try {
@@ -197,9 +194,7 @@ export const deleteFileByPath = async (filePath: string): Promise<void> => {
 };
 
 /**
- * Get all files in a folder
- * @param folderPath - Path to the folder
- * @returns Array of download URLs
+ * List files in folder
  */
 export const listFilesInFolder = async (folderPath: string): Promise<string[]> => {
     try {
@@ -219,9 +214,6 @@ export const listFilesInFolder = async (folderPath: string): Promise<string[]> =
 
 /**
  * Convert Blob URL to File
- * @param blobUrl - Blob URL from MediaRecorder
- * @param fileName - Name for the file
- * @returns File object
  */
 export const blobUrlToFile = async (blobUrl: string, fileName: string): Promise<File> => {
     const response = await fetch(blobUrl);
@@ -231,8 +223,6 @@ export const blobUrlToFile = async (blobUrl: string, fileName: string): Promise<
 
 /**
  * Get storage reference
- * @param path - Storage path
- * @returns Storage reference
  */
 export const getStorageRef = (path: string): StorageReference => {
     return ref(storage, path);
