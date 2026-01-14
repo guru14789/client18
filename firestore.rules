@@ -12,10 +12,93 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
     
-    // DEBUG RELAXED RULES: Eliminates permission issues for troubleshooting
-    // If strict rules are breaking the app, this will confirm it.
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+    // Check family membership
+    // This looks up the family document to verify the user is in the 'members' array
+    function isFamilyMember(familyId) {
+       // Note: This 'get' costs 1 read operation.
+       let familyData = get(/databases/$(database)/documents/families/$(familyId)).data;
+       return isSignedIn() && (request.auth.uid in familyData.members);
+    }
+
+    // --- Users Collection ---
+    // users/{uid}
+    // strictly one document per user
+    match /users/{userId} {
+      // Allow read for authenticated users (to see names/avatars of family members)
+      allow read: if isSignedIn();
+      // Write only by owner
+      allow write: if isOwner(userId);
+
+      // User Private Data Subcollections
+      // users/{uid}/documents/...
+      match /documents/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+      
+      // users/{uid}/uploads/...
+      // Access controlled by Storage, but metadata here if needed
+      match /uploads/{uploadId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // --- Families Collection ---
+    match /families/{familyId} {
+      // Creation allowed by any auth user
+      allow create: if isSignedIn();
+      
+      // Read/Update only by members
+      // The `in` operator checks if the user's UID is present in the `members` array
+      allow read, update: if isSignedIn() && (request.auth.uid in resource.data.members);
+      
+      // Delete restricted to admins (first member or explicit admin role)
+      // For now, allow any member to delete for simplicity, or restrict strictly:
+      allow delete: if isSignedIn() && (request.auth.uid in resource.data.members);
+    }
+
+    // --- Shared Family Content (Memories, Questions, Docs) ---
+    // These collections are effectively "sub-resources" of a family, logic-wise
+    
+    // Memories
+    match /memories/{memoryId} {
+      // Read: Must be member of the family this memory belongs to
+      allow read: if isSignedIn() && isFamilyMember(resource.data.familyId);
+      
+      // Create: Must be member of the target family
+      // AND user must be the author (responderId or logic dependent)
+      allow create: if isSignedIn() && 
+                    isFamilyMember(request.resource.data.familyId) &&
+                    request.resource.data.responderId == request.auth.uid;
+                    
+      // Update: Must be member AND owner (or implement admin logic)
+      allow update: if isSignedIn() && 
+                    isFamilyMember(resource.data.familyId) &&
+                    (request.auth.uid == resource.data.responderId || request.auth.uid in resource.data.likes); 
+      
+      allow delete: if isSignedIn() && resource.data.responderId == request.auth.uid;
+    }
+
+    // Questions
+    match /questions/{questionId} {
+      // Anyone in the family can see questions
+      allow read: if isSignedIn() && isFamilyMember(resource.data.familyId);
+      // Anyone in family can ask
+      allow create: if isSignedIn() && isFamilyMember(request.resource.data.familyId);
+      // Upvotes / Updates
+      allow update: if isSignedIn() && isFamilyMember(resource.data.familyId);
+    }
+
+    // Documents (Shared Family Documents)
+    match /documents/{docId} {
+      allow read: if isSignedIn() && isFamilyMember(resource.data.familyId);
+      allow create: if isSignedIn() && isFamilyMember(request.resource.data.familyId);
+      allow update, delete: if isSignedIn() && isFamilyMember(resource.data.familyId);
+    }
+    
+    // Notifications
+    match /notifications/{notificationId} {
+      // Only the target user can read/write their own notifications
+      allow read, write: if isSignedIn() && request.auth.uid == resource.data.userId;
     }
   }
 }

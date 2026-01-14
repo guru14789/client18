@@ -2,38 +2,28 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     
-    // Helper to check auth
+    // Core Auth Helper
     function isSignedIn() {
       return request.auth != null;
     }
+    
+    // Check if user matches the path
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
 
-    // Strict Requirement: Users can only upload to their own folder
-    // /users/{userId}/uploads/...
+    // --- User Specific Uploads ---
+    // Matches: users/{userId}/uploads/profiles/pic.jpg
     match /users/{userId}/uploads/{allPaths=**} {
-      // Anyone authenticated can read (needed for sharing content in families)
-      allow read: if isSignedIn();
-      // Only the owner can write/delete
-      allow write: if isSignedIn() && request.auth.uid == userId;
+      allow read: if isSignedIn(); // Allow others to see your avatar/content
+      allow write: if isOwner(userId); // Only you can upload to your folder
     }
 
-    // Legacy paths support (if needed during migration, but we enforce new path)
-    // We block writes to old paths to force migration
-    match /memories/{allPaths=**} {
-      allow read: if isSignedIn();
-      allow write: if false; // Deprecated
-    }
-    match /questions/{allPaths=**} {
-      allow read: if isSignedIn();
-      allow write: if false; // Deprecated
-    }
-    match /documents/{allPaths=**} {
-      allow read: if isSignedIn();
-      allow write: if false; // Deprecated
-    }
-
-    // Default block
+    // --- Fallback/Global (Debug Only - Optional) ---
+    // If your app is somehow uploading to root, this would catch it.
+    // Ideally, keep this strict or remove it for production.
     match /{allPaths=**} {
-      allow read, write: if false;
+      allow read, write: if false; 
     }
   }
 }
