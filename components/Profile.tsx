@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   User as UserIcon,
   Users,
@@ -24,10 +24,15 @@ import {
   Check,
   Globe,
   Languages,
-  Archive
+  Archive,
+  Pencil,
+  Loader2,
+  Save
 } from 'lucide-react';
 import { User, Family, Language } from '../types';
 import { t } from '../services/i18n';
+import { createOrUpdateUser } from '../services/firebaseDatabase';
+import { uploadProfilePicture } from '../services/firebaseStorage';
 
 type SubView = 'none' | 'branches' | 'requests' | 'privacy' | 'theme' | 'permissions' | 'language';
 
@@ -52,6 +57,11 @@ interface JoinRequest {
 
 const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentTheme, onThemeChange, currentLanguage, onLanguageChange, onNavigate }) => {
   const [activeSubView, setActiveSubView] = useState<SubView>('none');
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(user.name);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [permissions, setPermissions] = useState<Record<string, PermissionState>>({
     camera: 'prompt',
     microphone: 'prompt',
@@ -64,6 +74,11 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
   ]);
 
   const userFamilies = families;
+
+  // Sync edit name if user changes externally
+  useEffect(() => {
+    setEditName(user.name);
+  }, [user.name]);
 
   const checkPermissions = async () => {
     try {
@@ -98,6 +113,38 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
       checkPermissions();
     }
   }, [activeSubView]);
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const downloadUrl = await uploadProfilePicture(file, user.id);
+      await createOrUpdateUser(user.id, { avatarUrl: downloadUrl });
+      console.log("Profile picture updated");
+    } catch (err) {
+      console.error("Failed to upload avatar", err);
+      alert("Failed to upload new profile picture.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editName.trim()) return;
+    try {
+      await createOrUpdateUser(user.id, { name: editName.trim() });
+      setIsEditing(false);
+    } catch (err) {
+      console.error("Failed to update name", err);
+      alert("Failed to update name.");
+    }
+  };
 
   const SubViewHeader = ({ title, onBack }: { title: string, onBack: () => void }) => (
     <div className="flex items-center gap-4 mb-8">
@@ -417,17 +464,77 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
       <div className="px-6 py-6">
         {activeSubView === 'none' && (
           <>
-            <div className="bg-white dark:bg-white/5 rounded-[40px] p-8 shadow-sm border border-secondary/20 dark:border-white/10 flex flex-col items-center text-center animate-in fade-in duration-500 transition-colors">
-              <div className="relative mb-6">
-                <div className="w-24 h-24 rounded-[32px] overflow-hidden border-4 border-warmwhite dark:border-charcoal shadow-xl">
-                  <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
-                </div>
-                <button className="absolute -bottom-2 -right-2 p-2.5 bg-primary text-white rounded-2xl shadow-lg border-2 border-white dark:border-charcoal active:scale-90 transition-transform">
-                  <Camera size={16} />
+            <div className="bg-white dark:bg-white/5 rounded-[40px] p-8 shadow-sm border border-secondary/20 dark:border-white/10 flex flex-col items-center text-center animate-in fade-in duration-500 transition-colors relative">
+
+              {!isEditing && (
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="absolute top-6 right-6 p-2 text-slate hover:text-primary dark:text-white/40 dark:hover:text-white transition-colors"
+                >
+                  <Pencil size={20} />
                 </button>
+              )}
+
+              <div className="relative mb-6">
+                <div className="w-24 h-24 rounded-[32px] overflow-hidden border-4 border-warmwhite dark:border-charcoal shadow-xl relative">
+                  <img src={user.avatarUrl} alt={user.name} className={`w-full h-full object-cover transition-opacity ${isUploading ? 'opacity-50' : ''}`} />
+                  {isUploading && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                    </div>
+                  )}
+                </div>
+                {/* Photo upload only visible in edit mode */}
+                {isEditing && (
+                  <button
+                    onClick={handleAvatarClick}
+                    className="absolute -bottom-2 -right-2 p-2.5 bg-primary text-white rounded-2xl shadow-lg border-2 border-white dark:border-charcoal active:scale-90 transition-transform hover:brightness-110"
+                    disabled={isUploading}
+                  >
+                    <Camera size={16} />
+                  </button>
+                )}
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                />
               </div>
-              <h2 className="text-2xl font-black text-charcoal dark:text-warmwhite tracking-tight leading-none">{user.name}</h2>
-              <p className="text-slate dark:text-support/60 font-bold text-sm mt-2 opacity-60 tracking-tight">{user.phoneNumber}</p>
+
+              {isEditing ? (
+                <div className="flex flex-col gap-3 w-full max-w-[200px]">
+                  <input
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    className="w-full text-center text-2xl font-black bg-secondary/10 dark:bg-white/10 rounded-xl px-2 py-1 outline-none focus:ring-2 focus:ring-primary text-charcoal dark:text-warmwhite"
+                    placeholder="Enter name"
+                    autoFocus
+                  />
+                  <div className="flex gap-2 justify-center mt-2">
+                    <button
+                      onClick={handleSaveProfile}
+                      className="flex-1 bg-primary text-white py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1 active:scale-95"
+                    >
+                      <Save size={14} /> Full Save
+                    </button>
+                    <button
+                      onClick={() => { setIsEditing(false); setEditName(user.name); }}
+                      className="flex-1 bg-secondary/20 dark:bg-white/10 text-charcoal dark:text-white py-2 rounded-xl text-xs font-bold uppercase tracking-wider active:scale-95"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <h2 className="text-2xl font-black text-charcoal dark:text-warmwhite tracking-tight leading-none">{user.name}</h2>
+                  <p className="text-slate dark:text-support/60 font-bold text-sm mt-2 opacity-60 tracking-tight">{user.phoneNumber}</p>
+                </>
+              )}
+
               <p className="text-[10px] text-slate/30 dark:text-white/10 mt-1 font-mono">{user.id}</p>
             </div>
 
