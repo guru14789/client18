@@ -117,11 +117,11 @@ const App: React.FC = () => {
 
     console.log("App: Listening to families for:", user.id);
     const unsubFamilies = listenToUserFamilies(user.id, (userFamilies) => {
-      console.log("App: Families received:", userFamilies.length);
+      console.log("App: Families received:", userFamilies.length, userFamilies);
       setFamilies(userFamilies);
 
       // Auto-select family logic
-      if (userFamilies.length > 0 && !activeFamilyId) {
+      if (userFamilies.length > 0 && !activeFamilyId) { // ... existing logic
         // If no active family set locally, use profile's or first one
         const preferredId = user.activeFamilyId;
         if (preferredId && userFamilies.some(f => f.id === preferredId)) {
