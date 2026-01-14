@@ -50,16 +50,18 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
   return (
     <div className="bg-warmwhite dark:bg-charcoal flex-1 pb-32 transition-colors duration-300">
       <div className="px-6 pt-8 pb-4 flex items-start justify-between">
-        <div>
-          <h1 className="text-4xl font-black text-charcoal dark:text-warmwhite tracking-tighter leading-none">{t('dashboard.greeting', currentLanguage)} {user.name}</h1>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-4xl font-black text-charcoal dark:text-warmwhite tracking-tighter leading-none truncate">{t('dashboard.greeting', currentLanguage)} {user.name}</h1>
           <div className="flex items-center gap-2 mt-2">
             <p className="text-slate/60 dark:text-support/40 text-xl font-medium">{greeting}!</p>
           </div>
+          {/* Debug UID - helps identify if multiple accounts are being used unintentionally */}
+          <p className="text-[8px] font-mono text-slate/20 dark:text-white/5 mt-1 uppercase tracking-widest truncate max-w-[150px]">ID: {user.uid}</p>
         </div>
 
         <button
           onClick={() => setIsSwitchingFamily(true)}
-          className="flex flex-col items-end gap-1 active:scale-95 transition-all outline-none"
+          className="flex flex-col items-end gap-1 active:scale-95 transition-all outline-none shrink-0"
         >
           <div className="flex items-center gap-2 bg-white/40 dark:bg-white/5 border border-secondary/20 dark:border-white/10 px-4 py-2 rounded-2xl">
             <span className="text-[10px] font-black uppercase tracking-widest text-primary truncate max-w-[80px]">

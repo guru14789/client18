@@ -54,11 +54,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 // Set up real-time listener for user profile
                 userUnsubscribe = listenToUser(user.uid, async (profile) => {
                     if (profile) {
+                        console.log("AuthContext: Profile found for", user.uid, "Families:", profile.families?.length || 0);
                         setCurrentUser(profile);
                         setLoading(false);
                     } else {
                         // Profile doesn't exist yet, create it
-                        console.log("AuthContext: No profile found, initializing new user...");
+                        console.log("AuthContext: No profile found for", user.uid, "- Initializing...");
 
                         try {
                             const now = new Date().toISOString();

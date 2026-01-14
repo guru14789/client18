@@ -81,34 +81,36 @@ const App: React.FC = () => {
   // 1. Auth Context consumption
   const { currentUser: user, loading, logout, refreshProfile } = useAuth();
 
-  // 1b. Additional Profile Sync (Theme/Language)
+  // 2. Family & Profile Sync
   useEffect(() => {
-    if (!user) return;
+    if (!user?.uid) {
+      setFamilies([]);
+      setActiveFamilyId(null);
+      return;
+    }
+
+    console.log("App: Syncing for user UID:", user.uid);
+
+    // Initial sync of metadata from user profile
+    if (user.activeFamilyId && user.activeFamilyId !== activeFamilyId) {
+      console.log("App: Syncing activeFamilyId from profile:", user.activeFamilyId);
+      setActiveFamilyId(user.activeFamilyId);
+    }
 
     if (user.preferredLanguage && user.preferredLanguage !== language) {
       setLanguage(user.preferredLanguage);
-      localStorage.setItem('inai_language', user.preferredLanguage);
     }
 
     if (user.theme && user.theme !== theme) {
       setTheme(user.theme);
-      localStorage.setItem('inai_theme', user.theme);
     }
 
-    if (user.activeFamilyId && user.activeFamilyId !== activeFamilyId) {
-      setActiveFamilyId(user.activeFamilyId);
-    }
-  }, [user?.uid, user?.preferredLanguage, user?.theme, user?.activeFamilyId]);
-
-  // 2. Family Sync
-  useEffect(() => {
-    if (!user?.uid) {
-      setFamilies([]);
-      return;
-    }
-
+    // Listens to families where user is a member
     const unsubFamilies = listenToUserFamilies(user.uid, (userFamilies) => {
+      console.log("App: Loaded user families:", userFamilies.length);
       setFamilies(userFamilies);
+
+      // If we don't have an active family set yet, try to pick one
       if (userFamilies.length > 0 && !activeFamilyId) {
         const preferredId = user.activeFamilyId;
         if (preferredId && userFamilies.some(f => f.id === preferredId)) {
@@ -117,12 +119,13 @@ const App: React.FC = () => {
           setActiveFamilyId(userFamilies[0].id);
         }
       } else if (userFamilies.length === 0) {
+        // Only clear if we explicitly know there are NO families
         setActiveFamilyId(null);
       }
     });
 
     return () => unsubFamilies();
-  }, [user?.uid]);
+  }, [user?.uid, user?.activeFamilyId, user?.preferredLanguage, user?.theme]);
 
   // 3. Family Content Sync
   useEffect(() => {
