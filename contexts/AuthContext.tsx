@@ -6,12 +6,12 @@ import {
     signOut as firebaseSignOut
 } from 'firebase/auth';
 import { auth } from '../services/firebaseConfig';
-import { getUser, createOrUpdateUser, getUserFamilies } from '../services/firebaseDatabase';
+import { getUser, createOrUpdateUser, getUserFamilies, listenToUser } from '../services/firebaseDatabase';
 import { User, Family } from '../types';
 
 interface AuthContextType {
-    currentUser: User | null; // Our app's user model
-    firebaseUser: FirebaseUser | null; // Raw Firebase user
+    currentUser: User | null;
+    firebaseUser: FirebaseUser | null;
     loading: boolean;
     logout: () => Promise<void>;
     refreshProfile: () => Promise<void>;
@@ -36,59 +36,67 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
     const [loading, setLoading] = useState(true);
 
-    const fetchUserProfile = async (uid: string) => {
-        try {
-            // 1. Try to get existing profile
-            const profile = await getUser(uid);
-
-            if (profile) {
-                console.log("AuthContext: Profile loaded for", uid);
-                setCurrentUser(profile);
-            } else {
-                console.log("AuthContext: No profile found, initializing new user...");
-                // 2. Recover families if orphan
-                let existingFamilies: Family[] = [];
-                try {
-                    existingFamilies = await getUserFamilies(uid);
-                } catch (e) {
-                    console.warn("AuthContext: Failed to check existing families", e);
-                }
-
-                // 3. Create fresh user
-                const freshUser: User = {
-                    id: uid,
-                    name: auth.currentUser?.displayName || 'Family Member',
-                    phoneNumber: auth.currentUser?.phoneNumber || '',
-                    avatarUrl: auth.currentUser?.photoURL || `https://i.pravatar.cc/150?u=${uid}`,
-                    role: 'user',
-                    families: existingFamilies.map(f => f.id),
-                    activeFamilyId: existingFamilies.length > 0 ? existingFamilies[0].id : undefined
-                } as User;
-
-                await createOrUpdateUser(uid, freshUser);
-                setCurrentUser(freshUser);
-            }
-        } catch (err) {
-            console.error("AuthContext: Error fetching profile", err);
-            // Don't kill the app, but user state might be partial
-        }
-    };
-
     useEffect(() => {
-        console.log("AuthContext: Setting up onAuthStateChanged listener");
-        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+        let userUnsubscribe: (() => void) | null = null;
+
+        const authUnsubscribe = onAuthStateChanged(auth, async (user) => {
             setFirebaseUser(user);
+
+            // Clean up previous user listener if exists
+            if (userUnsubscribe) {
+                userUnsubscribe();
+                userUnsubscribe = null;
+            }
+
             if (user) {
                 console.log("AuthContext: User authenticated", user.uid);
-                await fetchUserProfile(user.uid);
+
+                // Set up real-time listener for user profile
+                userUnsubscribe = listenToUser(user.uid, async (profile) => {
+                    if (profile) {
+                        setCurrentUser(profile);
+                        setLoading(false);
+                    } else {
+                        // Profile doesn't exist yet, create it
+                        console.log("AuthContext: No profile found, initializing new user...");
+
+                        try {
+                            // Recover families if orphan
+                            let existingFamilies: Family[] = [];
+                            try {
+                                existingFamilies = await getUserFamilies(user.uid);
+                            } catch (e) {
+                                console.warn("Failed to check existing families", e);
+                            }
+
+                            const freshUser: User = {
+                                id: user.uid,
+                                name: user.displayName || 'Family Member',
+                                phoneNumber: user.phoneNumber || '',
+                                avatarUrl: user.photoURL || `https://i.pravatar.cc/150?u=${user.uid}`,
+                                role: 'user',
+                                families: existingFamilies.map(f => f.id),
+                                activeFamilyId: existingFamilies.length > 0 ? existingFamilies[0].id : undefined
+                            } as User;
+
+                            await createOrUpdateUser(user.uid, freshUser);
+                            // The listener will catch the update and set state
+                        } catch (err) {
+                            console.error("Error creating profile:", err);
+                        }
+                    }
+                });
             } else {
                 console.log("AuthContext: User signed out");
                 setCurrentUser(null);
+                setLoading(false);
             }
-            setLoading(false);
         });
 
-        return () => unsubscribe();
+        return () => {
+            authUnsubscribe();
+            if (userUnsubscribe) userUnsubscribe();
+        };
     }, []);
 
     const logout = async () => {
@@ -98,9 +106,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     const refreshProfile = async () => {
-        if (firebaseUser) {
-            await fetchUserProfile(firebaseUser.uid);
-        }
+        // No-op manually, as listener handles it, but kept for interface compatibility
+        console.log("Profile refresh requested (handled by listener)");
     };
 
     const value = {

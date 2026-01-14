@@ -5,7 +5,6 @@ import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult, GoogleAut
 import { auth } from '../services/firebaseConfig';
 import { Language } from '../types';
 import { t } from '../services/i18n';
-import { getUser } from '../services/firebaseServices';
 
 interface Country {
   name: string;
@@ -52,49 +51,21 @@ const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage }) => {
   const recaptchaRef = useRef<HTMLDivElement>(null);
   const authInitialized = useRef(false);
 
+  // Session handling is managed purely by AuthContext now.
+  // This component only handles the UI for the login process.
+
   useEffect(() => {
-    const checkRedirectAndProfile = async () => {
-      if (authInitialized.current) return;
-      authInitialized.current = true;
+    // Only check for redirect result if needed for cleanup or UI feedback, 
+    // but the actual auth state listener is in AuthContext.
+    // We can keep a simplified check if we want to show loading during redirect.
 
-      // Small delay to let Firebase Auth initialize the persisted session
-      await new Promise(r => setTimeout(r, 800));
-
-      let fbUser = auth.currentUser;
-
-      if (!fbUser) {
-        try {
-          console.log("Login: Checking for Google redirect result as fallback...");
-          const result = await getRedirectResult(auth);
-          if (result) fbUser = result.user;
-        } catch (e) { }
-      }
-
-      if (fbUser) {
-        console.log("Login: Session found for user:", fbUser.uid);
-        try {
-          setLoading(true);
-          const profile = await getUser(fbUser.uid);
-
-          const phone = fbUser.phoneNumber || fbUser.email || fbUser.uid;
-          const name = profile?.name || fbUser.displayName || 'Family Member';
-
-          console.log("Login: Proceeding to onLogin with session...");
-          onLogin(phone, name, fbUser.uid);
-        } catch (err: any) {
-          console.warn("Login: Firestore check failed on mount, but user is authenticated. Proceeding...", err);
-          const phone = fbUser.phoneNumber || fbUser.email || fbUser.uid;
-          onLogin(phone, fbUser.displayName || 'Family Member', fbUser.uid);
-        } finally {
-          setLoading(false);
-        }
-      } else {
-        console.log("Login: No existing session found.");
-      }
-    };
-
-    checkRedirectAndProfile();
-  }, [onLogin]);
+    // Actually, AuthContext will update 'user' in App, which will unmount this Login component.
+    // So we don't need to do anything here except handle errors if redirect failed.
+    getRedirectResult(auth).catch(e => {
+      console.error("Login redirect error:", e);
+      setError("Login failed via redirect.");
+    });
+  }, []);
 
 
   useEffect(() => {
@@ -214,14 +185,14 @@ const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage }) => {
 
       const fullPhone = fbUser.phoneNumber || `${selectedCountry.code}${phoneNumber}`;
 
-      // Check Firestore for profile first
-      const profile = await getUser(fbUser.uid);
-
-      if (profile && profile.name) {
-        onLogin(fullPhone, profile.name, fbUser.uid);
+      // Let standard flow proceed
+      // If profile exists, AuthContext catches it. 
+      // If it's a new user, we might want to capture name here or let AuthContext create default.
+      // For now, simpler:
+      if (fbUser.displayName) {
+        onLogin(fullPhone, fbUser.displayName, fbUser.uid);
       } else {
-        // No Firestore profile, ask for name (even if firebase has a displayName)
-        setName(fbUser.displayName || '');
+        setName('');
         setStep('nameEntry');
       }
     } catch (err: any) {
