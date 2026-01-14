@@ -1,29 +1,39 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Allow authenticated users to read and write to family-specific folders
-    match /memories/{familyId}/{allPaths=**} {
-      allow read, write: if request.auth != null;
-    }
     
-    match /questions/{familyId}/{allPaths=**} {
-      allow read, write: if request.auth != null;
+    // Helper to check auth
+    function isSignedIn() {
+      return request.auth != null;
     }
-    
-    match /documents/{familyId}/{allPaths=**} {
-      allow read, write: if request.auth != null;
+
+    // Strict Requirement: Users can only upload to their own folder
+    // /users/{userId}/uploads/...
+    match /users/{userId}/uploads/{allPaths=**} {
+      // Anyone authenticated can read (needed for sharing content in families)
+      allow read: if isSignedIn();
+      // Only the owner can write/delete
+      allow write: if isSignedIn() && request.auth.uid == userId;
     }
-    
-    // Allow users to manage their own profile pictures
-    match /profiles/{userId}/{allPaths=**} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
+
+    // Legacy paths support (if needed during migration, but we enforce new path)
+    // We block writes to old paths to force migration
+    match /memories/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if false; // Deprecated
     }
-    
-    // Generic fallback for other profile paths if used
-    match /profiles/{allPaths=**} {
-      allow read: if true;
-      allow write: if request.auth != null;
+    match /questions/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if false; // Deprecated
+    }
+    match /documents/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if false; // Deprecated
+    }
+
+    // Default block
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }

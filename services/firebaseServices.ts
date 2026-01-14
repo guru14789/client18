@@ -51,7 +51,8 @@ export {
     listenToFamilyMemories,
     listenToFamilyQuestions,
     listenToUser,
-    listenToUserFamilies
+    listenToUserFamilies,
+    listenToFamilyDocuments
 } from './firebaseDatabase';
 
 // Storage Services

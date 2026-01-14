@@ -10,14 +10,12 @@ import {
     UploadTaskSnapshot,
     StorageReference
 } from "firebase/storage";
-import { storage } from "./firebaseConfig";
+import { storage, auth } from "./firebaseConfig";
 
 // Storage paths
 export const STORAGE_PATHS = {
-    MEMORIES: "memories",
-    DOCUMENTS: "documents",
-    PROFILES: "profiles",
-    QUESTIONS: "questions"
+    UPLOADS: "uploads",
+    PROFILES: "profiles"
 };
 
 /**
@@ -26,52 +24,31 @@ export const STORAGE_PATHS = {
 export type UploadProgressCallback = (progress: number) => void;
 
 /**
+ * Helper to get current user ID or throw
+ */
+const getUserId = (): string => {
+    const user = auth.currentUser;
+    if (!user) throw new Error("User must be authenticated to upload files");
+    return user.uid;
+};
+
+/**
  * Upload a video memory
- * @param file - Video file to upload
- * @param familyId - Family ID
- * @param memoryId - Memory ID
- * @param onProgress - Optional progress callback
- * @returns Download URL of uploaded video
  */
 export const uploadMemoryVideo = async (
     file: File | Blob,
-    familyId: string,
+    familyId: string, // Kept for interface compatibility, but unused in path if we follow strictly users/{uid}
     memoryId: string,
     onProgress?: UploadProgressCallback
 ): Promise<string> => {
     try {
-        const fileName = `${memoryId}_${Date.now()}.webm`;
-        const storageRef = ref(storage, `${STORAGE_PATHS.MEMORIES}/${familyId}/${fileName}`);
+        const userId = getUserId();
+        const fileName = `memory_${memoryId}_${Date.now()}.webm`;
+        // Strict Requirement: /users/{uid}/uploads/{fileId}
+        // We structure it as users/{uid}/uploads/memories/{fileName} to keep it organized but under uid
+        const storageRef = ref(storage, `users/${userId}/uploads/memories/${fileName}`);
 
-        if (onProgress) {
-            // Upload with progress tracking
-            const uploadTask = uploadBytesResumable(storageRef, file);
-
-            return new Promise((resolve, reject) => {
-                uploadTask.on(
-                    'state_changed',
-                    (snapshot) => {
-                        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                        onProgress(progress);
-                    },
-                    (error) => {
-                        console.error("Error uploading video:", error);
-                        reject(error);
-                    },
-                    async () => {
-                        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                        console.log("✅ Video uploaded successfully:", downloadURL);
-                        resolve(downloadURL);
-                    }
-                );
-            });
-        } else {
-            // Simple upload without progress
-            const snapshot = await uploadBytes(storageRef, file);
-            const downloadURL = await getDownloadURL(snapshot.ref);
-            console.log("✅ Video uploaded successfully:", downloadURL);
-            return downloadURL;
-        }
+        return await uploadFile(storageRef, file, onProgress);
     } catch (error) {
         console.error("Error uploading memory video:", error);
         throw error;
@@ -80,11 +57,6 @@ export const uploadMemoryVideo = async (
 
 /**
  * Upload a question video
- * @param file - Video file to upload
- * @param familyId - Family ID
- * @param questionId - Question ID
- * @param onProgress - Optional progress callback
- * @returns Download URL of uploaded video
  */
 export const uploadQuestionVideo = async (
     file: File | Blob,
@@ -93,36 +65,11 @@ export const uploadQuestionVideo = async (
     onProgress?: UploadProgressCallback
 ): Promise<string> => {
     try {
-        const fileName = `${questionId}_${Date.now()}.webm`;
-        const storageRef = ref(storage, `${STORAGE_PATHS.QUESTIONS}/${familyId}/${fileName}`);
+        const userId = getUserId();
+        const fileName = `question_${questionId}_${Date.now()}.webm`;
+        const storageRef = ref(storage, `users/${userId}/uploads/questions/${fileName}`);
 
-        if (onProgress) {
-            const uploadTask = uploadBytesResumable(storageRef, file);
-
-            return new Promise((resolve, reject) => {
-                uploadTask.on(
-                    'state_changed',
-                    (snapshot) => {
-                        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                        onProgress(progress);
-                    },
-                    (error) => {
-                        console.error("Error uploading question video:", error);
-                        reject(error);
-                    },
-                    async () => {
-                        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                        console.log("✅ Question video uploaded successfully:", downloadURL);
-                        resolve(downloadURL);
-                    }
-                );
-            });
-        } else {
-            const snapshot = await uploadBytes(storageRef, file);
-            const downloadURL = await getDownloadURL(snapshot.ref);
-            console.log("✅ Question video uploaded successfully:", downloadURL);
-            return downloadURL;
-        }
+        return await uploadFile(storageRef, file, onProgress);
     } catch (error) {
         console.error("Error uploading question video:", error);
         throw error;
@@ -131,11 +78,6 @@ export const uploadQuestionVideo = async (
 
 /**
  * Upload a document (PDF)
- * @param file - PDF file to upload
- * @param familyId - Family ID
- * @param documentId - Document ID
- * @param onProgress - Optional progress callback
- * @returns Download URL of uploaded document
  */
 export const uploadDocument = async (
     file: File,
@@ -144,36 +86,11 @@ export const uploadDocument = async (
     onProgress?: UploadProgressCallback
 ): Promise<string> => {
     try {
-        const fileName = `${documentId}_${Date.now()}_${file.name}`;
-        const storageRef = ref(storage, `${STORAGE_PATHS.DOCUMENTS}/${familyId}/${fileName}`);
+        const userId = getUserId();
+        const fileName = `doc_${documentId}_${Date.now()}_${file.name}`;
+        const storageRef = ref(storage, `users/${userId}/uploads/documents/${fileName}`);
 
-        if (onProgress) {
-            const uploadTask = uploadBytesResumable(storageRef, file);
-
-            return new Promise((resolve, reject) => {
-                uploadTask.on(
-                    'state_changed',
-                    (snapshot) => {
-                        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                        onProgress(progress);
-                    },
-                    (error) => {
-                        console.error("Error uploading document:", error);
-                        reject(error);
-                    },
-                    async () => {
-                        const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-                        console.log("✅ Document uploaded successfully:", downloadURL);
-                        resolve(downloadURL);
-                    }
-                );
-            });
-        } else {
-            const snapshot = await uploadBytes(storageRef, file);
-            const downloadURL = await getDownloadURL(snapshot.ref);
-            console.log("✅ Document uploaded successfully:", downloadURL);
-            return downloadURL;
-        }
+        return await uploadFile(storageRef, file, onProgress);
     } catch (error) {
         console.error("Error uploading document:", error);
         throw error;
@@ -182,25 +99,51 @@ export const uploadDocument = async (
 
 /**
  * Upload profile picture
- * @param file - Image file to upload
- * @param userId - User ID
- * @returns Download URL of uploaded image
  */
 export const uploadProfilePicture = async (
     file: File | Blob,
     userId: string
 ): Promise<string> => {
     try {
-        const fileName = `${userId}_${Date.now()}.jpg`;
-        const storageRef = ref(storage, `${STORAGE_PATHS.PROFILES}/${fileName}`);
+        const fileName = `profile_${userId}_${Date.now()}.jpg`;
+        // Profile pics can stay in a public-ish folder OR under users. 
+        // Let's put it under users for consistency but maybe in a 'public' subfolder if we need public read?
+        // Prompt says "Store uploads under: /users/{uid}/uploads/{fileId}"
+        const storageRef = ref(storage, `users/${userId}/uploads/profiles/${fileName}`);
 
-        const snapshot = await uploadBytes(storageRef, file);
-        const downloadURL = await getDownloadURL(snapshot.ref);
-        console.log("✅ Profile picture uploaded successfully:", downloadURL);
-        return downloadURL;
+        return await uploadFile(storageRef, file);
     } catch (error) {
         console.error("Error uploading profile picture:", error);
         throw error;
+    }
+};
+
+/**
+ * Generic upload helper
+ */
+const uploadFile = async (ref: StorageReference, file: File | Blob, onProgress?: UploadProgressCallback): Promise<string> => {
+    if (onProgress) {
+        const uploadTask = uploadBytesResumable(ref, file);
+        return new Promise((resolve, reject) => {
+            uploadTask.on(
+                'state_changed',
+                (snapshot) => {
+                    const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                    onProgress(progress);
+                },
+                (error) => reject(error),
+                async () => {
+                    const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                    console.log("✅ File uploaded successfully:", downloadURL);
+                    resolve(downloadURL);
+                }
+            );
+        });
+    } else {
+        const snapshot = await uploadBytes(ref, file);
+        const downloadURL = await getDownloadURL(snapshot.ref);
+        console.log("✅ File uploaded successfully:", downloadURL);
+        return downloadURL;
     }
 };
 

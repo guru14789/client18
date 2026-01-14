@@ -452,7 +452,8 @@ export const createDocument = async (
         const docRef = await addDoc(collection(db, COLLECTIONS.DOCUMENTS), {
             ...clean(documentData),
             timestamp: documentData.timestamp || Timestamp.now().toDate().toISOString(),
-            createdAt: Timestamp.now()
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now()
         });
         console.log("✅ Document record created:", docRef.id);
         return docRef.id;
@@ -589,5 +590,27 @@ export const listenToUserFamilies = (
             families.push({ id: doc.id, ...doc.data() } as Family);
         });
         callback(families);
+    });
+};
+
+/**
+ * Listen to family documents in real-time
+ */
+export const listenToFamilyDocuments = (
+    familyId: string,
+    callback: (documents: FamilyDocument[]) => void
+): (() => void) => {
+    const q = query(
+        collection(db, COLLECTIONS.DOCUMENTS),
+        where("familyId", "==", familyId),
+        orderBy("createdAt", "desc")
+    );
+
+    return onSnapshot(q, (snapshot) => {
+        const documents: FamilyDocument[] = [];
+        snapshot.forEach((doc) => {
+            documents.push({ id: doc.id, ...doc.data() } as FamilyDocument);
+        });
+        callback(documents);
     });
 };

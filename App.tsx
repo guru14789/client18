@@ -30,7 +30,8 @@ import {
   addFamilyMember,
   deleteMemory,
   getFamilyDocuments, // Fallback for docs if no listener yet
-  getUserFamilies // Query helper
+  getUserFamilies, // Query helper
+  listenToFamilyDocuments
 } from './services/firebaseServices';
 import {
   collection,
@@ -40,6 +41,7 @@ import {
   orderBy
 } from "firebase/firestore";
 import { db } from './services/firebaseConfig';
+import { useAuth } from './contexts/AuthContext';
 
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
@@ -56,8 +58,6 @@ import { t } from './services/i18n';
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppState>('splash');
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
   const [families, setFamilies] = useState<Family[]>([]);
   const [activeQuestion, setActiveQuestion] = useState<Question | null>(null);
   const [activeFamilyId, setActiveFamilyId] = useState<string | null>(null);
@@ -78,130 +78,94 @@ const App: React.FC = () => {
     return (saved as Language) || Language.TAMIL;
   });
 
-  // 1. Auth & Profile Sync
+  // 1. Auth Context consumption
+  const { currentUser: user, loading, logout, refreshProfile } = useAuth();
+
+  // 1b. Additional Profile Sync (Theme/Language) - The Context handles the user object, 
+  // but we still need to react to side effects like Theme Application
   useEffect(() => {
-    console.log("App: Auth Sync effect running...");
-    const unsubAuth = onAuthStateChange((firebaseUser) => {
-      console.log("App: Auth state changed. UID:", firebaseUser?.uid);
-      if (!firebaseUser) {
-        // Log out happened - clear state
-        console.log("App: Clearing state on logout");
-        setUser(null);
-        setFamilies([]);
-        setMemories([]);
-        setQPrompts([]);
-        setDocuments([]);
-        setActiveFamilyId(null);
-        setLoading(false);
-        return;
-      }
+    if (!user) return;
 
-      // 2. Immediate transition: Set a basic user state from Auth data
-      // but only if we don't have a better one already
-      setUser(prev => {
-        if (prev?.id === firebaseUser.uid) return prev;
-        return {
-          id: firebaseUser.uid,
-          name: firebaseUser.displayName || 'Family Member',
-          phoneNumber: firebaseUser.phoneNumber || firebaseUser.email || '',
-          avatarUrl: firebaseUser.photoURL || `https://i.pravatar.cc/150?u=${firebaseUser.uid}`,
-          role: 'user',
-          preferredLanguage: language
-        } as User;
-      });
-      setLoading(false);
-    });
+    if (user.preferredLanguage && user.preferredLanguage !== language) {
+      setLanguage(user.preferredLanguage);
+      localStorage.setItem('inai_language', user.preferredLanguage);
+    }
 
-    return () => unsubAuth();
-  }, [language]); // Run on mount or when language changes
+    if (user.theme && user.theme !== theme) {
+      setTheme(user.theme);
+      localStorage.setItem('inai_theme', user.theme);
+    }
 
-  // 1b. Profile Progression (Firestore)
-  useEffect(() => {
-    if (!user?.id) return;
-
-    console.log("App: Listening to profile for:", user.id);
-    const unsubUser = listenToUser(user.id, (userData) => {
-      console.log("App: Profile update received:", userData ? "Success" : "Not found");
-      if (userData) {
-        setUser(prev => {
-          if (!prev) return userData;
-          // Deep merge profile data
-          if (JSON.stringify(prev) === JSON.stringify(userData)) return prev;
-          return { ...prev, ...userData };
-        });
-
-        if (userData.preferredLanguage && userData.preferredLanguage !== language) {
-          setLanguage(userData.preferredLanguage);
-          localStorage.setItem('inai_language', userData.preferredLanguage);
-        }
-
-        if (userData.theme && userData.theme !== theme) {
-          setTheme(userData.theme);
-          localStorage.setItem('inai_theme', userData.theme);
-        }
-
-        // Priority restoration of active family
-        if (userData.activeFamilyId) {
-          console.log("App: Restoring activeFamilyId from profile:", userData.activeFamilyId);
-          setActiveFamilyId(userData.activeFamilyId);
-        }
-      }
-    });
-
-    return () => unsubUser();
-  }, [user?.id]);
+    // Auto-active family restoration
+    if (user.activeFamilyId && user.activeFamilyId !== activeFamilyId) {
+      // Only set if we haven't manually switched (or initial load)
+      // We'll trust the profile's active family as the source of truth on load
+      setActiveFamilyId(user.activeFamilyId);
+    }
+  }, [user?.id, user?.preferredLanguage, user?.theme, user?.activeFamilyId]);
+  // Note: user object reference might change, be careful with deep dependency.
+  // Using specific fields is safer.
 
   // 2. Family Sync
+  // We still listen to families independently to ensure the list is live
+  // Use user.id from context
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      setFamilies([]);
+      return;
+    }
 
     console.log("App: Listening to families for:", user.id);
     const unsubFamilies = listenToUserFamilies(user.id, (userFamilies) => {
       console.log("App: Families received:", userFamilies.length);
       setFamilies(userFamilies);
 
-      // Auto-select family if none or invalid
-      if (userFamilies.length > 0) {
-        setActiveFamilyId(prev => {
-          // If we have a valid selection already, keep it
-          if (prev && userFamilies.some(f => f.id === prev)) return prev;
-
-          // Try user's preferred family first (from profile)
-          const preferredId = user?.activeFamilyId;
-          if (preferredId && userFamilies.some(f => f.id === preferredId)) {
-            return preferredId;
-          }
-
-          // Default to the first one in the list
-          return userFamilies[0].id;
-        });
-      } else {
+      // Auto-select family logic
+      if (userFamilies.length > 0 && !activeFamilyId) {
+        // If no active family set locally, use profile's or first one
+        const preferredId = user.activeFamilyId;
+        if (preferredId && userFamilies.some(f => f.id === preferredId)) {
+          setActiveFamilyId(preferredId);
+        } else {
+          setActiveFamilyId(userFamilies[0].id);
+        }
+      } else if (userFamilies.length === 0) {
         setActiveFamilyId(null);
       }
     });
 
     return () => unsubFamilies();
-  }, [user?.id]);
+  }, [user?.id]); // Re-subscribe if user ID changes (login/logout/switch)
 
-  // 3. Family Content Sync (Memories, Questions, Docs)
+  // 3. Family Content Sync
   useEffect(() => {
+    setMemories([]); // Clear previous family data
+    setQPrompts([]);
+    setDocuments([]);
+
     if (!activeFamilyId) return;
 
-    // Memories Listener
+    // Memories
     const unsubMemories = listenToFamilyMemories(activeFamilyId, (familyMemories) => {
       setMemories(familyMemories.filter(m => !m.isDraft));
-      // Re-fetch drafts for the user if needed, or filter here
-    }, true); // Include drafts for filtering
+    }, true);
 
-    // We also need user-specific drafts regardless of family? 
-    // Usually drafts are scoped to user.
-
-    // Questions Listener
+    // Questions
     const unsubQuestions = listenToFamilyQuestions(activeFamilyId, (familyQuestions) => {
       setQPrompts(familyQuestions);
     });
 
-    // Documents Listener (Add to service later, for now manual)
+    // Documents - NOW using real-time listener
+    // We import listenToFamilyDocuments dynamically or assume it's available via service update
+    // (I added it to firebaseDatabase.ts in previous step)
+    // imports were updated via 'firebaseServices' export? 
+    // I need to ensure I import 'listenToFamilyDocuments' in App imports. 
+    // I'll add the import to the top of the file in a separate edit or mixed here if possible? 
+    // I can't easily add import with this tool usage unless I replace the whole file or top block.
+    // I will stick to the 'onSnapshot' manual approach here primarily but use the service function if I can, 
+    // but to be safe and atomic, I'll keep the manual listener or cleaner: use the new function.
+    // Since I cannot guarantee import update in this block, I will use Query here but cleaner.
+
     const qDocs = query(
       collection(db, "documents"),
       where("familyId", "==", activeFamilyId),
@@ -219,21 +183,24 @@ const App: React.FC = () => {
     };
   }, [activeFamilyId]);
 
-  // 4. Drafts Sync (User specific)
+  // 4. Drafts Sync
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setDrafts([]);
+      return;
+    }
     const qDrafts = query(
       collection(db, "memories"),
       where("responderId", "==", user.id),
       where("isDraft", "==", true),
-      orderBy("timestamp", "desc")
+      orderBy("createdAt", "desc")
     );
     const unsubDrafts = onSnapshot(qDrafts, (snapshot) => {
       const d = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })) as Memory[];
       setDrafts(d);
     });
     return () => unsubDrafts();
-  }, [user]);
+  }, [user?.id]);
 
   const switchFamily = async (familyId: string) => {
     setActiveFamilyId(familyId);
@@ -259,11 +226,10 @@ const App: React.FC = () => {
         isApproved: true
       });
 
-      // Update user document to include this family
       const updatedFamilies = [...(user.families || []), familyId];
       await createOrUpdateUser(user.id, {
         families: updatedFamilies,
-        activeFamilyId: familyId // Automatically switch to the new family
+        activeFamilyId: familyId
       });
 
       setActiveFamilyId(familyId);
@@ -287,82 +253,6 @@ const App: React.FC = () => {
       await createOrUpdateUser(user.id, { preferredLanguage: lang });
     }
   };
-
-  // View logic
-  useEffect(() => {
-    if (loading) return;
-    console.log("App: View logic check. view:", view, "user:", !!user);
-    if (view === 'splash') {
-      setView(user ? 'home' : 'login');
-    } else if (user && view === 'login') {
-      console.log("App: Logged in user in login view, moving to home");
-      setView('home');
-    } else if (!user && !['splash', 'onboarding', 'login'].includes(view)) {
-      console.log("App: No user in app view, enforcing login");
-      setView('login');
-    }
-  }, [loading, user, view]);
-
-  const handleLogin = useCallback(async (phoneNumber: string, name: string, firebaseUid: string) => {
-    console.log("App: handleLogin triggered for:", firebaseUid);
-    try {
-      setLoading(true);
-      // 1. Try to fetch existing profile first
-      const profile = await getUser(firebaseUid);
-
-      let finalUser: User;
-      const partialUser: Partial<User> = {
-        id: firebaseUid,
-        name: name || 'Family Member',
-        phoneNumber: phoneNumber || '',
-        avatarUrl: `https://i.pravatar.cc/150?u=${firebaseUid}`,
-        role: 'user',
-        preferredLanguage: language
-      };
-
-      if (profile) {
-        console.log("App: Existing profile restored during handleLogin");
-        finalUser = profile;
-      } else {
-        console.log("App: Initializing brand NEW profile during handleLogin");
-
-        // Safety Check: Does this user actually have families? 
-        // (Recover from missing profile doc scenario)
-        let existingFamilies: Family[] = [];
-        try {
-          existingFamilies = await getUserFamilies(firebaseUid);
-        } catch (e) {
-          console.warn("App: Failed to check existing families", e);
-        }
-
-        const freshUser: User = {
-          ...partialUser,
-          id: firebaseUid,
-          name: name || 'Family Member',
-          phoneNumber: phoneNumber || '',
-          avatarUrl: `https://i.pravatar.cc/150?u=${firebaseUid}`,
-          role: 'user',
-          preferredLanguage: language,
-          families: existingFamilies.map(f => f.id),
-          activeFamilyId: existingFamilies.length > 0 ? existingFamilies[0].id : undefined
-        } as User;
-
-        await createOrUpdateUser(firebaseUid, freshUser);
-        finalUser = freshUser;
-      }
-
-      setUser(finalUser);
-      if (finalUser.activeFamilyId) setActiveFamilyId(finalUser.activeFamilyId);
-
-      setLoading(false);
-      setView('home');
-
-    } catch (err) {
-      console.error("App: handleLogin fatal error:", err);
-      setLoading(false);
-      setView('home');
-    }
-  }, [language]);
 
   const handleRecordingComplete = async (newMemory: Memory) => {
     try {
@@ -399,28 +289,40 @@ const App: React.FC = () => {
     }
   };
 
-  const handleLogout = async () => {
-    console.log("App: Logging out...");
-    try {
-      await auth.signOut();
-      // Auth listener handles most state clearing, but we force it here too
-      setUser(null);
-      setFamilies([]);
-      setMemories([]);
-      setQPrompts([]);
-      setDrafts([]);
-      setDocuments([]);
-      setActiveFamilyId(null);
-      setView('login');
-      // Clear local storage for preferences only if you want a complete reset
-      // keeping them usually provides a better UX for the next guest
-    } catch (err) {
-      console.error("Logout error:", err);
-      setView('login');
+  const handleLogin = useCallback(async (phoneNumber: string, name: string, firebaseUid: string) => {
+    console.log("App: handleLogin callback (Update Name)");
+    if (name && name !== 'Family Member') {
+      await createOrUpdateUser(firebaseUid, { name });
     }
+  }, []);
+
+  const handleLogout = async () => {
+    await logout();
+    setView('login');
   };
 
-  // Theme
+  // View Logic
+  useEffect(() => {
+    if (loading) return;
+
+    // If we have a user, ensure we are not on login/splash
+    if (user) {
+      if (['splash', 'login', 'onboarding'].includes(view)) {
+        console.log("App: User authenticated, entering Home");
+        setView('home');
+      }
+    } else {
+      // No user
+      if (!['splash', 'onboarding', 'login'].includes(view)) {
+        console.log("App: No user, enforcing login");
+        setView('login');
+      } else if (view === 'splash') {
+        setView('login');
+      }
+    }
+  }, [loading, user, view]);
+
+  // Theme Application Effect
   useEffect(() => {
     localStorage.setItem('inai_theme', theme);
     const root = window.document.documentElement;
