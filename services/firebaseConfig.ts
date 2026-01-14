@@ -24,6 +24,7 @@ try {
 } catch (e) {
     app = initializeApp(firebaseConfig);
 }
+console.log("🔥 Firebase Initialized with Project ID:", firebaseConfig.projectId);
 
 // Service Exports
 export const auth: Auth = getAuth(app);

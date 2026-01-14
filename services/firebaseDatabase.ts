@@ -55,8 +55,9 @@ export const createOrUpdateUser = async (userId: string, userData: Partial<User>
             updatedAt: Timestamp.now()
         }, { merge: true });
         console.log("✅ User created/updated:", userId);
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error creating/updating user:", error);
+        alert(`Failed to save user data: ${error.message}`);
         throw error;
     }
 };
