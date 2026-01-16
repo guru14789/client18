@@ -27,7 +27,7 @@ interface FeedProps {
 
 const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage }) => {
   const [filter, setFilter] = useState<'all' | 'mine'>('all');
-  const [playingMemory, setPlayingMemory] = useState<Memory | null>(null);
+  const [playingMemoryId, setPlayingMemoryId] = useState<string | null>(null);
   const [showComments, setShowComments] = useState<boolean>(false);
   const [newComment, setNewComment] = useState('');
   const [showShareToast, setShowShareToast] = useState(false);
@@ -35,22 +35,50 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage }
   const [isLiking, setIsLiking] = useState(false);
   const [isCommenting, setIsCommenting] = useState(false);
 
+  const [optimisticCache, setOptimisticCache] = useState<Record<string, Partial<Memory>>>({});
+
+  // Helper to merge server data with local optimistic updates
+  const getDisplayMemory = (memory: Memory) => {
+    if (!optimisticCache[memory.id]) return memory;
+    return { ...memory, ...optimisticCache[memory.id] };
+  };
+
   const handleLike = async (memoryId: string) => {
     if (isLiking) return;
     setIsLiking(true);
-    try {
-      const memory = memories.find(m => m.id === memoryId);
-      if (!memory) return;
 
-      const isLiked = (memory.likes || []).includes(user.uid);
+    const originalMemory = memories.find(m => m.id === memoryId);
+    if (!originalMemory) return;
+
+    // 1. Optimistic Update
+    const currentMemory = getDisplayMemory(originalMemory);
+    const isLiked = (currentMemory.likes || []).includes(user.uid);
+
+    const newLikes = isLiked
+      ? (currentMemory.likes || []).filter(id => id !== user.uid)
+      : [...(currentMemory.likes || []), user.uid];
+
+    setOptimisticCache(prev => ({
+      ...prev,
+      [memoryId]: { ...prev[memoryId], likes: newLikes }
+    }));
+
+    try {
+      // 2. Server Update
       if (isLiked) {
-        await unlikeMemory(memoryId, memory.authorId, user.uid);
+        await unlikeMemory(memoryId, originalMemory.authorId, user.uid);
       } else {
-        await likeMemory(memoryId, memory.authorId, user.uid);
+        await likeMemory(memoryId, originalMemory.authorId, user.uid);
       }
     } catch (err: any) {
       console.error("Error toggling like:", err);
-      alert(t('common.error', currentLanguage) || "Error updating like. Check your connection or permissions.");
+      // Revert on error (optional, or just alert)
+      alert(t('common.error', currentLanguage) || "Error updating like.");
+      setOptimisticCache(prev => {
+        const newState = { ...prev };
+        delete newState[memoryId];
+        return newState;
+      });
     } finally {
       setIsLiking(false);
     }
@@ -59,14 +87,47 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage }
   const handleAddComment = async (memoryId: string) => {
     if (!newComment.trim() || isCommenting) return;
     setIsCommenting(true);
+
+    const originalMemory = memories.find(m => m.id === memoryId);
+    if (!originalMemory) return;
+
+    const tempCommentId = Date.now().toString();
+    const commentText = newComment;
+
+    // 1. Optimistic Update
+    const currentMemory = getDisplayMemory(originalMemory);
+    const tempComment = {
+      id: tempCommentId,
+      userId: user.uid,
+      userName: user.displayName,
+      text: commentText,
+      timestamp: new Date().toISOString()
+    };
+
+    setOptimisticCache(prev => ({
+      ...prev,
+      [memoryId]: {
+        ...prev[memoryId],
+        comments: [...(currentMemory.comments || []), tempComment]
+      }
+    }));
+
+    setNewComment(''); // Clear input immediately
+
     try {
-      const memory = memories.find(m => m.id === memoryId);
-      if (!memory) return;
-      await addCommentToMemory(memoryId, memory.authorId, user.uid, user.displayName, newComment);
-      setNewComment('');
+      // 2. Server Update
+      await addCommentToMemory(memoryId, originalMemory.authorId, user.uid, user.displayName, commentText);
     } catch (err: any) {
       console.error("Error adding comment:", err);
       alert(t('common.error', currentLanguage) || "Error adding comment.");
+      // Revert cache if needed
+      setOptimisticCache(prev => {
+        const newState = { ...prev };
+        if (newState[memoryId] && newState[memoryId].comments) {
+          newState[memoryId].comments = newState[memoryId].comments?.filter(c => c.id !== tempCommentId);
+        }
+        return newState;
+      });
     } finally {
       setIsCommenting(false);
     }
@@ -80,7 +141,7 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage }
       const shareData: any = {
         title: t('feed.share_title_tag', currentLanguage),
         text: `${t('feed.share_text', currentLanguage)}: ${memory.questionText || t('feed.shared_story_default', currentLanguage)}`,
-        url: memory.videoUrl, // Use the real video URL
+        url: memory.videoUrl,
       };
 
       if (navigator.share) {
@@ -109,6 +170,7 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage }
     : memories.filter(m => m.authorId === user.uid);
 
   if (memories.length === 0) {
+    // ... (Empty state logic, unchanged mostly but ensuring consistent returns)
     return (
       <div className="flex flex-col items-center justify-center p-10 h-full text-center space-y-8 animate-in fade-in duration-700 bg-warmwhite dark:bg-charcoal">
         <div className="w-56 h-56 bg-secondary/20 dark:bg-white/5 rounded-full flex items-center justify-center relative">
@@ -162,7 +224,7 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage }
             return (
               <div
                 key={memory.id}
-                onClick={() => setPlayingMemory(memory)}
+                onClick={() => setPlayingMemoryId(memory.id)}
                 className="relative aspect-[3/4.2] rounded-[24px] overflow-hidden bg-support/20 dark:bg-white/5 group cursor-pointer active:scale-[0.98] transition-all shadow-sm border border-secondary/10 dark:border-white/5"
               >
                 <div className="absolute inset-0 bg-charcoal flex items-center justify-center">
@@ -201,8 +263,12 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage }
       </div>
 
       {/* Video Player Modal */}
-      {playingMemory && (() => {
-        const memory = memories.find(m => m.id === playingMemory.id) || playingMemory;
+      {playingMemoryId && (() => {
+        const rawMemory = memories.find(m => m.id === playingMemoryId);
+        if (!rawMemory) return null;
+
+        const memory = getDisplayMemory(rawMemory);
+
         return (
           <div className="fixed inset-0 z-[200] bg-black animate-in fade-in duration-300 flex flex-col overflow-hidden">
             {/* Top Controls */}
@@ -210,7 +276,7 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage }
               <div className="p-6 flex items-center justify-between">
                 <button
                   onClick={() => {
-                    setPlayingMemory(null);
+                    setPlayingMemoryId(null);
                     setShowComments(false);
                   }}
                   className="p-3 bg-white/10 backdrop-blur-xl rounded-2xl border border-white/10 text-white active:scale-90 transition-all shadow-2xl"

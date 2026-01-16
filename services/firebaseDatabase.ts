@@ -681,6 +681,10 @@ export const listenToFamilyMemories = (
         callback(memories);
     }, (error) => {
         console.error("Error in listenToFamilyMemories:", error);
+        if (error.code === 'failed-precondition') {
+            console.error("🔥 MISSING INDEX ERROR: You need to create a Firestore Index for this query to work.");
+            console.error("👉 Click the link in the error message above to automatically create it!");
+        }
     });
 };
 

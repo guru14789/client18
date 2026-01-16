@@ -68,6 +68,20 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
 
   // Initialize and manage camera stream
   useEffect(() => {
+    // If answering a specific question, ALWAYS post to that question's family branch
+    if (mode === 'answer' && question?.familyId) {
+      setTargetFamilyId(question.familyId);
+      return;
+    }
+
+    if (activeFamilyId) {
+      setTargetFamilyId(activeFamilyId);
+    } else if (families.length > 0) {
+      setTargetFamilyId(families[0].id);
+    }
+  }, [activeFamilyId, families, question, mode]);
+
+  useEffect(() => {
     const startCamera = async () => {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
@@ -230,23 +244,21 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
   return (
     <div className="h-full flex flex-col bg-charcoal text-white overflow-hidden relative">
       <div className="absolute top-0 left-0 right-0 z-50">
-        <div className="safe-area-top">
-          <div className="p-6 flex items-center justify-between">
-            <button onClick={onCancel} className="p-2.5 bg-white/10 backdrop-blur-lg rounded-2xl border border-white/10 active:scale-90 transition-transform">
-              <X size={24} />
+        <div className="pt-[calc(1.5rem+env(safe-area-inset-top))] px-6 pb-6 flex items-center justify-between">
+          <button onClick={onCancel} className="p-2.5 bg-white/10 backdrop-blur-lg rounded-2xl border border-white/10 active:scale-90 transition-transform">
+            <X size={24} />
+          </button>
+          {stage === 'recording' && (
+            <div className="flex items-center gap-2 bg-red-500 px-4 py-2 rounded-full font-mono text-xs font-bold animate-pulse shadow-lg shadow-red-500/20">
+              <div className="w-2.5 h-2.5 bg-white rounded-full"></div>
+              00:{timeLeft.toString().padStart(2, '0')}
+            </div>
+          )}
+          {(stage === 'prep' || (stage === 'recording' && !isCapturing)) && (
+            <button onClick={toggleCamera} className="p-2.5 bg-white/10 backdrop-blur-lg rounded-2xl border border-white/10 active:scale-90 transition-transform">
+              <SwitchCamera size={24} />
             </button>
-            {stage === 'recording' && (
-              <div className="flex items-center gap-2 bg-red-500 px-4 py-2 rounded-full font-mono text-xs font-bold animate-pulse shadow-lg shadow-red-500/20">
-                <div className="w-2.5 h-2.5 bg-white rounded-full"></div>
-                00:{timeLeft.toString().padStart(2, '0')}
-              </div>
-            )}
-            {(stage === 'prep' || (stage === 'recording' && !isCapturing)) && (
-              <button onClick={toggleCamera} className="p-2.5 bg-white/10 backdrop-blur-lg rounded-2xl border border-white/10 active:scale-90 transition-transform">
-                <SwitchCamera size={24} />
-              </button>
-            )}
-          </div>
+          )}
         </div>
       </div>
 
@@ -424,7 +436,7 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
           </div>
         )}
       </div>
-    </div>
+    </div >
   );
 };
 

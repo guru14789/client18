@@ -6,6 +6,7 @@ const remoteConfig = getRemoteConfig(app);
 // Default values
 remoteConfig.defaultConfig = {
     "enable_phone_auth": true,
+    "enable_translation": false, // Default to false to avoid 404s if not configured
     "enable_profile_translation": true
 };
 

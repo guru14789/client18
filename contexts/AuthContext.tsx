@@ -66,7 +66,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                                 uid: user.uid,
                                 displayName: user.displayName || 'Family Member',
                                 phoneNumber: user.phoneNumber || '',
-                                profilePhoto: user.photoURL || `https://i.pravatar.cc/150?u=${user.uid}`,
+                                // profilePhoto: user.photoURL || `https://i.pravatar.cc/150?u=${user.uid}`, 
+                                // Removed to prevent overwriting existing photo during re-initialization
                                 createdAt: now,
                                 lastLoginAt: now,
                                 familyIds: [],

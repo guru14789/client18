@@ -240,7 +240,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage, enablePhoneAuth
     if (step === 'welcome') {
       return (
         <div className="h-screen w-full bg-warmwhite flex flex-col items-center px-8 relative overflow-hidden">
-          <div className="relative w-full h-[40%] flex items-center justify-center mt-12">
+          <div className="relative w-full h-[40%] flex items-center justify-center mt-[calc(3rem+env(safe-area-inset-top))]">
             <div className="w-28 h-28 bg-primary rounded-[36px] flex items-center justify-center shadow-2xl z-10 border-4 border-white animate-in zoom-in-50 duration-700">
               <span className="text-white text-2xl font-black tracking-tighter">Inai</span>
             </div>
@@ -308,12 +308,6 @@ const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage, enablePhoneAuth
               </div>
             )}
 
-            <button
-              onClick={() => onLogin('9876543210', 'Guest Member', 'demo-uid-123')}
-              className="w-full h-16 bg-accent/10 border border-accent/20 rounded-[24px] flex items-center justify-center gap-4 text-accent font-black text-lg active:scale-95 transition-all"
-            >
-              {t('login.demo', currentLanguage)}
-            </button>
           </div>
         </div >
       );
@@ -323,7 +317,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage, enablePhoneAuth
     if (step === 'phone') {
       return (
         <div className="h-screen w-full bg-warmwhite flex flex-col px-8 animate-in slide-in-from-right duration-300">
-          <div className="pt-12 pb-8">
+          <div className="pt-[calc(3rem+env(safe-area-inset-top))] pb-8">
             <button onClick={() => setStep('welcome')} className="p-3 bg-white rounded-2xl shadow-sm text-charcoal active:scale-90 transition-transform border border-secondary/20">
               <ChevronLeft size={24} strokeWidth={3} />
             </button>
@@ -420,7 +414,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage, enablePhoneAuth
     if (step === 'otp') {
       return (
         <div className="h-screen w-full bg-warmwhite flex flex-col px-8 animate-in slide-in-from-right duration-300">
-          <div className="pt-12 pb-8">
+          <div className="pt-[calc(3rem+env(safe-area-inset-top))] pb-8">
             <button onClick={() => setStep('phone')} className="p-3 bg-white rounded-2xl shadow-sm text-charcoal active:scale-90 transition-transform border border-secondary/20">
               <ChevronLeft size={24} strokeWidth={3} />
             </button>
@@ -473,7 +467,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage, enablePhoneAuth
     if (step === 'nameEntry') {
       return (
         <div className="h-screen w-full bg-warmwhite flex flex-col px-8 animate-in slide-in-from-bottom duration-500">
-          <div className="pt-12 pb-8 flex flex-col items-center">
+          <div className="pt-[calc(3rem+env(safe-area-inset-top))] pb-8 flex flex-col items-center">
             <div className="w-20 h-20 bg-primary/10 rounded-[24px] flex items-center justify-center text-primary mb-6">
               <UserIcon size={40} />
             </div>

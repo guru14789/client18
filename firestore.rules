@@ -56,7 +56,8 @@ service cloud.firestore {
         allow create: if isOwner(userId); 
         allow update: if isSignedIn() && (
           isOwner(userId) ||
-          (resource.data.status == 'published' && isMemberOfAny(resource.data.familyIds) && 
+          (resource.data.get('status', '') == 'published' && 
+           isMemberOfAny(resource.data.get('familyIds', [])) && 
            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'comments']))
         );
         allow delete: if isOwner(userId);

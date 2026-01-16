@@ -8,7 +8,7 @@ interface SplashScreenProps {
 
 const SplashScreen: React.FC<SplashScreenProps> = ({ currentLanguage }) => {
   return (
-    <div className="h-screen w-full bg-primary flex flex-col items-center justify-between py-12 px-6 relative overflow-hidden animate-in fade-in duration-700">
+    <div className="h-screen w-full bg-primary flex flex-col items-center justify-between pb-12 pt-[calc(3rem+env(safe-area-inset-top))] px-6 relative overflow-hidden animate-in fade-in duration-700">
 
       {/* Animated Background Decorations */}
       <div className="absolute top-[-10%] left-[-10%] w-64 h-64 bg-white/5 rounded-full blur-3xl animate-pulse"></div>

@@ -10,6 +10,7 @@ import {
   PlusCircle,
   Mail,
   ChevronLeft,
+  ChevronDown,
   X,
   Monitor,
   Mic,
@@ -67,6 +68,7 @@ const Profile: React.FC<ProfileProps> = ({
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [newFamilyName, setNewFamilyName] = useState('');
+  const [newFamilyLanguage, setNewFamilyLanguage] = useState<Language>(currentLanguage || Language.ENGLISH);
   const [inviteCode, setInviteCode] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -198,7 +200,7 @@ const Profile: React.FC<ProfileProps> = ({
     if (!newFamilyName.trim()) return;
     setIsProcessing(true);
     try {
-      await onAddFamily(newFamilyName.trim(), currentLanguage);
+      await onAddFamily(newFamilyName.trim(), newFamilyLanguage);
       setNewFamilyName('');
       setShowCreateModal(false);
     } catch (err) {
@@ -330,6 +332,26 @@ const Profile: React.FC<ProfileProps> = ({
                 value={newFamilyName}
                 onChange={(e) => setNewFamilyName(e.target.value)}
               />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate/40 dark:text-support/40 uppercase tracking-[0.2em] px-1">{t('profile.language', currentLanguage)}</label>
+              <div className="relative">
+                <select
+                  className="w-full p-4 pr-12 bg-white dark:bg-white/5 rounded-2xl border border-secondary/20 dark:border-white/10 outline-none font-bold text-charcoal dark:text-warmwhite shadow-sm focus:border-primary/50 transition-all appearance-none cursor-pointer"
+                  value={newFamilyLanguage}
+                  onChange={(e) => setNewFamilyLanguage(e.target.value as Language)}
+                >
+                  {Object.values(Language).map((lang) => (
+                    <option key={lang} value={lang}>
+                      {lang.toUpperCase()}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate/40">
+                  <ChevronDown size={20} />
+                </div>
+              </div>
             </div>
             <button
               onClick={handleCreateFamily}

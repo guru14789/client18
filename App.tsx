@@ -84,7 +84,10 @@ const App: React.FC = () => {
 
   const [language, setLanguage] = useState<Language>(() => {
     const saved = localStorage.getItem('inai_language');
-    return (saved as Language) || Language.TAMIL;
+    // Default to ENGLISH if no preference is saved
+    const initial = (saved as Language) || Language.ENGLISH;
+    console.log("App: Initializing language:", initial);
+    return initial;
   });
 
   // 1. Auth Context consumption
@@ -122,10 +125,11 @@ const App: React.FC = () => {
       // If we don't have an active family set yet, try to pick one
       if (userFamilies.length > 0 && !activeFamilyId) {
         const preferredId = user.defaultFamilyId;
-        if (preferredId && userFamilies.some(f => f.id === preferredId)) {
-          setActiveFamilyId(preferredId);
-        } else {
-          setActiveFamilyId(userFamilies[0].id);
+        const selectedFamily = userFamilies.find(f => f.id === preferredId) || userFamilies[0];
+
+        setActiveFamilyId(selectedFamily.id);
+        if (selectedFamily.defaultLanguage) {
+          handleLanguageChange(selectedFamily.defaultLanguage as Language);
         }
       } else if (userFamilies.length === 0) {
         setActiveFamilyId(null);
@@ -192,25 +196,33 @@ const App: React.FC = () => {
 
   // 3. Family Content Sync
   useEffect(() => {
+    let unsubMemories = () => { };
+    let unsubQuestions = () => { };
+    let unsubDocs = () => { };
+
+    // Clear state when switching families to avoid mixing content
     setMemories([]);
     setQPrompts([]);
     setDocuments([]);
 
-    if (!activeFamilyId) return;
+    if (activeFamilyId) {
+      console.log("App: Switching to family:", activeFamilyId);
 
-    const unsubMemories = listenToFamilyMemories(activeFamilyId, (familyMemories) => {
-      setMemories(familyMemories);
-    });
+      unsubMemories = listenToFamilyMemories(activeFamilyId, (familyMemories) => {
+        setMemories(familyMemories);
+      });
 
-    const unsubQuestions = listenToFamilyQuestions(activeFamilyId, (familyQuestions) => {
-      setQPrompts(familyQuestions);
-    });
+      unsubQuestions = listenToFamilyQuestions(activeFamilyId, (familyQuestions) => {
+        setQPrompts(familyQuestions);
+      });
 
-    const unsubDocs = listenToFamilyDocuments(activeFamilyId, (docs) => {
-      setDocuments(docs);
-    });
+      unsubDocs = listenToFamilyDocuments(activeFamilyId, (docs) => {
+        setDocuments(docs);
+      });
+    }
 
     return () => {
+      // Ensure clean unsubscribe sequence
       unsubMemories();
       unsubQuestions();
       unsubDocs();
@@ -231,6 +243,13 @@ const App: React.FC = () => {
 
   const switchFamily = async (familyId: string) => {
     setActiveFamilyId(familyId);
+
+    // Automatically switch app language to family's default language
+    const selectedFamily = families.find(f => f.id === familyId);
+    if (selectedFamily?.defaultLanguage) {
+      handleLanguageChange(selectedFamily.defaultLanguage as Language);
+    }
+
     if (user) {
       await createOrUpdateUser(user.uid, { defaultFamilyId: familyId });
     }
@@ -342,7 +361,13 @@ const App: React.FC = () => {
       if (!['splash', 'onboarding', 'login'].includes(view)) {
         setView('login');
       } else if (view === 'splash') {
-        setView('login');
+        // Check if onboarding is completed
+        const onboardingDone = localStorage.getItem('inai_onboarding_done');
+        if (onboardingDone) {
+          setView('login');
+        } else {
+          setView('onboarding');
+        }
       }
     }
   }, [loading, user, view]);
