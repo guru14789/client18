@@ -14,38 +14,46 @@ service firebase.storage {
 
     // Helper to get memory data from Firestore
     function getMemoryData(memoryId) {
-      return firestore.get(/databases/(default)/documents/memories/$(memoryId)).data;
+      return firestore.get(/databases/familybank/documents/memories/$(memoryId)).data;
     }
 
     // Helper to check family membership
     function isFamilyMember(familyId) {
-      return isSignedIn() && request.auth.uid in firestore.get(/databases/(default)/documents/families/$(familyId)).members;
+      return isSignedIn() && request.auth.uid in firestore.get(/databases/familybank/documents/families/$(familyId)).members;
     }
 
-    // Videos
-    match /videos/{userId}/{memoryId} {
-      allow write: if isOwner(userId);
-      allow read: if isSignedIn() && (
-        isOwner(userId) || 
-        (getMemoryData(memoryId.replace('.mp4', '')).status == 'published' && 
-         isFamilyMember(getMemoryData(memoryId.replace('.mp4', '')).familyIds[0]))
-      );
-    }
+    // New rules matching the actual code paths
+    match /users/{userId} {
+      // Profile Pictures
+      match /profile/{allPaths=**} {
+        allow write: if isOwner(userId);
+        allow read: if isSignedIn();
+      }
 
-    // Thumbnails
-    match /thumbnails/{userId}/{memoryId} {
-      allow write: if isOwner(userId);
-      allow read: if isSignedIn() && (
-        isOwner(userId) || 
-        (getMemoryData(memoryId.replace('.jpg', '')).status == 'published' && 
-         isFamilyMember(getMemoryData(memoryId.replace('.jpg', '')).familyIds[0]))
-      );
-    }
+      // Videos
+      match /videos/{memoryId} {
+        allow write: if isOwner(userId);
+        allow read: if isSignedIn() && (
+          isOwner(userId) || 
+          (getMemoryData(memoryId.replace('.mp4', '')).status == 'published' && 
+           isFamilyMember(getMemoryData(memoryId.replace('.mp4', '')).familyIds[0]))
+        );
+      }
 
-    // Profiles
-    match /profiles/{userId}/{allPaths=**} {
-      allow write: if isOwner(userId);
-      allow read: if isSignedIn();
+      // Thumbnails
+      match /thumbnails/{memoryId} {
+        allow write: if isOwner(userId);
+        allow read: if isSignedIn() && (
+          isOwner(userId) || 
+          (getMemoryData(memoryId.replace('.jpg', '')).status == 'published' && 
+           isFamilyMember(getMemoryData(memoryId.replace('.jpg', '')).familyIds[0]))
+        );
+      }
+
+      // Documents
+      match /documents/{docId} {
+        allow write, read: if isOwner(userId);
+      }
     }
   }
 }

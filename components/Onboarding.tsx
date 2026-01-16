@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Play, Camera, Mic, MapPin, ShieldCheck, ArrowRight } from 'lucide-react';
+import { Play, Camera, Mic, MapPin, ShieldCheck, ArrowRight, Loader2, CheckCircle } from 'lucide-react';
 import { Language } from '../types';
 import { t } from '../services/i18n';
 
@@ -64,51 +64,47 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, currentLanguage }) 
   };
 
   return (
-    <div className="h-screen w-full bg-warmwhite flex flex-col items-center relative overflow-hidden">
-      <div className="w-full h-[60%] bg-secondary/50 rounded-b-[60px] overflow-hidden relative shadow-2xl">
+    <div className="h-screen w-full bg-warmwhite dark:bg-charcoal flex flex-col items-center relative overflow-hidden transition-colors">
+      <div className="w-full flex-1 max-h-[55vh] sm:max-h-[60vh] bg-secondary/20 dark:bg-white/5 rounded-b-[64px] overflow-hidden relative shadow-2xl shrink-0">
         <img
           src={steps[step].image}
           alt={steps[step].title}
-          className="w-full h-full object-cover opacity-90 transition-all duration-700 hover:scale-105"
+          className="w-full h-full object-cover transition-all duration-1000 hover:scale-110"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-charcoal/60 via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-charcoal/80 via-charcoal/20 to-transparent dark:from-black dark:via-black/20" />
         <div className="absolute bottom-12 left-10 right-10 text-white">
-          <h2 className="text-4xl font-bold mb-3 tracking-tight">{steps[step].title}</h2>
-          <p className="text-support text-lg font-medium leading-relaxed opacity-90">{steps[step].desc}</p>
+          <h2 className="text-4xl font-black mb-3 tracking-tighter leading-tight animate-in slide-in-from-left duration-500">{steps[step].title}</h2>
+          <p className="text-support/90 dark:text-warmwhite/70 text-lg font-medium leading-relaxed opacity-90 line-clamp-2 animate-in slide-in-from-left duration-700 delay-100">{steps[step].desc}</p>
         </div>
       </div>
 
-      <div className="flex items-center gap-3 mt-16">
+      <div className="flex items-center gap-2 mt-12 shrink-0">
         {steps.map((_, i) => (
           <div
             key={i}
-            className={`h-2.5 rounded-full transition-all duration-500 shadow-sm ${step === i ? 'w-10 bg-primary' : 'w-2.5 bg-secondary'
+            className={`h-1.5 rounded-full transition-all duration-500 ${step === i ? 'w-8 bg-primary shadow-lg shadow-primary/20' : 'w-1.5 bg-secondary/40 dark:bg-white/10'
               }`}
           />
         ))}
       </div>
 
-      <div className="mt-auto mb-20 w-full px-10">
+      <div className="mt-auto mb-16 w-full px-10 shrink-0">
         {steps[step].isPermissionStep ? (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="flex justify-center gap-6">
-              <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-primary shadow-lg border border-secondary/20">
-                <Camera size={24} />
-              </div>
-              <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-primary shadow-lg border border-secondary/20">
-                <Mic size={24} />
-              </div>
-              <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-primary shadow-lg border border-secondary/20">
-                <MapPin size={24} />
-              </div>
+            <div className="flex justify-center gap-4">
+              {[Camera, Mic, MapPin].map((Icon, i) => (
+                <div key={i} className="w-14 h-14 bg-white dark:bg-white/10 rounded-[22px] flex items-center justify-center text-primary shadow-xl border border-secondary/10 dark:border-white/5">
+                  <Icon size={24} />
+                </div>
+              ))}
             </div>
             <button
               onClick={requestPermissions}
               disabled={permissionStatus === 'requesting'}
-              className="w-full h-16 bg-primary text-white rounded-[24px] font-black text-lg shadow-2xl shadow-primary/40 flex items-center justify-center gap-3 active:scale-95 transition-all disabled:opacity-70"
+              className="w-full h-16 bg-primary text-white rounded-[28px] font-black text-lg shadow-2xl shadow-primary/30 flex items-center justify-center gap-3 active:scale-95 transition-all disabled:opacity-70"
             >
               {permissionStatus === 'requesting' ? (
-                t('onboarding.requesting', currentLanguage)
+                <Loader2 size={24} className="animate-spin" />
               ) : permissionStatus === 'done' ? (
                 <>{t('onboarding.ready', currentLanguage)} <ShieldCheck size={24} /></>
               ) : (
@@ -117,21 +113,27 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, currentLanguage }) 
             </button>
             <button
               onClick={onComplete}
-              className="w-full text-slate text-[10px] font-black uppercase tracking-[0.3em] opacity-40 hover:opacity-100 transition-opacity"
+              className="w-full text-slate/40 dark:text-support/30 text-[10px] font-black uppercase tracking-[0.3em] hover:text-primary transition-colors"
             >
               {t('onboarding.skip', currentLanguage)}
             </button>
           </div>
         ) : (
-          <div className="relative flex items-center justify-center">
-            <div className="absolute w-28 h-28 border-2 border-primary/20 rounded-full animate-[ping_4s_infinite] opacity-50"></div>
-            <div className="absolute w-22 h-22 border border-primary/30 rounded-full"></div>
-            <button
-              onClick={handleNext}
-              className="w-16 h-16 bg-primary rounded-full flex items-center justify-center shadow-2xl shadow-primary/40 active:scale-90 transition-transform z-10"
-            >
-              <Play size={24} fill="white" className="text-white ml-1" />
-            </button>
+          <div className="relative flex flex-col items-center">
+            <div className="relative w-20 h-20 mb-8">
+              <div className="absolute inset-0 bg-primary/20 rounded-full animate-ping opacity-75"></div>
+              <button
+                onClick={handleNext}
+                className="relative w-20 h-20 bg-primary rounded-full flex items-center justify-center shadow-2xl shadow-primary/40 active:scale-90 transition-transform z-10"
+              >
+                <ArrowRight size={32} className="text-white" strokeWidth={3} />
+              </button>
+            </div>
+            {step === 0 && (
+              <p className="text-[10px] font-black text-slate/30 dark:text-support/20 uppercase tracking-[0.2em] animate-pulse">
+                Tap to explore
+              </p>
+            )}
           </div>
         )}
       </div>

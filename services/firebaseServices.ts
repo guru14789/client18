@@ -24,10 +24,16 @@ export {
     // User operations
     createOrUpdateUser,
     getUser,
+    getUsers,
     // Family operations
     createFamily,
     getFamily,
+    addFamilyAdmin,
     addFamilyMember,
+    joinFamilyByCode,
+    leaveFamily,
+    generateSecureInvite,
+    validateAndJoinFamily,
     // Memory operations
     createMemory,
     publishMemory,
@@ -51,7 +57,9 @@ export {
     listenToFamilyDocuments,
     listenToUserNotifications,
     listenToUser,
-    listenToUserFamilies
+    listenToUserFamilies,
+    listenToJoinRequests,
+    handleJoinRequest
 } from './firebaseDatabase';
 
 // Storage Services

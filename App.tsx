@@ -10,10 +10,8 @@ import {
   MapPin,
   User as UserIcon,
   LayoutGrid,
-  Users,
-  Database
+  Users
 } from 'lucide-react';
-import DeveloperTools from './components/DeveloperTools';
 import {
   auth,
   onAuthStateChange,
@@ -32,6 +30,9 @@ import {
   addCommentToMemory,
   createFamily,
   addFamilyMember,
+  joinFamilyByCode,
+  leaveFamily,
+  validateAndJoinFamily,
   listenToUserDrafts,
   listenToFamilyDocuments
 } from './services/firebaseServices';
@@ -57,6 +58,7 @@ import Profile from './components/Profile';
 import Documents from './components/Documents';
 import { AppState, User, Memory, Family, Language, Question, FamilyDocument } from './types';
 import { t } from './services/i18n';
+import { fetchConfig, getConfigValue } from './services/firebaseRemoteConfig';
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppState>('splash');
@@ -64,11 +66,15 @@ const App: React.FC = () => {
   const [activeQuestion, setActiveQuestion] = useState<Question | null>(null);
   const [activeFamilyId, setActiveFamilyId] = useState<string | null>(null);
   const [recordMode, setRecordMode] = useState<'answer' | 'question'>('answer');
+  const [configLoaded, setConfigLoaded] = useState(false);
+
+  useEffect(() => {
+    fetchConfig().then(() => setConfigLoaded(true));
+  }, []);
   const [memories, setMemories] = useState<Memory[]>([]);
   const [qPrompts, setQPrompts] = useState<Question[]>([]);
   const [drafts, setDrafts] = useState<Memory[]>([]);
   const [documents, setDocuments] = useState<FamilyDocument[]>([]);
-  const [showDebug, setShowDebug] = useState(false);
 
   // Theme and Language State
   const [theme, setTheme] = useState<'light' | 'dark' | 'system'>(() => {
@@ -128,6 +134,61 @@ const App: React.FC = () => {
 
     return () => unsubFamilies();
   }, [user?.uid, user?.defaultFamilyId, user?.preferredLanguage, user?.settings?.theme]);
+
+  // Handle Join Invite Link
+  useEffect(() => {
+    if (loading) return; // Wait for auth state to stabilize
+    if (!user?.uid) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const inviteCode = params.get('join');
+    const secureFamilyId = params.get('familyId');
+    const secureToken = params.get('token');
+
+    const cleanUrl = () => {
+      window.history.replaceState({}, document.title, "/"); // Always return to root after join
+    };
+
+    // 1. Handle Legacy Invite Code
+    if (inviteCode) {
+      console.log("App: Found invite code in URL:", inviteCode);
+      const processJoin = async () => {
+        try {
+          const familyId = await joinFamilyByCode(inviteCode, user.uid, user.displayName, user.profilePhoto);
+          console.log("✅ Join request sent:", familyId);
+          cleanUrl();
+          alert(`Success! Your join request has been sent to the family admins.`);
+        } catch (err: any) {
+          console.error("Error joining family:", err);
+          alert(`Could not join family: ${err.message}`);
+          cleanUrl();
+        }
+      };
+      processJoin();
+    }
+    // 2. Handle New Secure Token Invite
+    else if (secureFamilyId && secureToken) {
+      console.log("App: Found secure invite link:", { secureFamilyId, secureToken });
+      const processSecureJoin = async () => {
+        try {
+          await validateAndJoinFamily(secureFamilyId, secureToken, user.uid);
+          console.log("✅ Successfully joined family via secure link");
+          setActiveFamilyId(secureFamilyId);
+          cleanUrl();
+          alert(`Success! You have been added to the family group.`);
+        } catch (err: any) {
+          console.error("Error joining family:", err);
+          let message = "Invalid invite";
+          if (err.message === "Invite expired") message = "Invite expired";
+          if (err.message === "Already a member") message = "You are already a member of this family";
+
+          alert(message);
+          cleanUrl();
+        }
+      };
+      processSecureJoin();
+    }
+  }, [user?.uid, loading]);
 
   // 3. Family Content Sync
   useEffect(() => {
@@ -320,26 +381,37 @@ const App: React.FC = () => {
       <main className="flex-1 overflow-y-auto no-scrollbar relative flex flex-col">
         <div className="flex-1 view-transition">
           {view === 'onboarding' && <Onboarding onComplete={() => { localStorage.setItem('inai_onboarding_done', 'true'); setView('login'); }} currentLanguage={language} />}
-          {view === 'login' && <Login onLogin={handleLogin} currentLanguage={language} />}
+          {view === 'login' && (
+            <Login
+              onLogin={handleLogin}
+              currentLanguage={language}
+              enablePhoneAuth={getConfigValue('enable_phone_auth')}
+            />
+          )}
           {view === 'home' && user && (
-            <>
-              <Dashboard user={user} families={families} prompts={qPrompts} onNavigate={setView} onRecord={(q) => { if (q) setActiveQuestion(q); setRecordMode('answer'); setView('record'); }} onAddFamily={handleAddFamily} currentLanguage={language} activeFamilyId={activeFamilyId} onSwitchFamily={switchFamily} onToggleUpvote={toggleUpvote} />
-              {showDebug && <DeveloperTools user={user} onComplete={() => setShowDebug(false)} />}
-              <button
-                onClick={() => setShowDebug(!showDebug)}
-                className="mx-auto mt-4 mb-32 p-3 bg-secondary/10 dark:bg-white/5 rounded-full text-slate dark:text-support/20 hover:text-primary transition-colors flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"
-              >
-                <Database size={14} />
-                {showDebug ? "Hide Debug" : "Show Seed Tool"}
-              </button>
-            </>
+            <Dashboard user={user} families={families} prompts={qPrompts} onNavigate={setView} onRecord={(q) => { if (q) setActiveQuestion(q); setRecordMode('answer'); setView('record'); }} onAddFamily={handleAddFamily} currentLanguage={language} activeFamilyId={activeFamilyId} onSwitchFamily={switchFamily} onToggleUpvote={toggleUpvote} />
           )}
           {view === 'feed' && user && <Feed memories={memories} user={user} families={families} currentLanguage={language} />}
           {view === 'questions' && user && <Questions user={user} families={families} questions={qPrompts} onAnswer={(q) => { setActiveQuestion(q); setRecordMode('answer'); setView('record'); }} onRecordQuestion={() => { setActiveQuestion(null); setRecordMode('question'); setView('record'); }} onToggleUpvote={toggleUpvote} onAddQuestion={handleAddQuestion} activeFamilyId={activeFamilyId} currentLanguage={language} />}
           {view === 'documents' && user && <Documents user={user} families={families} documents={documents} setDocuments={setDocuments} currentLanguage={language} />}
           {view === 'record' && user && <RecordMemory user={user} question={activeQuestion} mode={recordMode} onCancel={() => { setView('home'); setActiveQuestion(null); }} onComplete={handleRecordingComplete} families={families} activeFamilyId={activeFamilyId} currentLanguage={language} />}
           {view === 'drafts' && <Drafts drafts={drafts} onPublish={(m) => handleRecordingComplete({ ...m, status: 'published' })} onDelete={(id) => deleteMemory(id, user.uid)} currentLanguage={language} onBack={() => setView('home')} />}
-          {view === 'profile' && user && <Profile user={user} families={families} onLogout={handleLogout} currentTheme={theme} onThemeChange={handleThemeChange} currentLanguage={language} onLanguageChange={handleLanguageChange} onNavigate={setView} />}
+          {view === 'profile' && user && (
+            <Profile
+              user={user}
+              families={families}
+              onLogout={handleLogout}
+              currentTheme={theme}
+              onThemeChange={handleThemeChange}
+              currentLanguage={language}
+              onLanguageChange={handleLanguageChange}
+              onNavigate={setView}
+              onAddFamily={handleAddFamily}
+              onJoinFamily={joinFamilyByCode}
+              onLeaveFamily={leaveFamily}
+              enableTranslation={getConfigValue('enable_profile_translation')}
+            />
+          )}
         </div>
       </main>
 

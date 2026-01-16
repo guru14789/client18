@@ -17,24 +17,46 @@ service cloud.firestore {
     }
     
     function isFamilyMember(familyId) {
-      return isSignedIn() && (request.auth.uid in getFamily(familyId).members);
+      let family = get(/databases/$(database)/documents/families/$(familyId));
+      return isSignedIn() && 
+             familyId != null && 
+             exists(/databases/$(database)/documents/families/$(familyId)) &&
+             request.auth.uid in family.data.members;
+    }
+    
+    function isMemberOfAny(familyIds) {
+      return isSignedIn() && 
+             familyIds != null && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('familyIds', []).hasAny(familyIds);
     }
 
     // --- Users Collection & Sub-collections ---
     match /users/{userId} {
       allow read: if isSignedIn();
-      allow write: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) || (
+        isSignedIn() && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['familyIds', 'defaultFamilyId', 'updatedAt']) &&
+        request.resource.data.defaultFamilyId != null &&
+        exists(/databases/$(database)/documents/families/$(request.resource.data.defaultFamilyId)) &&
+        request.auth.uid in get(/databases/$(database)/documents/families/$(request.resource.data.defaultFamilyId)).data.get('admins', [])
+      );
+      allow delete: if isOwner(userId);
 
       // Sub-collection: Memories (Answers)
       match /memories/{memoryId} {
         allow read: if isSignedIn() && (
           isOwner(userId) ||
-          (resource.data.status == 'published' && isFamilyMember(resource.data.familyIds[0]))
+          (resource.data.status == 'published' && (
+            // Check first family if singular check or iterate if possible
+            // In sub-collection, we usually expect membership in at least one
+            isMemberOfAny(resource.data.familyIds)
+          ))
         );
-        allow create: if isOwner(userId);
+        allow create: if isOwner(userId); 
         allow update: if isSignedIn() && (
           isOwner(userId) ||
-          (resource.data.status == 'published' && isFamilyMember(resource.data.familyIds[0]) && 
+          (resource.data.status == 'published' && isMemberOfAny(resource.data.familyIds) && 
            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'comments']))
         );
         allow delete: if isOwner(userId);
@@ -43,7 +65,7 @@ service cloud.firestore {
       // Sub-collection: Questions Asked by this User
       match /questions/{questionId} {
         allow read: if isSignedIn() && (isOwner(userId) || isFamilyMember(resource.data.familyId));
-        allow create: if isOwner(userId) && isFamilyMember(request.resource.data.familyId);
+        allow create: if isOwner(userId);
         allow update: if isSignedIn() && (
           isOwner(userId) ||
           (isFamilyMember(resource.data.familyId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['upvotes']))
@@ -54,7 +76,7 @@ service cloud.firestore {
       // Sub-collection: Documents
       match /documents/{docId} {
         allow read: if isSignedIn() && (isOwner(userId) || isFamilyMember(resource.data.familyId));
-        allow create: if isOwner(userId) && isFamilyMember(request.resource.data.familyId);
+        allow create: if isOwner(userId);
         allow update, delete: if isOwner(userId);
       }
     }
@@ -62,7 +84,12 @@ service cloud.firestore {
     // --- Families Collection ---
     match /families/{familyId} {
       allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
-      allow read, update: if isSignedIn() && (request.auth.uid in resource.data.members);
+      allow read: if isSignedIn();
+      allow update: if isSignedIn() && (
+        (request.auth.uid in resource.data.members) ||
+        (request.resource.data.inviteCode == resource.data.inviteCode && 
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'updatedAt']))
+      );
       allow delete: if isSignedIn() && resource.data.createdBy == request.auth.uid;
     }
 
@@ -79,16 +106,34 @@ service cloud.firestore {
     }
     
     match /invites/{id} {
-      allow read: if isSignedIn() && (request.auth.uid == resource.data.invitedBy || resource.data.phoneNumber == request.auth.token.phone_number);
+      allow read: if isSignedIn() && (
+        request.auth.uid == resource.data.invitedBy || 
+        (resource.data.phoneNumber != null && request.auth.token.phone_number == resource.data.phoneNumber)
+      );
       allow create: if isSignedIn();
       allow update: if isSignedIn();
     }
 
-    // --- Collection Group Rules (Required for cross-user family feeds) ---
+    match /secure_invites/{id} {
+      allow create: if isSignedIn();
+      allow read: if isSignedIn();
+      allow update: if isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usedBy']);
+    }
+
+    match /join_requests/{id} {
+      allow create: if isSignedIn() && request.resource.data.get('userId', '') == request.auth.uid;
+      allow read, update: if isSignedIn() && (
+        request.auth.uid == resource.data.get('userId', '') || 
+        (exists(/databases/$(database)/documents/families/$(resource.data.get('familyId', 'none'))) && 
+         request.auth.uid in get(/databases/$(database)/documents/families/$(resource.data.get('familyId', 'none'))).data.get('admins', []))
+      );
+    }
+
+    // --- Collection Group Rules ---
     match /{path=**}/memories/{memoryId} {
       allow read: if isSignedIn() && (
-        (resource.data.status == 'published' && isFamilyMember(resource.data.familyIds[0])) ||
-        (resource.data.authorId == request.auth.uid)
+        resource.data.get('authorId', '') == request.auth.uid ||
+        (resource.data.get('status', '') == 'published' && isMemberOfAny(resource.data.get('familyIds', [])))
       );
     }
 

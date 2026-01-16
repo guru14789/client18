@@ -28,7 +28,7 @@ console.log("🔥 Firebase Initialized with Project ID:", firebaseConfig.project
 
 // Service Exports
 export const auth: Auth = getAuth(app);
-export const db: Firestore = getFirestore(app);
+export const db: Firestore = getFirestore(app, "familybank");
 export const storage: FirebaseStorage = getStorage(app);
 
 // Enable persistence for offline support and faster loads

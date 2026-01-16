@@ -30,8 +30,9 @@ import {
 } from 'lucide-react';
 import { User, Family, Language } from '../types';
 import { t } from '../services/i18n';
-import { createOrUpdateUser } from '../services/firebaseDatabase';
+import { createOrUpdateUser, listenToJoinRequests, handleJoinRequest as handleReq } from '../services/firebaseDatabase';
 import { uploadProfilePicture } from '../services/firebaseStorage';
+import { JoinRequest as RealJoinRequest } from '../types';
 
 type SubView = 'none' | 'branches' | 'requests' | 'privacy' | 'theme' | 'permissions' | 'language';
 
@@ -44,22 +45,30 @@ interface ProfileProps {
   currentLanguage: Language;
   onLanguageChange: (lang: Language) => void;
   onNavigate: (view: any) => void;
+  onAddFamily: (name: string, lang: Language) => Promise<void>;
+  onJoinFamily: (code: string, userId: string, userName: string, userAvatar?: string) => Promise<string>;
+  onLeaveFamily: (familyId: string, userId: string) => Promise<void>;
+  enableTranslation?: boolean;
 }
 
-interface JoinRequest {
-  id: string;
-  userName: string;
-  avatar: string;
-  familyName: string;
-  timestamp: string;
-}
+// Local JoinRequest for UI compat if needed or just use the one from types
 
-const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentTheme, onThemeChange, currentLanguage, onLanguageChange, onNavigate }) => {
+const Profile: React.FC<ProfileProps> = ({
+  user, families, onLogout, currentTheme, onThemeChange, currentLanguage, onLanguageChange, onNavigate,
+  onAddFamily, onJoinFamily, onLeaveFamily, enableTranslation = true
+}) => {
   const [activeSubView, setActiveSubView] = useState<SubView>('none');
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(user.displayName);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // New States for Branches Management
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showJoinModal, setShowJoinModal] = useState(false);
+  const [newFamilyName, setNewFamilyName] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const [permissions, setPermissions] = useState<Record<string, PermissionState>>({
     camera: 'prompt',
@@ -67,12 +76,7 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
     geolocation: 'prompt'
   });
 
-  const [mockJoinRequests, setMockJoinRequests] = useState<JoinRequest[]>([
-    { id: 'jr1', userName: 'Carlos Gomez', avatar: 'https://i.pravatar.cc/150?u=carlos', familyName: 'Gomez Family', timestamp: '2h ago' },
-    { id: 'jr2', userName: 'Anjali Sharma', avatar: 'https://i.pravatar.cc/150?u=anjali', familyName: 'Sharma Clan', timestamp: '1d ago' }
-  ]);
-
-  const userFamilies = families;
+  const [joinRequests, setJoinRequests] = useState<RealJoinRequest[]>([]);
 
   useEffect(() => {
     setEditName(user.displayName);
@@ -124,7 +128,6 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
     try {
       const downloadUrl = await uploadProfilePicture(file, user.uid);
       await createOrUpdateUser(user.uid, { profilePhoto: downloadUrl });
-      console.log("Profile picture updated");
     } catch (err) {
       console.error("Failed to upload avatar", err);
       alert("Failed to upload new profile picture.");
@@ -178,88 +181,201 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
     </button>
   );
 
+  useEffect(() => {
+    if (activeSubView === 'requests' && families.length > 0) {
+      const adminFamilyIds = families
+        .filter(f => f.admins.includes(user.uid))
+        .map(f => f.id);
+
+      const unsub = listenToJoinRequests(adminFamilyIds, (requests) => {
+        setJoinRequests(requests);
+      });
+      return () => unsub();
+    }
+  }, [activeSubView, families, user.uid]);
+
+  const handleCreateFamily = async () => {
+    if (!newFamilyName.trim()) return;
+    setIsProcessing(true);
+    try {
+      await onAddFamily(newFamilyName.trim(), currentLanguage);
+      setNewFamilyName('');
+      setShowCreateModal(false);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to create family.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleJoinFamilyByCode = async () => {
+    if (!inviteCode.trim()) return;
+    setIsProcessing(true);
+    try {
+      await onJoinFamily(inviteCode.trim(), user.uid, user.displayName, user.profilePhoto);
+      setInviteCode('');
+      setShowJoinModal(false);
+      alert("Join request sent to family admins!");
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || "Failed to join family.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleLeaveFamily = async (familyId: string) => {
+    if (!confirm(t('profile.sub.leave_confirm', currentLanguage) || "Are you sure you want to leave this family?")) return;
+    setIsProcessing(true);
+    try {
+      await onLeaveFamily(familyId, user.uid);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to leave family.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const ManageBranches = () => (
     <div className="animate-in slide-in-from-right duration-300">
       <SubViewHeader title={t('profile.sub.branches', currentLanguage)} onBack={() => setActiveSubView('none')} />
+
+      <div className="grid grid-cols-2 gap-3 mb-8">
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="bg-primary text-white p-6 rounded-[32px] flex flex-col items-center justify-center gap-3 shadow-xl shadow-primary/20 active:scale-95 transition-all text-center"
+        >
+          <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
+            <PlusCircle size={24} />
+          </div>
+          <span className="text-[10px] font-black uppercase tracking-widest">{t('profile.sub.create_branch', currentLanguage)}</span>
+        </button>
+        <button
+          onClick={() => setShowJoinModal(true)}
+          className="bg-accent text-white p-6 rounded-[32px] flex flex-col items-center justify-center gap-3 shadow-xl shadow-accent/20 active:scale-95 transition-all text-center"
+        >
+          <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center">
+            <Mail size={24} />
+          </div>
+          <span className="text-[10px] font-black uppercase tracking-widest">{t('dashboard.join_family', currentLanguage)}</span>
+        </button>
+      </div>
+
       <div className="space-y-4">
-        {userFamilies.map((family) => (
-          <div key={family.id} className="bg-white dark:bg-white/5 p-6 rounded-[32px] border border-secondary/20 dark:border-white/10 flex items-center justify-between group">
+        <SectionHeader title={t('profile.sub.my_branches', currentLanguage) || "My Branches"} icon={Users} />
+        {families.map((family) => (
+          <div key={family.id} className="bg-white dark:bg-white/5 p-6 rounded-[32px] border border-secondary/20 dark:border-white/10 flex items-center justify-between group animate-in fade-in duration-300">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-primary/10 dark:bg-white/10 rounded-2xl flex items-center justify-center text-primary dark:text-white">
-                <Users size={24} />
+              <div className="w-14 h-14 bg-support/20 dark:bg-white/10 rounded-2xl flex items-center justify-center text-primary dark:text-white font-black text-xl border border-white dark:border-charcoal shadow-sm">
+                {family.familyName.charAt(0)}
               </div>
               <div>
-                <p className="font-black text-charcoal dark:text-warmwhite leading-none text-lg">{family.familyName}</p>
-                <div className="flex items-center gap-1.5 mt-2">
-                  <Globe size={10} className="text-slate dark:text-support/40" />
-                  <p className="text-[10px] font-black text-slate dark:text-support/40 uppercase tracking-widest">{family.defaultLanguage}</p>
+                <p className="font-black text-charcoal dark:text-warmwhite leading-none text-lg tracking-tight">{family.familyName}</p>
+                <div className="flex items-center gap-2 mt-2">
+                  <div className="flex items-center gap-1">
+                    <Globe size={10} className="text-slate/40" />
+                    <span className="text-[9px] font-black text-slate/40 uppercase tracking-widest">{family.defaultLanguage}</span>
+                  </div>
+                  <span className="w-1 h-1 bg-slate/20 rounded-full"></span>
+                  <span className="text-[9px] font-black text-primary/60 uppercase tracking-widest">{family.members.length} {t('dashboard.members', currentLanguage)}</span>
+                  {family.inviteCode && (
+                    <>
+                      <span className="w-1 h-1 bg-slate/20 rounded-full"></span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigator.clipboard.writeText(family.inviteCode!);
+                          alert(`Invite code ${family.inviteCode} copied!`);
+                        }}
+                        className="flex items-center gap-1.5 px-2 py-0.5 bg-accent/10 rounded-full text-[9px] font-black text-accent uppercase tracking-widest hover:bg-accent/20 transition-colors"
+                        title="Click to copy invite code"
+                      >
+                        <Mail size={10} />
+                        {family.inviteCode}
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
-            <button className="p-3 text-slate hover:text-red-500 dark:text-support/40 dark:hover:text-red-400 transition-colors">
+            <button
+              onClick={() => handleLeaveFamily(family.id)}
+              disabled={isProcessing}
+              className="p-4 bg-secondary/5 dark:bg-white/5 rounded-2xl text-slate hover:text-red-500 dark:text-support/40 dark:hover:text-red-400 transition-all active:scale-90 disabled:opacity-50"
+              title="Leave Family"
+            >
               <LogOut size={18} />
             </button>
           </div>
         ))}
-        <button className="w-full py-6 border-2 border-dashed border-secondary/40 dark:border-white/10 rounded-[32px] flex items-center justify-center gap-3 text-slate dark:text-support/40 font-black uppercase tracking-widest text-[11px] hover:bg-secondary/5 dark:hover:bg-white/5 transition-all active:scale-[0.98]">
-          <PlusCircle size={18} />
-          {t('profile.sub.create_branch', currentLanguage)}
-        </button>
       </div>
+
+      {/* Create Family Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 animate-in fade-in duration-200">
+          <div className="absolute inset-0 bg-charcoal/60 backdrop-blur-md" onClick={() => setShowCreateModal(false)}></div>
+          <div className="relative w-full max-w-sm bg-warmwhite dark:bg-charcoal rounded-[40px] p-8 shadow-2xl border border-white/20 dark:border-white/10 animate-in zoom-in-95 duration-300 space-y-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-2xl font-black text-charcoal dark:text-warmwhite tracking-tight">{t('profile.sub.create_branch', currentLanguage)}</h3>
+              <button onClick={() => setShowCreateModal(false)} className="p-2.5 bg-secondary/10 dark:bg-white/5 rounded-xl hover:bg-secondary/20 transition-all"><X size={20} /></button>
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate/40 dark:text-support/40 uppercase tracking-[0.2em] px-1">{t('login.family_name', currentLanguage)}</label>
+              <input
+                type="text"
+                placeholder="e.g. Smith Family"
+                className="w-full p-4 bg-white dark:bg-white/5 rounded-2xl border border-secondary/20 dark:border-white/10 outline-none font-bold text-charcoal dark:text-warmwhite shadow-sm focus:border-primary/50 transition-all"
+                value={newFamilyName}
+                onChange={(e) => setNewFamilyName(e.target.value)}
+              />
+            </div>
+            <button
+              onClick={handleCreateFamily}
+              disabled={!newFamilyName.trim() || isProcessing}
+              className="w-full py-5 bg-primary text-white font-black rounded-3xl shadow-xl shadow-primary/20 flex items-center justify-center gap-3 active:scale-[0.98] transition-all disabled:opacity-50 text-[11px] uppercase tracking-widest"
+            >
+              {isProcessing ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle2 size={18} />}
+              {t('profile.sub.create_confirm', currentLanguage) || "Create Branch"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Join Family Modal */}
+      {showJoinModal && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 animate-in fade-in duration-200">
+          <div className="absolute inset-0 bg-charcoal/60 backdrop-blur-md" onClick={() => setShowJoinModal(false)}></div>
+          <div className="relative w-full max-w-sm bg-warmwhite dark:bg-charcoal rounded-[40px] p-8 shadow-2xl border border-white/20 dark:border-white/10 animate-in zoom-in-95 duration-300 space-y-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-2xl font-black text-charcoal dark:text-warmwhite tracking-tight">{t('dashboard.join_family', currentLanguage)}</h3>
+              <button onClick={() => setShowJoinModal(false)} className="p-2.5 bg-secondary/10 dark:bg-white/5 rounded-xl hover:bg-secondary/20 transition-all"><X size={20} /></button>
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black text-slate/40 dark:text-support/40 uppercase tracking-[0.2em] px-1">{t('login.invite_code', currentLanguage)}</label>
+              <input
+                type="text"
+                placeholder="E.g. ABCD123"
+                className="w-full p-4 bg-white dark:bg-white/5 rounded-2xl border border-secondary/20 dark:border-white/10 outline-none font-bold text-charcoal dark:text-warmwhite shadow-sm focus:border-primary/50 transition-all uppercase"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value)}
+              />
+            </div>
+            <button
+              onClick={handleJoinFamilyByCode}
+              disabled={!inviteCode.trim() || isProcessing}
+              className="w-full py-5 bg-accent text-white font-black rounded-3xl shadow-xl shadow-accent/20 flex items-center justify-center gap-3 active:scale-[0.98] transition-all disabled:opacity-50 text-[11px] uppercase tracking-widest"
+            >
+              {isProcessing ? <Loader2 size={18} className="animate-spin" /> : <Mail size={18} />}
+              {t('login.join_btn', currentLanguage)}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 
-  const JoinRequests = () => {
-    const handleRequest = (id: string, action: 'accept' | 'decline') => {
-      setMockJoinRequests(prev => prev.filter(r => r.id !== id));
-    };
-
-    return (
-      <div className="animate-in slide-in-from-right duration-300">
-        <SubViewHeader title={t('profile.sub.requests', currentLanguage)} onBack={() => setActiveSubView('none')} />
-
-        {mockJoinRequests.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 opacity-30">
-            <Mail size={48} className="mb-4" />
-            <p className="text-[10px] font-black uppercase tracking-[0.2em]">{t('profile.sub.no_requests', currentLanguage)}</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {mockJoinRequests.map((req) => (
-              <div key={req.id} className="bg-white dark:bg-white/5 p-6 rounded-[32px] border border-secondary/20 dark:border-white/10 animate-in fade-in slide-in-from-top-4 duration-300">
-                <div className="flex items-start justify-between mb-6">
-                  <div className="flex gap-4">
-                    <div className="w-12 h-12 rounded-2xl overflow-hidden border border-secondary/20">
-                      <img src={req.avatar} alt={req.userName} className="w-full h-full object-cover" />
-                    </div>
-                    <div>
-                      <h4 className="font-black text-charcoal dark:text-warmwhite leading-none mb-1">{req.userName}</h4>
-                      <p className="text-[10px] font-bold text-slate dark:text-support/60">{t('profile.sub.request_join', currentLanguage)} <span className="text-primary dark:text-white">{req.familyName}</span></p>
-                    </div>
-                  </div>
-                  <span className="text-[10px] font-black text-slate/30 uppercase tracking-widest">{req.timestamp}</span>
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => handleRequest(req.id, 'accept')}
-                    className="flex-1 bg-primary text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-primary/20"
-                  >
-                    <Check size={16} strokeWidth={3} /> {t('profile.sub.accept', currentLanguage)}
-                  </button>
-                  <button
-                    onClick={() => handleRequest(req.id, 'decline')}
-                    className="flex-1 bg-secondary/10 dark:bg-white/5 text-slate dark:text-support/60 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all"
-                  >
-                    <X size={16} strokeWidth={3} /> {t('profile.sub.decline', currentLanguage)}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
 
   const ThemeSelector = () => {
     const themeOptions = [
@@ -455,7 +571,14 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
 
               <div className="relative mb-6">
                 <div className="w-24 h-24 rounded-[32px] overflow-hidden border-4 border-warmwhite dark:border-charcoal shadow-xl relative">
-                  <img src={user.profilePhoto} alt={user.displayName} className={`w-full h-full object-cover transition-opacity ${isUploading ? 'opacity-50' : ''}`} />
+                  <img
+                    src={user.profilePhoto || `https://i.pravatar.cc/150?u=${user.uid}`}
+                    alt={user.displayName}
+                    className={`w-full h-full object-cover transition-opacity ${isUploading ? 'opacity-50' : ''}`}
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = `https://i.pravatar.cc/150?u=${user.uid}`;
+                    }}
+                  />
                   {isUploading && (
                     <div className="absolute inset-0 flex items-center justify-center">
                       <Loader2 className="w-8 h-8 text-primary animate-spin" />
@@ -530,7 +653,9 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
 
             <SectionHeader title={t('profile.account', currentLanguage)} icon={Shield} />
             <div className="bg-white dark:bg-white/5 rounded-[32px] px-6 py-1 shadow-sm border border-secondary/20 dark:border-white/10 mb-8 transition-colors">
-              <ActionItem label={t('profile.language', currentLanguage)} icon={Globe} sublabel={currentLanguage} onClick={() => setActiveSubView('language')} />
+              {enableTranslation && (
+                <ActionItem label={t('profile.language', currentLanguage)} icon={Globe} sublabel={currentLanguage} onClick={() => setActiveSubView('language')} />
+              )}
               <ActionItem label={t('profile.logout', currentLanguage)} icon={LogOut} onClick={onLogout} danger />
             </div>
           </>
@@ -539,7 +664,77 @@ const Profile: React.FC<ProfileProps> = ({ user, families, onLogout, currentThem
         {activeSubView === 'permissions' && <PermissionGroup />}
         {activeSubView === 'theme' && <ThemeSelector />}
         {activeSubView === 'branches' && <ManageBranches />}
-        {activeSubView === 'requests' && <JoinRequests />}
+        {activeSubView === 'requests' && (
+          <div className="animate-in slide-in-from-right duration-300">
+            <SubViewHeader title={t('profile.sub.requests', currentLanguage)} onBack={() => setActiveSubView('none')} />
+
+            {joinRequests.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 opacity-30">
+                <Mail size={48} className="mb-4" />
+                <p className="text-[10px] font-black uppercase tracking-[0.2em]">{t('profile.sub.no_requests', currentLanguage)}</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {joinRequests.map((req) => (
+                  <div key={req.id} className="bg-white dark:bg-white/5 p-6 rounded-[32px] border border-secondary/20 dark:border-white/10 animate-in fade-in slide-in-from-top-4 duration-300">
+                    <div className="flex items-start justify-between mb-6">
+                      <div className="flex gap-4">
+                        <div className="w-12 h-12 rounded-2xl overflow-hidden border border-secondary/20 bg-support/20">
+                          {req.userAvatar ? (
+                            <img src={req.userAvatar} alt={req.userName} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center font-black text-primary">{req.userName.charAt(0)}</div>
+                          )}
+                        </div>
+                        <div>
+                          <h4 className="font-black text-charcoal dark:text-warmwhite leading-none mb-1">{req.userName}</h4>
+                          <p className="text-[10px] font-bold text-slate dark:text-support/60">{t('profile.sub.request_join', currentLanguage)} <span className="text-primary dark:text-white">{req.familyName}</span></p>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-black text-slate/30 uppercase tracking-widest">
+                        {new Date(req.createdAt as any).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={async () => {
+                          setIsProcessing(true);
+                          try {
+                            await handleReq(req.id, 'accept');
+                          } catch (err) {
+                            alert("Failed to accept request");
+                          } finally {
+                            setIsProcessing(false);
+                          }
+                        }}
+                        disabled={isProcessing}
+                        className="flex-1 bg-primary text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-primary/20"
+                      >
+                        <Check size={16} strokeWidth={3} /> {t('profile.sub.accept', currentLanguage)}
+                      </button>
+                      <button
+                        onClick={async () => {
+                          setIsProcessing(true);
+                          try {
+                            await handleReq(req.id, 'declined');
+                          } catch (err) {
+                            alert("Failed to decline request");
+                          } finally {
+                            setIsProcessing(false);
+                          }
+                        }}
+                        disabled={isProcessing}
+                        className="flex-1 bg-secondary/10 dark:bg-white/5 text-slate dark:text-support/60 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all"
+                      >
+                        <X size={16} strokeWidth={3} /> {t('profile.sub.decline', currentLanguage)}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         {activeSubView === 'language' && <LanguageSelector />}
       </div>
     </div>

@@ -1,7 +1,10 @@
 {
-    "firestore": {
-        "rules": "firestore.rules"
-    },
+    "firestore": [
+        {
+            "database": "familybank",
+            "rules": "firestore.rules"
+        }
+    ],
     "storage": {
         "rules": "storage.rules"
     }

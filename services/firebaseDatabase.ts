@@ -31,6 +31,8 @@ export const COLLECTIONS = {
     DOCUMENTS: "documents", // Sub-collection under user
     NOTIFICATIONS: "notifications",
     INVITES: "invites",
+    SECURE_INVITES: "secure_invites",
+    JOIN_REQUESTS: "join_requests",
     ACTIVITY: "activity"
 };
 
@@ -50,9 +52,15 @@ export const createOrUpdateUser = async (userId: string, userData: Partial<User>
         const userRef = doc(db, COLLECTIONS.USERS, userId);
         const now = new Date().toISOString();
 
+        const currentDoc = await getDoc(userRef);
+        const currentData = currentDoc.exists() ? currentDoc.data() : {};
+
         await setDoc(userRef, {
+            ...currentData,
             ...clean(userData),
             uid: userId,
+            familyIds: userData.familyIds || currentData.familyIds || [],
+            draftCount: userData.draftCount ?? currentData.draftCount ?? 0,
             lastLoginAt: now,
             updatedAt: Timestamp.now()
         }, { merge: true });
@@ -78,19 +86,46 @@ export const getUser = async (userId: string): Promise<User | null> => {
     }
 };
 
+export const getUsers = async (userIds: string[]): Promise<User[]> => {
+    try {
+        if (!userIds || userIds.length === 0) return [];
+
+        // Firestore 'in' query supports up to 30 items
+        const chunks: string[][] = [];
+        for (let i = 0; i < userIds.length; i += 30) {
+            chunks.push(userIds.slice(i, i + 30));
+        }
+
+        const users: User[] = [];
+        for (const chunk of chunks) {
+            const q = query(collection(db, COLLECTIONS.USERS), where("uid", "in", chunk));
+            const snapshot = await getDocs(q);
+            snapshot.forEach(doc => {
+                users.push({ ...doc.data() } as User);
+            });
+        }
+        return users;
+    } catch (error) {
+        console.error("Error getting users:", error);
+        return [];
+    }
+};
+
 // ============================================
 // FAMILY OPERATIONS
 // ============================================
 
 export const createFamily = async (familyData: Omit<Family, 'id' | 'createdAt'>): Promise<string> => {
     try {
+        const inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase();
         const familyRef = await addDoc(collection(db, COLLECTIONS.FAMILIES), {
             ...clean(familyData),
             admins: familyData.admins || [familyData.createdBy],
+            inviteCode: familyData.inviteCode || inviteCode,
             createdAt: new Date().toISOString(),
             updatedAt: Timestamp.now()
         });
-        console.log("✅ Family created:", familyRef.id);
+        console.log("✅ Family created with invite code:", inviteCode);
         return familyRef.id;
     } catch (error) {
         console.error("Error creating family:", error);
@@ -113,6 +148,110 @@ export const getFamily = async (familyId: string): Promise<Family | null> => {
     }
 };
 
+export const addFamilyAdmin = async (familyId: string, userId: string): Promise<void> => {
+    try {
+        const familyRef = doc(db, COLLECTIONS.FAMILIES, familyId);
+        await updateDoc(familyRef, {
+            admins: arrayUnion(userId),
+            updatedAt: Timestamp.now()
+        });
+        console.log(`✅ User ${userId} promoted to admin in family ${familyId}`);
+    } catch (error) {
+        console.error("Error adding family admin:", error);
+        throw error;
+    }
+};
+
+export const joinFamilyByCode = async (inviteCode: string, userId: string, userName: string, userAvatar?: string): Promise<string> => {
+    try {
+        const q = query(collection(db, COLLECTIONS.FAMILIES), where("inviteCode", "==", inviteCode.toUpperCase()));
+        const snapshot = await getDocs(q);
+
+        if (snapshot.empty) {
+            throw new Error("Invalid invite code");
+        }
+
+        const familyDoc = snapshot.docs[0];
+        const familyId = familyDoc.id;
+        const familyData = familyDoc.data() as Family;
+
+        if (familyData.members.includes(userId)) {
+            throw new Error("Already a member");
+        }
+
+        // Check if a request already exists
+        const reqQ = query(
+            collection(db, COLLECTIONS.JOIN_REQUESTS),
+            where("familyId", "==", familyId),
+            where("userId", "==", userId),
+            where("status", "==", "pending")
+        );
+        const reqSnapshot = await getDocs(reqQ);
+        if (!reqSnapshot.empty) {
+            throw new Error("Request already pending");
+        }
+
+        await addDoc(collection(db, COLLECTIONS.JOIN_REQUESTS), {
+            familyId,
+            familyName: familyData.familyName,
+            userId,
+            userName,
+            userAvatar: userAvatar || "",
+            status: "pending",
+            createdAt: Timestamp.now()
+        });
+
+        return familyId;
+    } catch (error: any) {
+        console.error("Error requesting to join family:", error);
+        throw error;
+    }
+};
+
+export const listenToJoinRequests = (familyIds: string[], callback: (requests: any[]) => void) => {
+    if (familyIds.length === 0) {
+        callback([]);
+        return () => { };
+    }
+
+    const q = query(
+        collection(db, COLLECTIONS.JOIN_REQUESTS),
+        where("familyId", "in", familyIds),
+        where("status", "==", "pending"),
+        orderBy("createdAt", "desc")
+    );
+
+    return onSnapshot(q, (snapshot) => {
+        const requests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        callback(requests);
+    }, (error) => {
+        console.error("Error in listenToJoinRequests:", error);
+    });
+};
+
+export const handleJoinRequest = async (requestId: string, action: 'accept' | 'declined'): Promise<void> => {
+    try {
+        const reqRef = doc(db, COLLECTIONS.JOIN_REQUESTS, requestId);
+        const reqSnap = await getDoc(reqRef);
+
+        if (!reqSnap.exists()) return;
+
+        const data = reqSnap.data();
+
+        if (action === 'accept') {
+            await addFamilyMember(data.familyId, data.userId);
+        }
+
+        await updateDoc(reqRef, {
+            status: action,
+            updatedAt: Timestamp.now()
+        });
+    } catch (error) {
+        console.error("Error handling join request:", error);
+        throw error;
+    }
+};
+
 export const getUserFamilies = async (userId: string): Promise<Family[]> => {
     try {
         const q = query(
@@ -120,7 +259,17 @@ export const getUserFamilies = async (userId: string): Promise<Family[]> => {
             where("members", "array-contains", userId)
         );
         const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Family));
+        return snapshot.docs.map(docSnap => {
+            const data = docSnap.data() as Family;
+            if (!data.inviteCode) {
+                return {
+                    id: docSnap.id,
+                    ...data,
+                    inviteCode: Math.random().toString(36).substring(2, 10).toUpperCase()
+                };
+            }
+            return { id: docSnap.id, ...data };
+        });
     } catch (error) {
         console.error("Error getting user families:", error);
         throw error;
@@ -146,6 +295,100 @@ export const addFamilyMember = async (familyId: string, userId: string): Promise
         console.log("✅ Member added to family");
     } catch (error) {
         console.error("Error adding family member:", error);
+        throw error;
+    }
+};
+
+export const leaveFamily = async (familyId: string, userId: string): Promise<void> => {
+    try {
+        const familyRef = doc(db, COLLECTIONS.FAMILIES, familyId);
+        const userRef = doc(db, COLLECTIONS.USERS, userId);
+
+        await updateDoc(familyRef, {
+            members: arrayRemove(userId),
+            admins: arrayRemove(userId),
+            updatedAt: Timestamp.now()
+        });
+
+        await updateDoc(userRef, {
+            familyIds: arrayRemove(familyId),
+            updatedAt: Timestamp.now()
+        });
+
+        console.log("✅ User left family");
+    } catch (error) {
+        console.error("Error leaving family:", error);
+        throw error;
+    }
+};
+
+export const generateSecureInvite = async (familyId: string, createdBy: string): Promise<string> => {
+    try {
+        const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
+
+        const inviteRef = await addDoc(collection(db, COLLECTIONS.SECURE_INVITES), {
+            familyId,
+            token,
+            createdBy,
+            expiresAt: expiresAt.toISOString(),
+            createdAt: new Date().toISOString(),
+            usedBy: [],
+            maxUses: 10 // Optional limit
+        });
+
+        console.log("✅ Secure invite generated:", inviteRef.id);
+        return token;
+    } catch (error) {
+        console.error("Error generating secure invite:", error);
+        throw error;
+    }
+};
+
+export const validateAndJoinFamily = async (familyId: string, token: string, userId: string): Promise<void> => {
+    try {
+        // 1. Check if token exists and belongs to family
+        const q = query(
+            collection(db, COLLECTIONS.SECURE_INVITES),
+            where("familyId", "==", familyId),
+            where("token", "==", token)
+        );
+
+        const snapshot = await getDocs(q);
+        if (snapshot.empty) {
+            throw new Error("Invalid invite");
+        }
+
+        const inviteDoc = snapshot.docs[0];
+        const inviteData = inviteDoc.data();
+
+        // 2. Check expiry
+        if (new Date(inviteData.expiresAt) < new Date()) {
+            throw new Error("Invite expired");
+        }
+
+        // 3. Check if already a member
+        const familyRef = doc(db, COLLECTIONS.FAMILIES, familyId);
+        const familySnap = await getDoc(familyRef);
+        if (!familySnap.exists()) throw new Error("Family not found");
+
+        const familyData = familySnap.data() as Family;
+        if (familyData.members.includes(userId)) {
+            throw new Error("Already a member");
+        }
+
+        // 4. Perform Join
+        await addFamilyMember(familyId, userId);
+
+        // 5. Mark token as used by this user (optional tracking)
+        await updateDoc(inviteDoc.ref, {
+            usedBy: arrayUnion(userId)
+        });
+
+        console.log("✅ User joined family via secure token");
+    } catch (error: any) {
+        console.error("Error validating secure invite:", error);
         throw error;
     }
 };
@@ -281,6 +524,7 @@ export const addCommentToMemory = async (memoryId: string, authorId: string, use
 // ============================================
 
 export const createQuestion = async (questionData: Omit<Question, 'id'>): Promise<string> => {
+    console.log("🛠️ Attempting to create question for user:", questionData.askedBy, "in family:", questionData.familyId);
     try {
         const userQuestionsRef = collection(db, COLLECTIONS.USERS, questionData.askedBy, COLLECTIONS.QUESTIONS);
         const questionRef = await addDoc(userQuestionsRef, {
@@ -289,10 +533,10 @@ export const createQuestion = async (questionData: Omit<Question, 'id'>): Promis
             createdAt: new Date().toISOString(),
             serverCreatedAt: Timestamp.now()
         });
-        console.log("✅ Question created in user sub-collection:", questionRef.id);
+        console.log("✅ Question created successfully. ID:", questionRef.id);
         return questionRef.id;
     } catch (error) {
-        console.error("Error creating question:", error);
+        console.error("❌ Error creating question in Firestore:", error);
         throw error;
     }
 };
@@ -435,6 +679,8 @@ export const listenToFamilyMemories = (
             memories.push({ id: doc.id, ...doc.data() } as Memory);
         });
         callback(memories);
+    }, (error) => {
+        console.error("Error in listenToFamilyMemories:", error);
     });
 };
 
@@ -455,6 +701,8 @@ export const listenToUserDrafts = (
             drafts.push({ id: doc.id, ...doc.data() } as Memory);
         });
         callback(drafts);
+    }, (error) => {
+        console.error("Error in listenToUserDrafts:", error);
     });
 };
 
@@ -474,6 +722,8 @@ export const listenToFamilyQuestions = (
             questions.push({ id: doc.id, ...doc.data() } as Question);
         });
         callback(questions);
+    }, (error) => {
+        console.error("Error in listenToFamilyQuestions:", error);
     });
 };
 
@@ -493,6 +743,8 @@ export const listenToFamilyDocuments = (
             docs.push({ id: doc.id, ...doc.data() } as FamilyDocument);
         });
         callback(docs);
+    }, (error) => {
+        console.error("Error in listenToFamilyDocuments:", error);
     });
 };
 
@@ -513,6 +765,8 @@ export const listenToUserNotifications = (
             notifications.push({ id: doc.id, ...doc.data() } as Notification);
         });
         callback(notifications);
+    }, (error) => {
+        console.error("Error in listenToUserNotifications:", error);
     });
 };
 
@@ -528,6 +782,8 @@ export const listenToUser = (
         } else {
             callback(null);
         }
+    }, (error) => {
+        console.error("Error in listenToUser:", error);
     });
 };
 
@@ -542,9 +798,28 @@ export const listenToUserFamilies = (
 
     return onSnapshot(q, (snapshot) => {
         const families: Family[] = [];
-        snapshot.forEach((doc) => {
-            families.push({ id: doc.id, ...doc.data() } as Family);
+        snapshot.forEach((docSnap) => {
+            const data = docSnap.data() as Family;
+            let family = { id: docSnap.id, ...data };
+
+            // Self-healing: Ensure invite code exists
+            if (!family.inviteCode) {
+                const newCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+                family.inviteCode = newCode;
+
+                // If the user listening is an admin, update the doc in background
+                if (data.admins.includes(userId)) {
+                    updateDoc(docSnap.ref, {
+                        inviteCode: newCode,
+                        updatedAt: Timestamp.now()
+                    }).catch(err => console.error("Error updating legacy family code:", err));
+                }
+            }
+
+            families.push(family);
         });
         callback(families);
+    }, (error) => {
+        console.error("Error in listenToUserFamilies:", error);
     });
 };

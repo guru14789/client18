@@ -4,7 +4,17 @@ export enum Language {
   HINDI = 'hi',
   MALAYALAM = 'ml',
   TELUGU = 'te',
-  KANNADA = 'kn'
+  KANNADA = 'kn',
+  SPANISH = 'es',
+  FRENCH = 'fr',
+  GERMAN = 'de',
+  CHINESE = 'zh',
+  ARABIC = 'ar',
+  PORTUGUESE = 'pt',
+  BENGALI = 'bn',
+  RUSSIAN = 'ru',
+  JAPANESE = 'ja',
+  ITALIAN = 'it'
 }
 
 export interface User {
@@ -87,6 +97,16 @@ export interface FamilyInvitation {
   createdAt: string;
 }
 
+export interface SecureInvite {
+  id: string;
+  familyId: string;
+  token: string;
+  createdBy: string;
+  expiresAt: string;
+  usedBy?: string[];
+  maxUses?: number;
+}
+
 export interface Notification {
   id: string;
   userId: string;
@@ -117,6 +137,17 @@ export interface FamilyDocument {
   fileUrl: string;
   storagePath: string;
   uploaderId: string;
+}
+
+export interface JoinRequest {
+  id: string;
+  familyId: string;
+  userId: string;
+  userName: string;
+  userAvatar?: string;
+  familyName: string;
+  status: 'pending' | 'accepted' | 'declined';
+  createdAt: string;
 }
 
 export type AppState = 'splash' | 'onboarding' | 'login' | 'home' | 'feed' | 'questions' | 'record' | 'drafts' | 'profile' | 'documents' | 'nameEntry';

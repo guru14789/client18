@@ -24,6 +24,11 @@ export const translations: Record<Language, Record<string, string>> = {
         "dashboard.name_label": "Name",
         "dashboard.name_placeholder": "e.g. The Smiths",
         "dashboard.lang_label": "Language",
+        "common.admin": "Admin",
+        "common.close": "Close",
+        "common.promote": "Make Admin",
+        "common.share_invite": "Share Invite Link",
+        "common.invite_copied": "Link Copied!",
 
         "nav.home": "Home",
         "nav.feed": "Feed",
@@ -85,6 +90,9 @@ export const translations: Record<Language, Record<string, string>> = {
         "login.nearly_there": "Nearly there!",
         "login.family_call_you": "What should your family call you?",
         "login.full_name": "Your Full Name",
+        "login.family_name": "Family Branch Name",
+        "login.invite_code": "Invite Code",
+        "login.join_btn": "Join Family",
         "login.draft_alert": "You have {count} draft memory awaiting review",
         "login.view": "View",
 
@@ -142,6 +150,9 @@ export const translations: Record<Language, Record<string, string>> = {
         "profile.perm.blocked": "Access Blocked",
         "profile.perm.none": "Not Requested",
         "profile.perm.advisory": "Turning these on allows the app to record your voice, capture video memories, and tag locations. Once granted, your browser may require you to visit settings to revoke access.",
+        "profile.sub.leave_confirm": "Are you sure you want to leave this family?",
+        "profile.sub.create_confirm": "Create Branch",
+        "profile.sub.my_branches": "My Active Branches",
         "profile.theme.advisory": "The theme applies instantly to all screens in the app.",
         "profile.lang.advisory": "This affects AI translations and interface language.",
         "profile.perm.secure_advisory": "Permissions are handled securely by your mobile browser.",
@@ -588,6 +599,11 @@ export const translations: Record<Language, Record<string, string>> = {
         "dashboard.name_label": "பெயர்",
         "dashboard.name_placeholder": "உதாரணமாக: சந்தோஷ் குடும்பம்",
         "dashboard.lang_label": "மொழி",
+        "common.admin": "நிர்வாகி",
+        "common.close": "மூடு",
+        "common.promote": "நிர்வாகியாக்கு",
+        "common.share_invite": "அழைப்பு இணைப்பைப் பகிரவும்",
+        "common.invite_copied": "இணைப்பு நகலெடுக்கப்பட்டது!",
 
         "nav.home": "முகப்பு",
         "nav.feed": "பதிவுகள்",
@@ -942,6 +958,9 @@ export const translations: Record<Language, Record<string, string>> = {
     [Language.RUSSIAN]: { "dashboard.greeting": "Привет" },
     [Language.JAPANESE]: { "dashboard.greeting": "こんにちは" },
     [Language.ITALIAN]: { "dashboard.greeting": "Ciao" },
+    [Language.MALAYALAM]: { "dashboard.greeting": "നമസ്കാരം" },
+    [Language.TELUGU]: { "dashboard.greeting": "నమస్కారం" },
+    [Language.KANNADA]: { "dashboard.greeting": "ನಮಸ್ಕಾರ" }
 };
 
 export const t = (key: string, lang: Language): string => {

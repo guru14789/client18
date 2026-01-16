@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Archive, Plus, Video, X, Globe, MapPin, Info, ThumbsUp, Play } from 'lucide-react';
+import { Users, Archive, Plus, Video, X, Globe, MapPin, Info, ThumbsUp, Play, Loader2, Share2, CheckCircle, Mail } from 'lucide-react';
 import { User, Family, Question, Language } from '../types';
 import { t } from '../services/i18n';
 import { LocalizedText } from './LocalizedText';
+import { getUsers, addFamilyAdmin, generateSecureInvite } from '../services/firebaseServices';
 
 interface DashboardProps {
   user: User;
@@ -23,6 +24,11 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
   const [newFamilyName, setNewFamilyName] = useState('');
   const [newFamilyLang, setNewFamilyLang] = useState<Language>(Language.TAMIL);
   const [greeting, setGreeting] = useState('Hello');
+  const [viewingMembersFamily, setViewingMembersFamily] = useState<Family | null>(null);
+  const [groupMembers, setGroupMembers] = useState<User[]>([]);
+  const [isLoadingMembers, setIsLoadingMembers] = useState(false);
+  const [isPromoting, setIsPromoting] = useState<string | null>(null);
+  const [showInviteFeedback, setShowInviteFeedback] = useState(false);
 
   const activeFamily = families.find(f => f.id === activeFamilyId) || families[0];
 
@@ -44,6 +50,61 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
       onAddFamily(newFamilyName, newFamilyLang);
       setNewFamilyName('');
       setIsCreatingFamily(false);
+    }
+  };
+
+  const handleViewMembers = async (family: Family) => {
+    setViewingMembersFamily(family);
+    setIsLoadingMembers(true);
+    try {
+      const members = await getUsers(family.members);
+      setGroupMembers(members);
+    } catch (err) {
+      console.error("Error fetching group members:", err);
+    } finally {
+      setIsLoadingMembers(false);
+    }
+  };
+
+  const handlePromoteMember = async (memberId: string) => {
+    if (!viewingMembersFamily) return;
+    setIsPromoting(memberId);
+    try {
+      await addFamilyAdmin(viewingMembersFamily.id, memberId);
+      // Update local state to reflect change immediately
+      setViewingMembersFamily({
+        ...viewingMembersFamily,
+        admins: [...(viewingMembersFamily.admins || []), memberId]
+      });
+    } catch (err) {
+      console.error("Error promoting member:", err);
+    } finally {
+      setIsPromoting(null);
+    }
+  };
+
+  const handleShareInvite = async (family: Family) => {
+    try {
+      setShowInviteFeedback(true);
+      const token = await generateSecureInvite(family.id, user.uid);
+      const inviteLink = `${window.location.origin}/invite?familyId=${family.id}&token=${token}`;
+
+      navigator.clipboard.writeText(inviteLink);
+
+      // Also try to use Web Share API if available
+      if (navigator.share) {
+        await navigator.share({
+          title: `Join our family on Inai!`,
+          text: `Join the ${family.familyName} group on Inai to share memories securely!`,
+          url: inviteLink
+        });
+      }
+
+      setTimeout(() => setShowInviteFeedback(false), 2000);
+    } catch (err) {
+      console.error("Error sharing invite:", err);
+      setShowInviteFeedback(false);
+      alert("Failed to generate secure invite link.");
     }
   };
 
@@ -194,93 +255,157 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
       </div>
 
       {/* Family Switcher Modal */}
-      {
-        isSwitchingFamily && (
-          <div className="fixed inset-0 z-[200] flex items-end justify-center">
-            <div
-              className="absolute inset-0 bg-charcoal/60 backdrop-blur-sm animate-in fade-in duration-300"
-              onClick={() => setIsSwitchingFamily(false)}
-            ></div>
-            <div className="relative w-full max-md bg-warmwhite dark:bg-charcoal rounded-t-[56px] shadow-[0_-20px_80px_rgba(0,0,0,0.4)] animate-in slide-in-from-bottom duration-500 p-10 border-t border-white/20 dark:border-white/10 safe-area-bottom">
-              <div className="flex items-center justify-between mb-8">
+      {isSwitchingFamily && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 sm:p-10">
+          <div
+            className="absolute inset-0 bg-charcoal/40 backdrop-blur-md animate-in fade-in duration-300"
+            onClick={() => setIsSwitchingFamily(false)}
+          ></div>
+          <div className="relative w-full max-w-[440px] bg-warmwhite dark:bg-charcoal rounded-[48px] shadow-2xl animate-in zoom-in-95 duration-300 overflow-hidden border border-white/20 dark:border-white/10 flex flex-col max-h-[85vh]">
+            <div className="p-8 pb-4 shrink-0">
+              <div className="flex items-center justify-between mb-2">
                 <div>
-                  <h3 className="text-3xl font-black text-charcoal dark:text-warmwhite tracking-tighter">{t('dashboard.families_title', currentLanguage)}</h3>
-                  <p className="text-slate font-bold text-sm uppercase tracking-widest mt-1 opacity-60">{t('dashboard.families_subtitle', currentLanguage)}</p>
+                  <h3 className="text-3xl font-black text-charcoal dark:text-warmwhite tracking-tighter leading-tight">{t('dashboard.families_title', currentLanguage)}</h3>
+                  <p className="text-[10px] font-black text-slate/40 dark:text-support/40 uppercase tracking-[0.2em]">{t('dashboard.families_subtitle', currentLanguage)}</p>
                 </div>
                 <button
                   onClick={() => setIsSwitchingFamily(false)}
-                  className="p-4 bg-secondary/30 dark:bg-white/10 rounded-full"
+                  className="p-3 bg-secondary/10 dark:bg-white/5 hover:bg-secondary/20 dark:hover:bg-white/10 rounded-2xl transition-all active:scale-90"
                 >
-                  <X size={24} />
+                  <X size={20} className="text-charcoal dark:text-warmwhite" />
                 </button>
               </div>
+            </div>
 
-              <div className="space-y-4 max-h-[50vh] overflow-y-auto no-scrollbar pb-6">
-                {families.map((family) => (
-                  <button
-                    key={family.id}
-                    onClick={() => {
-                      onSwitchFamily(family.id);
-                      setIsSwitchingFamily(false);
-                    }}
-                    className={`w-full flex items-center justify-between p-6 rounded-[32px] transition-all ${family.id === activeFamilyId
-                      ? 'bg-primary text-white shadow-xl shadow-primary/30 scale-105'
-                      : 'bg-white dark:bg-white/5 border border-secondary/20 dark:border-white/10 text-charcoal dark:text-warmwhite'
-                      }`}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={`p-4 rounded-3xl ${family.id === activeFamilyId ? 'bg-white/20' : 'bg-primary/10'}`}>
-                        <Users size={24} className={family.id === activeFamilyId ? 'text-white' : 'text-primary'} />
+            <div className="px-8 flex-1 overflow-y-auto no-scrollbar pb-4">
+              <div className="grid gap-4">
+                {families.map((family) => {
+                  const isActive = family.id === activeFamilyId;
+                  const isAdmin = family.admins?.includes(user.uid);
+
+                  return (
+                    <button
+                      key={family.id}
+                      onClick={() => {
+                        onSwitchFamily(family.id);
+                        setIsSwitchingFamily(false);
+                      }}
+                      className={`group relative w-full flex flex-col p-6 rounded-[32px] transition-all border text-left overflow-hidden ${isActive
+                        ? 'bg-primary text-white border-primary shadow-xl shadow-primary/20 scale-[1.02]'
+                        : 'bg-white dark:bg-white/5 border-secondary/20 dark:border-white/10 text-charcoal dark:text-warmwhite hover:border-primary/30'
+                        }`}
+                    >
+                      {/* Background accent for active state */}
+                      {isActive && (
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-16 -mt-16 pointer-events-none" />
+                      )}
+
+                      <div className="flex items-center justify-between mb-4 relative z-10">
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${isActive ? 'bg-white/20' : 'bg-primary/10'}`}>
+                          <Users size={22} className={isActive ? 'text-white' : 'text-primary'} />
+                        </div>
+
+                        <div className="flex gap-2">
+                          <div
+                            className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all active:scale-95 border ${isActive ? 'bg-white/20 border-white/20 text-white' : 'bg-secondary/10 dark:bg-white/5 border-transparent text-slate dark:text-support/40'
+                              }`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewMembers(family);
+                            }}
+                          >
+                            <Info size={16} />
+                          </div>
+                          {isAdmin && (
+                            <div
+                              className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all active:scale-95 border ${isActive ? 'bg-white/20 border-white/20 text-white' : 'bg-secondary/10 dark:bg-white/5 border-transparent text-slate dark:text-support/40'
+                                }`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleShareInvite(family);
+                              }}
+                            >
+                              {showInviteFeedback && isActive ? <CheckCircle size={16} /> : <Share2 size={16} />}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="text-left">
-                        <p className="font-black text-xl leading-tight">
+
+                      <div className="relative z-10">
+                        <h4 className="font-black text-xl leading-none">
                           <LocalizedText
                             text={family.familyName}
                             targetLanguage={currentLanguage}
                             originalLanguage={family.defaultLanguage as any}
                           />
-                        </p>
-                        <div className="flex items-center gap-3 mt-1.5">
-                          <div className="flex items-center -space-x-2">
+                        </h4>
+
+                        <div className="flex items-center gap-3 mt-3">
+                          <div className="flex items-center -space-x-1.5 auto-cols-max">
                             {family.members.slice(0, 3).map((mid) => (
-                              <div key={mid} className="w-5 h-5 rounded-full border-2 border-white dark:border-charcoal bg-support overflow-hidden">
-                                <img src={`https://i.pravatar.cc/150?u=${mid}`} className="w-full h-full object-cover" alt="Member" />
+                              <div key={mid} className={`w-6 h-6 rounded-full border-2 overflow-hidden bg-support ${isActive ? 'border-primary' : 'border-white dark:border-charcoal'}`}>
+                                <img
+                                  src={`https://i.pravatar.cc/150?u=${mid}`}
+                                  className="w-full h-full object-cover"
+                                  alt="Member"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${mid}`;
+                                  }}
+                                />
                               </div>
                             ))}
                             {family.members.length > 3 && (
-                              <div className="w-5 h-5 rounded-full bg-black/10 dark:bg-white/10 flex items-center justify-center text-[7px] font-black text-charcoal dark:text-warmwhite border-2 border-white dark:border-charcoal backdrop-blur-sm">
+                              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[7px] font-black border-2 backdrop-blur-sm ${isActive ? 'bg-white/20 border-primary text-white' : 'bg-black/10 dark:bg-white/10 border-white dark:border-charcoal text-charcoal dark:text-warmwhite'
+                                }`}>
                                 +{family.members.length - 3}
                               </div>
                             )}
                           </div>
-                          <p className={`text-[10px] font-black uppercase tracking-widest ${family.id === activeFamilyId ? 'text-white/60' : 'text-slate/40'}`}>
+                          <span className={`text-[9px] font-black uppercase tracking-widest ${isActive ? 'text-white/60' : 'text-slate/40'}`}>
                             {family.members.length} {family.members.length === 1 ? t('dashboard.member', currentLanguage) : t('dashboard.members', currentLanguage)}
-                          </p>
+                          </span>
+                          {family.inviteCode && (
+                            <>
+                              <span className={`w-1 h-1 rounded-full ${isActive ? 'bg-white/40' : 'bg-slate/20'}`}></span>
+                              <div
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigator.clipboard.writeText(family.inviteCode!);
+                                  alert(`Invite code ${family.inviteCode} copied!`);
+                                }}
+                                className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-colors cursor-pointer ${isActive ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-accent/10 text-accent hover:bg-accent/20'
+                                  }`}
+                              >
+                                <Mail size={10} />
+                                {family.inviteCode}
+                              </div>
+                            </>
+                          )}
                         </div>
                       </div>
-                    </div>
-                    {family.id === activeFamilyId && (
-                      <div className="w-6 h-6 bg-white rounded-full flex items-center justify-center text-primary">
-                        <Info size={14} strokeWidth={4} />
-                      </div>
-                    )}
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
+            </div>
 
+            <div className="p-8 pt-2 shrink-0">
               <button
                 onClick={() => {
                   setIsSwitchingFamily(false);
                   setIsCreatingFamily(true);
                 }}
-                className="w-full py-5 rounded-[28px] border-2 border-dashed border-secondary/40 text-slate/60 font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 hover:bg-primary/5 transition-all mt-4"
+                className="group w-full py-5 rounded-[28px] border-2 border-dashed border-secondary/40 hover:border-primary/50 text-slate/60 hover:text-primary font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-3 transition-all active:scale-[0.98]"
               >
-                <Plus size={16} /> {t('dashboard.create_new', currentLanguage)}
+                <div className="w-8 h-8 rounded-full bg-secondary/10 group-hover:bg-primary/10 flex items-center justify-center transition-colors">
+                  <Plus size={16} />
+                </div>
+                {t('dashboard.create_new', currentLanguage)}
               </button>
             </div>
           </div>
-        )
-      }
+        </div>
+      )}
 
       {/* Branch Creation Modal */}
       {
@@ -321,7 +446,125 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
           </div>
         )
       }
-    </div >
+
+      {/* Group Members Modal */}
+      {viewingMembersFamily && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center p-6 sm:p-10">
+          <div className="absolute inset-0 bg-charcoal/60 backdrop-blur-md" onClick={() => setViewingMembersFamily(null)}></div>
+          <div className="relative w-full max-w-[440px] bg-warmwhite dark:bg-charcoal rounded-[48px] overflow-hidden shadow-2xl border border-white/20 dark:border-white/10 animate-in zoom-in-95 duration-300 flex flex-col max-h-[85vh]">
+            <div className="p-8 bg-primary/10 border-b border-primary/10 shrink-0">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-2xl font-black text-charcoal dark:text-warmwhite tracking-tight leading-tight">
+                    <LocalizedText
+                      text={viewingMembersFamily.familyName}
+                      targetLanguage={currentLanguage}
+                      originalLanguage={viewingMembersFamily.defaultLanguage as any}
+                    />
+                  </h3>
+                  <div className="flex items-center gap-3 mt-1">
+                    <div className="flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                      <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em]">{viewingMembersFamily.members.length} {t('dashboard.members', currentLanguage)}</p>
+                    </div>
+                    {viewingMembersFamily.inviteCode && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigator.clipboard.writeText(viewingMembersFamily.inviteCode!);
+                          alert(`Invite code ${viewingMembersFamily.inviteCode} copied!`);
+                        }}
+                        className="px-2.5 py-1 bg-white dark:bg-white/10 rounded-xl text-[10px] font-black text-primary dark:text-warmwhite uppercase tracking-widest hover:bg-white/50 transition-all flex items-center gap-1.5 shadow-sm border border-primary/10"
+                        title="Click to copy invite code"
+                      >
+                        <Mail size={12} />
+                        {viewingMembersFamily.inviteCode}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {viewingMembersFamily.admins?.includes(user.uid) && (
+                    <button
+                      onClick={() => handleShareInvite(viewingMembersFamily)}
+                      className={`p-3.5 bg-white dark:bg-white/10 rounded-2xl shadow-sm border border-secondary/10 dark:border-white/5 transition-all active:scale-95 ${showInviteFeedback ? 'text-green-500 scale-105' : 'text-primary'}`}
+                    >
+                      {showInviteFeedback ? <CheckCircle size={20} /> : <Share2 size={20} />}
+                    </button>
+                  )}
+                  <button onClick={() => setViewingMembersFamily(null)} className="p-3.5 bg-white dark:bg-white/10 rounded-2xl shadow-sm border border-secondary/10 dark:border-white/5 text-charcoal dark:text-warmwhite active:scale-90 transition-transform">
+                    <X size={20} />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-8 flex-1 overflow-y-auto no-scrollbar space-y-4">
+              {isLoadingMembers ? (
+                <div className="py-20 flex flex-col items-center gap-4">
+                  <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin shadow-inner"></div>
+                  <p className="text-[10px] font-black text-slate/40 uppercase tracking-[0.2em]">{t('common.loading', currentLanguage)}</p>
+                </div>
+              ) : (
+                groupMembers.map((member) => (
+                  <div key={member.uid} className="group flex items-center gap-4 p-4 bg-white dark:bg-white/5 rounded-3xl border border-secondary/10 dark:border-white/5 hover:border-primary/20 transition-all hover:bg-primary/[0.02]">
+                    <div className="w-14 h-14 rounded-2xl overflow-hidden bg-support/20 border-2 border-white dark:border-charcoal shadow-sm transition-transform group-hover:scale-105">
+                      <img
+                        src={member.profilePhoto || `https://i.pravatar.cc/150?u=${member.uid}`}
+                        className="w-full h-full object-cover"
+                        alt={member.displayName}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = `https://i.pravatar.cc/150?u=${member.uid}`;
+                        }}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-black text-charcoal dark:text-warmwhite truncate text-lg leading-tight">{member.displayName}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border ${viewingMembersFamily.admins?.includes(member.uid)
+                          ? 'bg-primary/10 text-primary border-primary/20'
+                          : 'bg-slate/10 text-slate/60 border-slate/10'
+                          }`}>
+                          {viewingMembersFamily.admins?.includes(member.uid) ? t('common.admin', currentLanguage) : t('dashboard.member', currentLanguage)}
+                        </span>
+                      </div>
+                    </div>
+                    {member.uid === user.uid ? (
+                      <div className="px-3 py-1 bg-primary/10 text-primary text-[8px] font-black uppercase tracking-widest rounded-full border border-primary/20">
+                        {t('feed.you', currentLanguage)}
+                      </div>
+                    ) : (
+                      viewingMembersFamily.admins?.includes(user.uid) && !viewingMembersFamily.admins?.includes(member.uid) && (
+                        <button
+                          onClick={() => handlePromoteMember(member.uid)}
+                          disabled={isPromoting === member.uid}
+                          className="px-3 py-2 bg-accent/10 hover:bg-accent/20 text-accent text-[9px] font-black uppercase tracking-widest rounded-xl border border-accent/20 transition-all active:scale-95 disabled:opacity-50"
+                        >
+                          {isPromoting === member.uid ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : (
+                            t('common.promote', currentLanguage)
+                          )}
+                        </button>
+                      )
+                    )}
+                  </div>
+                )
+                ))}
+            </div>
+
+            <div className="p-8 pt-0 shrink-0">
+              <button
+                onClick={() => setViewingMembersFamily(null)}
+                className="w-full py-5 bg-charcoal dark:bg-white text-warmwhite dark:text-charcoal rounded-[24px] font-black uppercase tracking-widest text-[11px] shadow-xl shadow-charcoal/20 dark:shadow-white/5 active:scale-[0.98] transition-all hover:brightness-110"
+              >
+                {t('common.close', currentLanguage)}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 

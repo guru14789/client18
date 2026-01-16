@@ -274,9 +274,12 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage }
                 <div className="flex items-start gap-4 mb-6">
                   <div className="w-14 h-14 rounded-2xl border-2 border-white/20 overflow-hidden shadow-2xl bg-support/20 px-0">
                     <img
-                      src={memory.authorId === user.uid ? user.profilePhoto : `https://i.pravatar.cc/150?u=${memory.authorId}`}
+                      src={memory.authorId === user.uid ? (user.profilePhoto || `https://i.pravatar.cc/150?u=${user.uid}`) : `https://i.pravatar.cc/150?u=${memory.authorId}`}
                       className="w-full h-full object-cover"
                       alt="Responder"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = `https://i.pravatar.cc/150?u=${memory.authorId}`;
+                      }}
                     />
                   </div>
                   <div className="flex-1 min-w-0">

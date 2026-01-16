@@ -32,9 +32,10 @@ const COUNTRIES: Country[] = [
 interface LoginProps {
   onLogin: (phone: string, name: string, firebaseUid: string) => void;
   currentLanguage: Language;
+  enablePhoneAuth?: boolean;
 }
 
-const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage }) => {
+const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage, enablePhoneAuth = true }) => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']); // Firebase typically uses 6 digits
   const [name, setName] = useState('');
@@ -253,13 +254,15 @@ const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage }) => {
           </div>
 
           <div className="w-full space-y-4 mb-16">
-            <button
-              onClick={() => setStep('phone')}
-              className="w-full h-16 bg-primary rounded-[24px] flex items-center justify-center gap-4 text-white font-black text-lg shadow-xl shadow-primary/20 active:scale-95 transition-all"
-            >
-              <Smartphone size={24} />
-              {t('login.phone_btn', currentLanguage)}
-            </button>
+            {enablePhoneAuth && (
+              <button
+                onClick={() => setStep('phone')}
+                className="w-full h-16 bg-primary rounded-[24px] flex items-center justify-center gap-4 text-white font-black text-lg shadow-xl shadow-primary/20 active:scale-95 transition-all"
+              >
+                <Smartphone size={24} />
+                {t('login.phone_btn', currentLanguage)}
+              </button>
+            )}
             <button
               onClick={async () => {
                 console.log("Login: Google Popup clicked");
