@@ -252,6 +252,46 @@ export const handleJoinRequest = async (requestId: string, action: 'accept' | 'd
     }
 };
 
+/**
+ * Syncs the user's familyIds field with the actual families they are a member of.
+ * This is crucial for fixing permission issues where an Admin added a user to a family,
+ * but couldn't update the user's document due to security rules.
+ */
+export const syncUserFamilyIds = async (userId: string): Promise<void> => {
+    try {
+        // 1. Get all families where user is a member (Source of Truth)
+        const q = query(collection(db, COLLECTIONS.FAMILIES), where("members", "array-contains", userId));
+        const snapshot = await getDocs(q);
+        const realFamilyIds = snapshot.docs.map(doc => doc.id);
+
+        // 2. Get current user doc
+        const userRef = doc(db, COLLECTIONS.USERS, userId);
+        const userSnap = await getDoc(userRef);
+
+        if (!userSnap.exists()) return;
+
+        const userData = userSnap.data();
+        const currentFamilyIds: string[] = userData.familyIds || [];
+
+        // 3. Compare and Update if needed
+        const isMismatch =
+            realFamilyIds.length !== currentFamilyIds.length ||
+            !realFamilyIds.every(id => currentFamilyIds.includes(id));
+
+        if (isMismatch) {
+            console.log("🔄 Syncing user familyIds...", { current: currentFamilyIds, real: realFamilyIds });
+            await updateDoc(userRef, {
+                familyIds: realFamilyIds,
+                updatedAt: Timestamp.now()
+            });
+            console.log("✅ User familyIds synced successfully.");
+        }
+    } catch (error) {
+        console.error("Error syncing user familyIds:", error);
+        // Don't throw, just log. This is a background maintenance task.
+    }
+};
+
 export const getUserFamilies = async (userId: string): Promise<Family[]> => {
     try {
         const q = query(

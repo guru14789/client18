@@ -5,7 +5,7 @@ import {
     signOut as firebaseSignOut
 } from 'firebase/auth';
 import { auth } from '../services/firebaseConfig';
-import { getUser, createOrUpdateUser, getUserFamilies, listenToUser } from '../services/firebaseDatabase';
+import { getUser, createOrUpdateUser, getUserFamilies, listenToUser, syncUserFamilyIds } from '../services/firebaseDatabase';
 import { User, Family } from '../types';
 
 interface AuthContextType {
@@ -49,6 +49,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
             if (user) {
                 console.log("AuthContext: User authenticated", user.uid);
+
+                // Self-healing: Ensure user's familyIds match their actual memberships
+                syncUserFamilyIds(user.uid);
 
                 // Set up real-time listener for user profile
                 userUnsubscribe = listenToUser(user.uid, async (profile) => {
