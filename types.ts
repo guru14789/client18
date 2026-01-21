@@ -32,6 +32,7 @@ export interface User {
     notificationsEnabled: boolean;
   };
   preferredLanguage?: Language;
+  archivedQuestionIds?: string[];
 }
 
 export interface Family {

@@ -17,7 +17,7 @@ import { User, Question, Memory, Family, Language } from '../types';
 import { t } from '../services/i18n';
 import { translateQuestion } from '../services/geminiService';
 import { LocalizedText } from './LocalizedText';
-import { uploadMemoryVideo, uploadQuestionVideo } from '../services/firebaseStorage';
+import { uploadMemoryVideo, uploadQuestionVideo, uploadMemoryThumbnail } from '../services/firebaseStorage';
 
 interface RecordMemoryProps {
   user: User;
@@ -139,8 +139,58 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
     } else if (isCapturing && timeLeft === 0) {
       stopRecording();
     }
-    return () => clearTimeout(timer);
   }, [isCapturing, timeLeft]);
+
+  const generateThumbnail = (videoBlob: Blob): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const video = document.createElement('video');
+      video.muted = true;
+      video.playsInline = true;
+      video.src = URL.createObjectURL(videoBlob);
+
+      const timeout = setTimeout(() => {
+        cleanup();
+        reject(new Error("Thumbnail generation timed out"));
+      }, 5000);
+
+      const cleanup = () => {
+        clearTimeout(timeout);
+        URL.revokeObjectURL(video.src);
+        video.remove();
+      };
+
+      video.onloadeddata = () => {
+        // Seek to 1 second or mid-point
+        video.currentTime = Math.min(1, video.duration > 0 ? video.duration / 2 : 0);
+      };
+
+      video.onseeked = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+          canvas.toBlob((blob) => {
+            cleanup();
+            if (blob) resolve(blob);
+            else reject(new Error("Canvas toBlob failed"));
+          }, 'image/jpeg', 0.8);
+        } catch (err) {
+          cleanup();
+          reject(err);
+        }
+      };
+
+      video.onerror = (e) => {
+        cleanup();
+        reject(e);
+      };
+
+      video.load();
+    });
+  };
 
   const startActualRecording = () => {
     if (!streamRef.current) return;
@@ -194,6 +244,18 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
       const memoryId = existingDraftId || Date.now().toString();
 
       let downloadURL: string;
+      let thumbnailURL: string | undefined;
+      let thumbnailFile: File | undefined;
+
+      // Generate and upload thumbnail first
+      try {
+        const thumbBlob = await generateThumbnail(videoBlob);
+        thumbnailFile = new File([thumbBlob], 'memory-screenshot.jpg', { type: 'image/jpeg' });
+        thumbnailURL = await uploadMemoryThumbnail(thumbBlob, memoryId);
+      } catch (thumbErr) {
+        console.warn("Failed to generate/upload thumbnail:", thumbErr);
+      }
+
       if (mode === 'question') {
         downloadURL = await uploadQuestionVideo(
           videoBlob,
@@ -212,6 +274,7 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
         id: memoryId,
         authorId: user.uid,
         videoUrl: downloadURL,
+        thumbnailUrl: thumbnailURL,
         createdAt: new Date().toISOString(),
         publishedAt: shareOption === 'draft' ? null : new Date().toISOString(),
         familyIds: targetFamilyId ? [targetFamilyId] : [],
@@ -229,8 +292,33 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
           : t('record.whatsapp_template_question', currentLanguage);
         const qText = question?.text.english || "";
         const text = template.replace('{question}', qText);
-        const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text + "\n" + downloadURL)}`;
-        window.open(whatsappUrl, '_blank');
+
+        const shareData: any = {
+          title: t('feed.share_title_tag', currentLanguage) || 'Family Connect',
+          text: `${text}\n\nCheck it out here: ${downloadURL}`,
+        };
+
+        // If thumbnail is available and supported, include it as a file
+        // Attaching a file usually allows WhatsApp to use the 'text' as a caption.
+        if (thumbnailFile && navigator.canShare && navigator.canShare({ files: [thumbnailFile] })) {
+          shareData.files = [thumbnailFile];
+        } else {
+          shareData.url = downloadURL;
+        }
+
+        if (navigator.share) {
+          try {
+            await navigator.share(shareData);
+          } catch (shareErr: any) {
+            console.warn("Navigator share failed, falling back to URL:", shareErr);
+            // Fallback to simple link if user cancelled or browser failed file share
+            const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text + "\n" + downloadURL)}`;
+            window.open(whatsappUrl, '_blank');
+          }
+        } else {
+          const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text + "\n" + downloadURL)}`;
+          window.open(whatsappUrl, '_blank');
+        }
       }
 
       onComplete(newMemory);

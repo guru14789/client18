@@ -16,7 +16,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { LocalizedText } from './LocalizedText';
-import { likeMemory, unlikeMemory, addCommentToMemory } from '../services/firebaseServices';
+import { likeMemory, unlikeMemory, addCommentToMemory, blobUrlToFile } from '../services/firebaseServices';
 
 interface FeedProps {
   memories: Memory[];
@@ -140,9 +140,26 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage }
     try {
       const shareData: any = {
         title: t('feed.share_title_tag', currentLanguage),
-        text: `${t('feed.share_text', currentLanguage)}: ${memory.questionText || t('feed.shared_story_default', currentLanguage)}`,
-        url: memory.videoUrl,
+        text: `${t('feed.share_text', currentLanguage)}: ${memory.questionText || t('feed.shared_story_default', currentLanguage)}\n\nWatch here: ${memory.videoUrl}`,
       };
+
+      // Try to include thumbnail as a file for better WhatsApp/social sharing
+      if (memory.thumbnailUrl) {
+        try {
+          // Use fetch to get the blob and convert to file
+          const file = await blobUrlToFile(memory.thumbnailUrl, 'memory-screenshot.jpg');
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            shareData.files = [file];
+          } else {
+            shareData.url = memory.videoUrl;
+          }
+        } catch (fileErr) {
+          console.warn('Could not prepare thumbnail for sharing:', fileErr);
+          shareData.url = memory.videoUrl;
+        }
+      } else {
+        shareData.url = memory.videoUrl;
+      }
 
       if (navigator.share) {
         await navigator.share(shareData);

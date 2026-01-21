@@ -133,8 +133,11 @@ service cloud.firestore {
     // --- Collection Group Rules ---
     match /{path=**}/memories/{memoryId} {
       allow read: if isSignedIn() && (
-        resource.data.get('authorId', '') == request.auth.uid ||
-        (resource.data.get('status', '') == 'published' && isMemberOfAny(resource.data.get('familyIds', [])))
+        resource.data.authorId == request.auth.uid ||
+        (resource.data.status == 'published' && (
+          // Use direct comparison for common case or hasAny for arrays
+          resource.data.familyIds.hasAny(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('familyIds', []))
+        ))
       );
     }
 

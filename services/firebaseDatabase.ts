@@ -604,6 +604,20 @@ export const upvoteQuestion = async (questionId: string, askedBy: string, userId
     }
 };
 
+export const archiveQuestion = async (userId: string, questionId: string): Promise<void> => {
+    try {
+        const userRef = doc(db, COLLECTIONS.USERS, userId);
+        await updateDoc(userRef, {
+            archivedQuestionIds: arrayUnion(questionId),
+            updatedAt: Timestamp.now()
+        });
+        console.log(`✅ Question ${questionId} archived for user ${userId}`);
+    } catch (error) {
+        console.error("Error archiving question:", error);
+        throw error;
+    }
+};
+
 // ================= ==========================
 // DOCUMENT OPERATIONS (Stored under /users/{uid}/documents)
 // ============================================

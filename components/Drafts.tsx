@@ -55,7 +55,11 @@ const Drafts: React.FC<DraftsProps> = ({ drafts, onPublish, onDelete, currentLan
         {drafts.map((draft) => (
           <div key={draft.id} className="bg-white dark:bg-white/5 rounded-[32px] p-4 border border-secondary/20 dark:border-white/10 shadow-sm flex gap-4 group transition-all hover:shadow-md animate-in slide-in-from-bottom duration-300">
             <div className="w-24 h-24 bg-charcoal rounded-[24px] relative overflow-hidden flex-shrink-0 shadow-lg">
-              <video src={draft.videoUrl} className="w-full h-full object-cover opacity-60" />
+              {draft.thumbnailUrl ? (
+                <img src={draft.thumbnailUrl} className="w-full h-full object-cover opacity-80" alt="Thumbnail" />
+              ) : (
+                <video src={draft.videoUrl} className="w-full h-full object-cover opacity-60" />
+              )}
               <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                 <PlayCircle size={28} className="text-white fill-white/20" />
               </div>
@@ -67,7 +71,7 @@ const Drafts: React.FC<DraftsProps> = ({ drafts, onPublish, onDelete, currentLan
                   {draft.questionText || "Recorded Story"}
                 </h3>
                 <p className="text-[9px] text-slate/40 dark:text-support/40 font-black uppercase mt-1 tracking-[0.2em]">
-                  {new Date(draft.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                  {new Date(draft.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                 </p>
               </div>
 

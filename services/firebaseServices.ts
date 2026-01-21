@@ -44,6 +44,7 @@ export {
     // Question operations
     createQuestion,
     upvoteQuestion,
+    archiveQuestion,
     // Document operations
     createDocument,
     deleteDocument,

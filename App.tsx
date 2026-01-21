@@ -21,6 +21,7 @@ import {
   listenToFamilyMemories,
   listenToFamilyQuestions,
   upvoteQuestion,
+  archiveQuestion,
   createQuestion,
   createOrUpdateUser,
   createMemory,
@@ -288,6 +289,16 @@ const App: React.FC = () => {
     await upvoteQuestion(questionId, askedBy, user.uid);
   };
 
+  const handleArchiveQuestion = async (questionId: string) => {
+    if (!user) return;
+    try {
+      await archiveQuestion(user.uid, questionId);
+      // Optional: Show a toast or feedback
+    } catch (err) {
+      console.error("Error archiving question:", err);
+    }
+  };
+
   const handleLanguageChange = async (lang: Language) => {
     setLanguage(lang);
     localStorage.setItem('inai_language', lang);
@@ -414,10 +425,23 @@ const App: React.FC = () => {
             />
           )}
           {view === 'home' && user && (
-            <Dashboard user={user} families={families} prompts={qPrompts} onNavigate={setView} onRecord={(q) => { if (q) setActiveQuestion(q); setRecordMode('answer'); setView('record'); }} onAddFamily={handleAddFamily} currentLanguage={language} activeFamilyId={activeFamilyId} onSwitchFamily={switchFamily} onToggleUpvote={toggleUpvote} />
+            <Dashboard
+              user={user}
+              families={families}
+              prompts={qPrompts}
+              onNavigate={setView}
+              onRecord={(q) => { if (q) setActiveQuestion(q); setRecordMode('answer'); setView('record'); }}
+              onAddFamily={handleAddFamily}
+              currentLanguage={language}
+              activeFamilyId={activeFamilyId}
+              onSwitchFamily={switchFamily}
+              onToggleUpvote={toggleUpvote}
+              onArchiveQuestion={handleArchiveQuestion}
+              memories={memories}
+            />
           )}
           {view === 'feed' && user && <Feed memories={memories} user={user} families={families} currentLanguage={language} />}
-          {view === 'questions' && user && <Questions user={user} families={families} questions={qPrompts} onAnswer={(q) => { setActiveQuestion(q); setRecordMode('answer'); setView('record'); }} onRecordQuestion={() => { setActiveQuestion(null); setRecordMode('question'); setView('record'); }} onToggleUpvote={toggleUpvote} onAddQuestion={handleAddQuestion} activeFamilyId={activeFamilyId} currentLanguage={language} />}
+          {view === 'questions' && user && <Questions user={user} families={families} questions={qPrompts} onAnswer={(q) => { setActiveQuestion(q); setRecordMode('answer'); setView('record'); }} onRecordQuestion={() => { setActiveQuestion(null); setRecordMode('question'); setView('record'); }} onToggleUpvote={toggleUpvote} onArchiveQuestion={handleArchiveQuestion} onAddQuestion={handleAddQuestion} activeFamilyId={activeFamilyId} currentLanguage={language} memories={memories} />}
           {view === 'documents' && user && <Documents user={user} families={families} documents={documents} setDocuments={setDocuments} currentLanguage={language} />}
           {view === 'record' && user && <RecordMemory user={user} question={activeQuestion} mode={recordMode} onCancel={() => { setView('home'); setActiveQuestion(null); }} onComplete={handleRecordingComplete} families={families} activeFamilyId={activeFamilyId} currentLanguage={language} />}
           {view === 'drafts' && <Drafts drafts={drafts} onPublish={(m) => handleRecordingComplete({ ...m, status: 'published' })} onDelete={(id) => deleteMemory(id, user.uid)} currentLanguage={language} onBack={() => setView('home')} />}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Archive, Plus, Video, X, Globe, MapPin, Info, ThumbsUp, Play, Loader2, Share2, CheckCircle, Mail } from 'lucide-react';
-import { User, Family, Question, Language } from '../types';
+import { User, Family, Question, Language, Memory } from '../types';
 import { t } from '../services/i18n';
 import { LocalizedText } from './LocalizedText';
 import { getUsers, addFamilyAdmin, generateSecureInvite } from '../services/firebaseServices';
@@ -16,9 +16,11 @@ interface DashboardProps {
   onSwitchFamily: (id: string) => void;
   prompts: Question[];
   onToggleUpvote: (id: string, askedBy: string) => void;
+  onArchiveQuestion: (questionId: string) => void;
+  memories: Memory[];
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRecord, onAddFamily, currentLanguage, activeFamilyId, onSwitchFamily, prompts, onToggleUpvote }) => {
+const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRecord, onAddFamily, currentLanguage, activeFamilyId, onSwitchFamily, prompts, onToggleUpvote, onArchiveQuestion, memories }) => {
   const [isCreatingFamily, setIsCreatingFamily] = useState(false);
   const [isSwitchingFamily, setIsSwitchingFamily] = useState(false);
   const [newFamilyName, setNewFamilyName] = useState('');
@@ -29,8 +31,23 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
   const [isLoadingMembers, setIsLoadingMembers] = useState(false);
   const [isPromoting, setIsPromoting] = useState<string | null>(null);
   const [showInviteFeedback, setShowInviteFeedback] = useState(false);
+  const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
 
   const activeFamily = families.find(f => f.id === activeFamilyId) || families[0];
+
+  const answeredQuestionIds = memories
+    .filter(m => m.authorId === user.uid && m.questionId)
+    .map(m => m.questionId!);
+
+  const activePrompts = prompts.filter(q =>
+    !user.archivedQuestionIds?.includes(q.id) &&
+    !answeredQuestionIds.includes(q.id)
+  );
+
+  const archivedPrompts = prompts.filter(q =>
+    user.archivedQuestionIds?.includes(q.id) ||
+    answeredQuestionIds.includes(q.id)
+  );
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -170,88 +187,160 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
         </div>
       </div>
 
-      {/* Active Prompts Section */}
-      <div className="px-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <h3 className="text-[14px] font-black text-charcoal/40 dark:text-warmwhite/40 tracking-[0.2em] uppercase">{t('dashboard.prompts', currentLanguage)}</h3>
+      {/* Prompts Section with Slider */}
+      <div className="px-6 space-y-8">
+        <div className="flex justify-center">
+          <div className="bg-secondary/10 dark:bg-white/5 p-1.5 rounded-[32px] flex items-center w-full max-w-[340px] shadow-inner border border-secondary/5 dark:border-white/5">
+            <button
+              onClick={() => setActiveTab('active')}
+              className={`flex-1 py-3.5 rounded-[24px] text-[11px] font-black uppercase tracking-widest transition-all duration-300 relative ${activeTab === 'active'
+                ? 'bg-white dark:bg-white/10 text-charcoal dark:text-warmwhite shadow-lg shadow-black/5 scale-[1.02]'
+                : 'text-slate/40 dark:text-support/40 hover:text-slate/60'
+                }`}
+            >
+              Active Questions
+            </button>
+            <button
+              onClick={() => setActiveTab('archived')}
+              className={`flex-1 py-3.5 rounded-[24px] text-[11px] font-black uppercase tracking-widest transition-all duration-300 relative ${activeTab === 'archived'
+                ? 'bg-white dark:bg-white/10 text-charcoal dark:text-warmwhite shadow-lg shadow-black/5 scale-[1.02]'
+                : 'text-slate/40 dark:text-support/40 hover:text-slate/60'
+                }`}
+            >
+              Archived Questions
+            </button>
+          </div>
         </div>
 
-        {prompts.map((q) => {
-          const hasUpvoted = q.upvotes?.includes(user.uid);
-          return (
-            <div key={q.id} className="bg-white dark:bg-white/5 rounded-[44px] p-8 flex flex-col gap-8 border border-secondary/20 dark:border-white/10 relative transition-all shadow-sm">
-              <div className="flex items-start gap-6">
-                <div className="w-16 h-16 rounded-[24px] overflow-hidden shrink-0 border-4 border-warmwhite dark:border-charcoal/50 shadow-xl bg-support/20 dark:bg-white/10 flex items-center justify-center text-primary dark:text-white font-black text-2xl">
-                  {q.askedByName.charAt(0)}
-                </div>
-                <div className="flex-1">
-                  <p className="text-[11px] font-black text-accent/80 dark:text-accent uppercase tracking-[0.15em] mb-1.5">{q.askedByName} {t('questions.asked', currentLanguage)}</p>
-                  <h4 className="text-[22px] font-bold text-charcoal dark:text-warmwhite leading-[1.2] tracking-tight">
-                    <LocalizedText
-                      text={q.text.english || ''}
-                      targetLanguage={currentLanguage}
-                      originalLanguage={Language.ENGLISH}
-                      storedTranslation={q.text.translated}
-                    />
-                  </h4>
-                </div>
-              </div>
+        {activeTab === 'active' ? (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {activePrompts.length > 0 ? (
+              activePrompts.map((q) => {
+                const hasUpvoted = q.upvotes?.includes(user.uid);
+                return (
+                  <div key={q.id} className="bg-white dark:bg-white/5 rounded-[44px] p-8 flex flex-col gap-8 border border-secondary/20 dark:border-white/10 relative transition-all shadow-sm">
+                    <button
+                      onClick={() => onArchiveQuestion(q.id)}
+                      className="absolute top-6 right-8 p-2 text-slate/20 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-full transition-all"
+                      title="Ignore question"
+                    >
+                      <X size={16} />
+                    </button>
 
-              {q.type === 'video' && q.videoUrl && (
-                <div
-                  className="relative w-full aspect-video rounded-[32px] overflow-hidden bg-charcoal group cursor-pointer border border-secondary/10 dark:border-white/5 active:scale-[0.98] transition-all shadow-inner"
-                  onClick={() => onRecord(q)}
-                >
-                  <video
-                    src={q.videoUrl}
-                    className="w-full h-full object-cover"
-                    muted
-                    playsInline
-                  />
-                  <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                    <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-xl border border-white/30 flex items-center justify-center shadow-2xl scale-110 group-hover:scale-125 transition-transform">
-                      <Play size={28} className="text-white fill-white ml-1" />
+                    <div className="flex items-start gap-6">
+                      <div className="w-16 h-16 rounded-[24px] overflow-hidden shrink-0 border-4 border-warmwhite dark:border-charcoal/50 shadow-xl bg-support/20 dark:bg-white/10 flex items-center justify-center text-primary dark:text-white font-black text-2xl">
+                        {q.askedByName.charAt(0)}
+                      </div>
+                      <div className="flex-1 pr-6">
+                        <p className="text-[11px] font-black text-accent/80 dark:text-accent uppercase tracking-[0.15em] mb-1.5">{q.askedByName} {t('questions.asked', currentLanguage)}</p>
+                        <h4 className="text-[22px] font-bold text-charcoal dark:text-warmwhite leading-[1.2] tracking-tight">
+                          <LocalizedText
+                            text={q.text.english || ''}
+                            targetLanguage={currentLanguage}
+                            originalLanguage={Language.ENGLISH}
+                            storedTranslation={q.text.translated}
+                          />
+                        </h4>
+                      </div>
+                    </div>
+
+                    {q.type === 'video' && q.videoUrl && (
+                      <div
+                        className="relative w-full aspect-video rounded-[32px] overflow-hidden bg-charcoal group cursor-pointer border border-secondary/10 dark:border-white/5 active:scale-[0.98] transition-all shadow-inner"
+                        onClick={() => onRecord(q)}
+                      >
+                        <video src={q.videoUrl} className="w-full h-full object-cover" muted playsInline />
+                        <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                          <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-xl border border-white/30 flex items-center justify-center shadow-2xl scale-110 group-hover:scale-125 transition-transform">
+                            <Play size={28} className="text-white fill-white ml-1" />
+                          </div>
+                        </div>
+                        <div className="absolute top-4 right-4 px-3 py-1.5 bg-accent/90 backdrop-blur-md rounded-full text-[9px] font-black text-white uppercase tracking-widest">
+                          Video {t('record.mode.question', currentLanguage)}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-4 pt-2 w-full h-[84px]">
+                      <button
+                        onClick={() => onRecord(q)}
+                        className="flex-[1.4] h-full bg-primary text-white rounded-[32px] flex items-center justify-center gap-4 shadow-xl shadow-primary/20 active:scale-[0.98] transition-all px-4"
+                      >
+                        <Video size={24} className="text-white shrink-0" />
+                        <div className="flex flex-col items-start leading-none gap-1">
+                          <span className="text-[14px] font-black uppercase tracking-tight">{t('dashboard.record', currentLanguage)}</span>
+                          <span className="text-[14px] font-black uppercase tracking-tight">{t('dashboard.story', currentLanguage)}</span>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => onToggleUpvote(q.id, q.askedBy)}
+                        className={`flex-1 h-full rounded-[32px] flex flex-col items-center justify-center border transition-all active:scale-95 ${hasUpvoted
+                          ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20'
+                          : 'bg-charcoal/5 dark:bg-white/5 border-secondary/20 dark:border-white/10'
+                          }`}
+                      >
+                        <span className={`text-[24px] font-black leading-none tracking-tight ${hasUpvoted ? 'text-white' : 'text-charcoal dark:text-warmwhite'}`}>
+                          {q.upvotes?.length || 0}
+                        </span>
+                        <div className="flex items-center gap-1 mt-1">
+                          {hasUpvoted && <ThumbsUp size={8} className="text-white fill-white" />}
+                          <span className={`text-[9px] font-black uppercase tracking-[0.2em] ${hasUpvoted ? 'text-white/80' : 'text-slate dark:text-support/40'}`}>
+                            {hasUpvoted ? t('dashboard.upvoted', currentLanguage) : t('dashboard.upvotes', currentLanguage)}
+                          </span>
+                        </div>
+                      </button>
                     </div>
                   </div>
-                  <div className="absolute top-4 right-4 px-3 py-1.5 bg-accent/90 backdrop-blur-md rounded-full text-[9px] font-black text-white uppercase tracking-widest">
-                    Video {t('record.mode.question', currentLanguage)}
-                  </div>
-                </div>
-              )}
-
-              <div className="flex items-center gap-4 pt-2 w-full h-[84px]">
-                <button
-                  onClick={() => onRecord(q)}
-                  className="flex-[1.4] h-full bg-primary text-white rounded-[32px] flex items-center justify-center gap-4 shadow-xl shadow-primary/20 active:scale-[0.98] transition-all px-4"
-                >
-                  <Video size={24} className="text-white shrink-0" />
-                  <div className="flex flex-col items-start leading-none gap-1">
-                    <span className="text-[14px] font-black uppercase tracking-tight">{t('dashboard.record', currentLanguage)}</span>
-                    <span className="text-[14px] font-black uppercase tracking-tight">{t('dashboard.story', currentLanguage)}</span>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => onToggleUpvote(q.id, q.askedBy)}
-                  className={`flex-1 h-full rounded-[32px] flex flex-col items-center justify-center border transition-all active:scale-95 ${hasUpvoted
-                    ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20'
-                    : 'bg-charcoal/5 dark:bg-white/5 border-secondary/20 dark:border-white/10'
-                    }`}
-                >
-                  <span className={`text-[24px] font-black leading-none tracking-tight ${hasUpvoted ? 'text-white' : 'text-charcoal dark:text-warmwhite'}`}>
-                    {q.upvotes?.length || 0}
-                  </span>
-                  <div className="flex items-center gap-1 mt-1">
-                    {hasUpvoted && <ThumbsUp size={8} className="text-white fill-white" />}
-                    <span className={`text-[9px] font-black uppercase tracking-[0.2em] ${hasUpvoted ? 'text-white/80' : 'text-slate dark:text-support/40'}`}>
-                      {hasUpvoted ? t('dashboard.upvoted', currentLanguage) : t('dashboard.upvotes', currentLanguage)}
-                    </span>
-                  </div>
-                </button>
+                );
+              })
+            ) : (
+              <div className="py-20 flex flex-col items-center gap-4 opacity-40">
+                <CheckCircle size={48} className="text-primary" />
+                <p className="text-[11px] font-black uppercase tracking-[0.2em]">{t('dashboard.no_active_prompts', currentLanguage) || "All caught up!"}</p>
               </div>
-            </div>
-          );
-        })}
+            )}
+          </div>
+        ) : (
+          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {archivedPrompts.length > 0 ? (
+              archivedPrompts.map((q) => {
+                const isAnswered = answeredQuestionIds.includes(q.id);
+                return (
+                  <div key={q.id} className="bg-white/40 dark:bg-white/5 rounded-[28px] p-5 flex items-center justify-between border border-secondary/10 dark:border-white/5 opacity-80 group hover:opacity-100 transition-all">
+                    <div className="flex-1 min-w-0 pr-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[8px] font-black text-slate/40 uppercase tracking-widest">{q.askedByName}</span>
+                        {isAnswered && (
+                          <span className="text-[8px] font-black text-primary uppercase tracking-widest bg-primary/10 px-2 py-0.5 rounded-full">Answered</span>
+                        )}
+                      </div>
+                      <h4 className="text-[15px] font-bold text-charcoal/60 dark:text-warmwhite/60 leading-tight truncate">
+                        <LocalizedText
+                          text={q.text.english || ''}
+                          targetLanguage={currentLanguage}
+                          originalLanguage={Language.ENGLISH}
+                          storedTranslation={q.text.translated}
+                        />
+                      </h4>
+                    </div>
+                    <button
+                      onClick={() => onRecord(q)}
+                      className="w-10 h-10 rounded-2xl bg-secondary/10 dark:bg-white/5 flex items-center justify-center text-secondary dark:text-support/40 hover:bg-primary/20 hover:text-primary transition-all active:scale-90"
+                    >
+                      <Video size={16} />
+                    </button>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="py-20 flex flex-col items-center gap-4 opacity-40">
+                <Archive size={48} className="text-slate/40" />
+                <p className="text-[11px] font-black uppercase tracking-[0.2em]">{t('dashboard.no_archived_prompts', currentLanguage) || "No archived questions"}</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Family Switcher Modal */}
@@ -408,44 +497,42 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
       )}
 
       {/* Branch Creation Modal */}
-      {
-        isCreatingFamily && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
-            <div className="absolute inset-0 bg-charcoal/60 backdrop-blur-sm" onClick={() => setIsCreatingFamily(false)}></div>
-            <div className="relative w-full max-sm bg-warmwhite dark:bg-charcoal rounded-[44px] p-10 shadow-2xl border border-white/20 animate-in zoom-in-95 duration-200">
-              <h3 className="text-2xl font-black text-charcoal dark:text-warmwhite mb-8 tracking-tight">{t('dashboard.new_branch', currentLanguage)}</h3>
-              <div className="space-y-6">
-                <div>
-                  <label className="text-[10px] font-black text-slate dark:text-support/60 uppercase tracking-widest block mb-2 px-1">{t('dashboard.name_label', currentLanguage)}</label>
-                  <input
-                    type="text"
-                    className="w-full bg-white dark:bg-white/5 border border-secondary/30 dark:border-white/10 rounded-2xl p-4 text-charcoal dark:text-warmwhite outline-none focus:ring-4 focus:ring-primary/10 transition-all font-bold"
-                    placeholder={t('dashboard.name_placeholder', currentLanguage)}
-                    value={newFamilyName}
-                    onChange={(e) => setNewFamilyName(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] font-black text-slate dark:text-support/60 uppercase tracking-widest block mb-2 px-1">{t('dashboard.lang_label', currentLanguage)}</label>
-                  <select
-                    className="w-full bg-white dark:bg-white/5 border border-secondary/30 dark:border-white/10 rounded-2xl p-4 text-charcoal dark:text-warmwhite outline-none font-bold appearance-none"
-                    value={newFamilyLang}
-                    onChange={(e) => setNewFamilyLang(e.target.value as Language)}
-                  >
-                    {Object.values(Language).map(lang => (
-                      <option key={lang} value={lang}>{lang}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex gap-4 pt-4">
-                  <button onClick={() => setIsCreatingFamily(false)} className="flex-1 py-4 text-slate dark:text-support/60 font-black uppercase tracking-widest text-xs">{t('questions.cancel', currentLanguage)}</button>
-                  <button onClick={handleCreateFamily} className="flex-1 bg-primary text-white py-4 rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-primary/20">{t('dashboard.new', currentLanguage)}</button>
-                </div>
+      {isCreatingFamily && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6">
+          <div className="absolute inset-0 bg-charcoal/60 backdrop-blur-sm" onClick={() => setIsCreatingFamily(false)}></div>
+          <div className="relative w-full max-sm bg-warmwhite dark:bg-charcoal rounded-[44px] p-10 shadow-2xl border border-white/20 animate-in zoom-in-95 duration-200">
+            <h3 className="text-2xl font-black text-charcoal dark:text-warmwhite mb-8 tracking-tight">{t('dashboard.new_branch', currentLanguage)}</h3>
+            <div className="space-y-6">
+              <div>
+                <label className="text-[10px] font-black text-slate dark:text-support/60 uppercase tracking-widest block mb-2 px-1">{t('dashboard.name_label', currentLanguage)}</label>
+                <input
+                  type="text"
+                  className="w-full bg-white dark:bg-white/5 border border-secondary/30 dark:border-white/10 rounded-2xl p-4 text-charcoal dark:text-warmwhite outline-none focus:ring-4 focus:ring-primary/10 transition-all font-bold"
+                  placeholder={t('dashboard.name_placeholder', currentLanguage)}
+                  value={newFamilyName}
+                  onChange={(e) => setNewFamilyName(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate dark:text-support/60 uppercase tracking-widest block mb-2 px-1">{t('dashboard.lang_label', currentLanguage)}</label>
+                <select
+                  className="w-full bg-white dark:bg-white/5 border border-secondary/30 dark:border-white/10 rounded-2xl p-4 text-charcoal dark:text-warmwhite outline-none font-bold appearance-none"
+                  value={newFamilyLang}
+                  onChange={(e) => setNewFamilyLang(e.target.value as Language)}
+                >
+                  {Object.values(Language).map(lang => (
+                    <option key={lang} value={lang}>{lang}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex gap-4 pt-4">
+                <button onClick={() => setIsCreatingFamily(false)} className="flex-1 py-4 text-slate dark:text-support/60 font-black uppercase tracking-widest text-xs">{t('questions.cancel', currentLanguage)}</button>
+                <button onClick={handleCreateFamily} className="flex-1 bg-primary text-white py-4 rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-primary/20">{t('dashboard.new', currentLanguage)}</button>
               </div>
             </div>
           </div>
-        )
-      }
+        </div>
+      )}
 
       {/* Group Members Modal */}
       {viewingMembersFamily && (
