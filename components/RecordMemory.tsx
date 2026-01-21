@@ -273,6 +273,7 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
       const newMemory: Memory = {
         id: memoryId,
         authorId: user.uid,
+        authorName: user.displayName,
         videoUrl: downloadURL,
         thumbnailUrl: thumbnailURL,
         createdAt: new Date().toISOString(),
@@ -312,8 +313,10 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
           } catch (shareErr: any) {
             console.warn("Navigator share failed, falling back to URL:", shareErr);
             // Fallback to simple link if user cancelled or browser failed file share
-            const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text + "\n" + downloadURL)}`;
-            window.open(whatsappUrl, '_blank');
+            if (shareErr.name !== 'AbortError') {
+              const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text + "\n" + downloadURL)}`;
+              window.open(whatsappUrl, '_blank');
+            }
           }
         } else {
           const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text + "\n" + downloadURL)}`;

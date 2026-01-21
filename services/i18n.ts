@@ -3,8 +3,8 @@ import { Language } from "../types";
 export const translations: Record<Language, Record<string, string>> = {
     [Language.ENGLISH]: {
         "dashboard.greeting": "Hi",
-        "dashboard.hero.title": "Capture a new family story today",
-        "dashboard.hero.button": "Record Now",
+        "dashboard.hero.title": "Have a family-related question?",
+        "dashboard.hero.button": "Ask Now",
         "dashboard.circles": "Your Circles",
         "dashboard.new": "New",
         "dashboard.vault": "Vault",
@@ -579,8 +579,8 @@ export const translations: Record<Language, Record<string, string>> = {
     },
     [Language.TAMIL]: {
         "dashboard.greeting": "வணக்கம்",
-        "dashboard.hero.title": "இன்று ஒரு புதிய குடும்ப கதையைப் பதிவு செய்யுங்கள்",
-        "dashboard.hero.button": "இப்போதே பதிவு செய்",
+        "dashboard.hero.title": "குடும்பம் சார்ந்த கேள்வி உள்ளதா?",
+        "dashboard.hero.button": "இப்போதே கேளுங்கள்",
         "dashboard.circles": "உங்கள் வட்டங்கள்",
         "dashboard.new": "புதிய",
         "dashboard.vault": "பெட்டகம்",

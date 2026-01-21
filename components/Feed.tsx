@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { PullToRefresh } from './PullToRefresh';
 import { User, Memory, Family, Language } from '../types';
 import { t } from '../services/i18n';
 import {
@@ -23,9 +24,10 @@ interface FeedProps {
   user: User;
   families: Family[];
   currentLanguage: Language;
+  onRefresh: () => Promise<void>;
 }
 
-const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage }) => {
+const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage, onRefresh }) => {
   const [filter, setFilter] = useState<'all' | 'mine'>('all');
   const [playingMemoryId, setPlayingMemoryId] = useState<string | null>(null);
   const [showComments, setShowComments] = useState<boolean>(false);
@@ -138,45 +140,55 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage }
     setIsSharing(true);
 
     try {
+      const shareTitle = t('feed.share_title_tag', currentLanguage) || 'Family Connect';
+      const shareText = `${t('feed.share_text', currentLanguage)}: ${memory.questionText || t('feed.shared_story_default', currentLanguage)}`;
+      const watchUrl = memory.videoUrl;
+
       const shareData: any = {
-        title: t('feed.share_title_tag', currentLanguage),
-        text: `${t('feed.share_text', currentLanguage)}: ${memory.questionText || t('feed.shared_story_default', currentLanguage)}\n\nWatch here: ${memory.videoUrl}`,
+        title: shareTitle,
+        text: `${shareText}\n\nWatch here: ${watchUrl}`,
       };
 
       // Try to include thumbnail as a file for better WhatsApp/social sharing
       if (memory.thumbnailUrl) {
         try {
-          // Use fetch to get the blob and convert to file
+          // Use fetch with 'anonymous' cross-origin if needed, though fetch(url) usually works if CORS is set
           const file = await blobUrlToFile(memory.thumbnailUrl, 'memory-screenshot.jpg');
+
           if (navigator.canShare && navigator.canShare({ files: [file] })) {
             shareData.files = [file];
+            // On some platforms, if files are present, the text is used as caption
+            // We still include the URL in the text for safety
           } else {
-            shareData.url = memory.videoUrl;
+            shareData.url = watchUrl;
           }
         } catch (fileErr) {
           console.warn('Could not prepare thumbnail for sharing:', fileErr);
-          shareData.url = memory.videoUrl;
+          shareData.url = watchUrl;
         }
       } else {
-        shareData.url = memory.videoUrl;
+        shareData.url = watchUrl;
       }
 
       if (navigator.share) {
-        await navigator.share(shareData);
+        try {
+          await navigator.share(shareData);
+        } catch (shareErr: any) {
+          // If user cancelled or file share failed, try simple text share
+          if (shareErr.name !== 'AbortError') {
+            const fallbackText = `${shareText}\n${watchUrl}`;
+            const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(fallbackText)}`;
+            window.open(whatsappUrl, '_blank');
+          }
+        }
       } else {
-        await navigator.clipboard.writeText(memory.videoUrl);
-        setShowShareToast(true);
-        setTimeout(() => setShowShareToast(false), 2000);
+        // Fallback for browsers without navigator.share (desktop)
+        const fallbackText = `${shareText}\n${watchUrl}`;
+        const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(fallbackText)}`;
+        window.open(whatsappUrl, '_blank');
       }
     } catch (err) {
-      console.warn('Native share failed, falling back to clipboard', err);
-      try {
-        await navigator.clipboard.writeText(memory.videoUrl);
-        setShowShareToast(true);
-        setTimeout(() => setShowShareToast(false), 2000);
-      } catch (clipErr) {
-        console.error('Clipboard fallback failed', clipErr);
-      }
+      console.warn('Share operation failed', err);
     } finally {
       setIsSharing(false);
     }
@@ -234,50 +246,52 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage }
       </header>
 
       {/* Grid Content */}
-      <div className="flex-1 px-4 overflow-y-auto no-scrollbar pb-32">
-        <div className="grid grid-cols-2 gap-3 pt-2">
-          {filteredMemories.map((memory) => {
-            const displayName = memory.authorId === user.uid ? user.displayName : (t('feed.family_member', currentLanguage) || "Family Member");
-            return (
-              <div
-                key={memory.id}
-                onClick={() => setPlayingMemoryId(memory.id)}
-                className="relative aspect-[3/4.2] rounded-[24px] overflow-hidden bg-support/20 dark:bg-white/5 group cursor-pointer active:scale-[0.98] transition-all shadow-sm border border-secondary/10 dark:border-white/5"
-              >
-                <div className="absolute inset-0 bg-charcoal flex items-center justify-center">
-                  {memory.thumbnailUrl ? (
-                    <img src={memory.thumbnailUrl} className="w-full h-full object-cover" alt="Memory" />
-                  ) : (
-                    <Play size={24} className="text-white/20" />
-                  )}
-                </div>
-
-                <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-charcoal/80 to-transparent" />
-
-                <div className="absolute inset-0 p-4 flex flex-col justify-end gap-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/10">
-                      <UserIcon size={12} className="text-white" />
-                    </div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-white/90">{displayName}</span>
+      <PullToRefresh onRefresh={onRefresh}>
+        <div className="flex-1 px-4 pb-32">
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            {filteredMemories.map((memory) => {
+              const displayName = memory.authorName || (memory.authorId === user.uid ? user.displayName : (t('feed.family_member', currentLanguage) || "Family Member"));
+              return (
+                <div
+                  key={memory.id}
+                  onClick={() => setPlayingMemoryId(memory.id)}
+                  className="relative aspect-[3/4.2] rounded-[24px] overflow-hidden bg-support/20 dark:bg-white/5 group cursor-pointer active:scale-[0.98] transition-all shadow-sm border border-secondary/10 dark:border-white/5"
+                >
+                  <div className="absolute inset-0 bg-charcoal flex items-center justify-center">
+                    {memory.thumbnailUrl ? (
+                      <img src={memory.thumbnailUrl} className="w-full h-full object-cover" alt="Memory" />
+                    ) : (
+                      <Play size={24} className="text-white/20" />
+                    )}
                   </div>
-                  <h3 className="text-white font-bold text-sm leading-tight line-clamp-2">
-                    <LocalizedText
-                      text={memory.questionText || t('feed.shared_story_default', currentLanguage)}
-                      targetLanguage={currentLanguage}
-                      originalLanguage={memory.language}
-                    />
-                  </h3>
-                </div>
 
-                <div className="absolute top-3 right-3 bg-black/30 backdrop-blur-md p-1.5 rounded-full">
-                  <Play size={12} className="text-white fill-white" />
+                  <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-charcoal/80 to-transparent" />
+
+                  <div className="absolute inset-0 p-4 flex flex-col justify-end gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/10">
+                        <UserIcon size={12} className="text-white" />
+                      </div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-white/90">{displayName}</span>
+                    </div>
+                    <h3 className="text-white font-bold text-sm leading-tight line-clamp-2">
+                      <LocalizedText
+                        text={memory.questionText || t('feed.shared_story_default', currentLanguage)}
+                        targetLanguage={currentLanguage}
+                        originalLanguage={memory.language}
+                      />
+                    </h3>
+                  </div>
+
+                  <div className="absolute top-3 right-3 bg-black/30 backdrop-blur-md p-1.5 rounded-full">
+                    <Play size={12} className="text-white fill-white" />
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </div>
+      </PullToRefresh>
 
       {/* Video Player Modal */}
       {playingMemoryId && (() => {
@@ -312,6 +326,7 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage }
             <div className="flex-1 relative flex items-center justify-center bg-black">
               <video
                 src={memory.videoUrl}
+                poster={memory.thumbnailUrl}
                 autoPlay
                 loop
                 playsInline
@@ -367,7 +382,7 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage }
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[11px] font-black text-primary uppercase tracking-[0.2em] mb-1">
-                      {t('feed.captured_by', currentLanguage)} {memory.authorId === user.uid ? t('feed.you', currentLanguage) : t('feed.family_member', currentLanguage)}
+                      {t('feed.captured_by', currentLanguage)} {memory.authorName || (memory.authorId === user.uid ? t('feed.you', currentLanguage) : t('feed.family_member', currentLanguage))}
                     </p>
                     <h2 className="text-xl font-bold text-white leading-tight tracking-tight">
                       <LocalizedText

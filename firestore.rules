@@ -17,17 +17,21 @@ service cloud.firestore {
     }
     
     function isFamilyMember(familyId) {
-      let family = get(/databases/$(database)/documents/families/$(familyId));
+      // Robust check: Verify user is in the family's member list directly
       return isSignedIn() && 
-             familyId != null && 
              exists(/databases/$(database)/documents/families/$(familyId)) &&
-             request.auth.uid in family.data.members;
+             request.auth.uid in get(/databases/$(database)/documents/families/$(familyId)).data.members;
     }
     
     function isMemberOfAny(familyIds) {
+      // Checks if user is a member of any family in the provided list
       return isSignedIn() && 
              familyIds != null && 
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('familyIds', []).hasAny(familyIds);
+             (
+               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('familyIds', []).hasAny(familyIds) ||
+               // Fallback: Check the first family in the list directly for membership
+               (familyIds.size() > 0 && isFamilyMember(familyIds[0]))
+             );
     }
 
     // --- Users Collection & Sub-collections ---
@@ -48,16 +52,17 @@ service cloud.firestore {
         allow read: if isSignedIn() && (
           isOwner(userId) ||
           (resource.data.status == 'published' && (
-            // Check first family if singular check or iterate if possible
-            // In sub-collection, we usually expect membership in at least one
-            isMemberOfAny(resource.data.familyIds)
+            isMemberOfAny(resource.data.get('familyIds', [])) ||
+            isFamilyMember(resource.data.get('familyId', 'none'))
           ))
         );
         allow create: if isOwner(userId); 
         allow update: if isSignedIn() && (
           isOwner(userId) ||
-          (resource.data.get('status', '') == 'published' && 
-           isMemberOfAny(resource.data.get('familyIds', [])) && 
+          (resource.data.status == 'published' && (
+             isMemberOfAny(resource.data.get('familyIds', [])) ||
+             isFamilyMember(resource.data.get('familyId', 'none'))
+          ) && 
            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'comments']))
         );
         allow delete: if isOwner(userId);
@@ -135,8 +140,8 @@ service cloud.firestore {
       allow read: if isSignedIn() && (
         resource.data.authorId == request.auth.uid ||
         (resource.data.status == 'published' && (
-          // Use direct comparison for common case or hasAny for arrays
-          resource.data.familyIds.hasAny(get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('familyIds', []))
+          isMemberOfAny(resource.data.get('familyIds', [])) ||
+          isFamilyMember(resource.data.get('familyId', 'none'))
         ))
       );
     }

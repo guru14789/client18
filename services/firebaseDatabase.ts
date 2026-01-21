@@ -17,7 +17,8 @@ import {
     arrayUnion,
     arrayRemove,
     increment,
-    collectionGroup
+    collectionGroup,
+    writeBatch
 } from "firebase/firestore";
 import { db } from "./firebaseConfig";
 import { User, Family, Memory, Question, Notification, FamilyDocument, Comment, FamilyInvitation, ActivityLog } from "../types";
@@ -118,13 +119,27 @@ export const getUsers = async (userIds: string[]): Promise<User[]> => {
 export const createFamily = async (familyData: Omit<Family, 'id' | 'createdAt'>): Promise<string> => {
     try {
         const inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase();
-        const familyRef = await addDoc(collection(db, COLLECTIONS.FAMILIES), {
+        const familyRef = doc(collection(db, COLLECTIONS.FAMILIES));
+
+        const batch = writeBatch(db);
+
+        batch.set(familyRef, {
             ...clean(familyData),
             admins: familyData.admins || [familyData.createdBy],
             inviteCode: familyData.inviteCode || inviteCode,
             createdAt: new Date().toISOString(),
             updatedAt: Timestamp.now()
         });
+
+        // Also add familyId to the creator's user document
+        const creatorRef = doc(db, COLLECTIONS.USERS, familyData.createdBy);
+        batch.update(creatorRef, {
+            familyIds: arrayUnion(familyRef.id),
+            defaultFamilyId: familyRef.id,
+            updatedAt: Timestamp.now()
+        });
+
+        await batch.commit();
         console.log("✅ Family created with invite code:", inviteCode);
         return familyRef.id;
     } catch (error) {
@@ -237,15 +252,31 @@ export const handleJoinRequest = async (requestId: string, action: 'accept' | 'd
         if (!reqSnap.exists()) return;
 
         const data = reqSnap.data();
+        const batch = writeBatch(db);
 
         if (action === 'accept') {
-            await addFamilyMember(data.familyId, data.userId);
+            const familyRef = doc(db, COLLECTIONS.FAMILIES, data.familyId);
+            const userRef = doc(db, COLLECTIONS.USERS, data.userId);
+
+            batch.update(familyRef, {
+                members: arrayUnion(data.userId),
+                updatedAt: Timestamp.now()
+            });
+
+            batch.update(userRef, {
+                familyIds: arrayUnion(data.familyId),
+                defaultFamilyId: data.familyId,
+                updatedAt: Timestamp.now()
+            });
         }
 
-        await updateDoc(reqRef, {
+        batch.update(reqRef, {
             status: action,
             updatedAt: Timestamp.now()
         });
+
+        await batch.commit();
+        console.log(`✅ Join request ${action}ed atomically`);
     } catch (error) {
         console.error("Error handling join request:", error);
         throw error;
@@ -321,18 +352,21 @@ export const addFamilyMember = async (familyId: string, userId: string): Promise
         const familyRef = doc(db, COLLECTIONS.FAMILIES, familyId);
         const userRef = doc(db, COLLECTIONS.USERS, userId);
 
-        await updateDoc(familyRef, {
+        const batch = writeBatch(db);
+
+        batch.update(familyRef, {
             members: arrayUnion(userId),
             updatedAt: Timestamp.now()
         });
 
-        await updateDoc(userRef, {
+        batch.update(userRef, {
             familyIds: arrayUnion(familyId),
             defaultFamilyId: familyId,
             updatedAt: Timestamp.now()
         });
 
-        console.log("✅ Member added to family");
+        await batch.commit();
+        console.log("✅ Member added to family atomically");
     } catch (error) {
         console.error("Error adding family member:", error);
         throw error;
@@ -344,18 +378,21 @@ export const leaveFamily = async (familyId: string, userId: string): Promise<voi
         const familyRef = doc(db, COLLECTIONS.FAMILIES, familyId);
         const userRef = doc(db, COLLECTIONS.USERS, userId);
 
-        await updateDoc(familyRef, {
+        const batch = writeBatch(db);
+
+        batch.update(familyRef, {
             members: arrayRemove(userId),
             admins: arrayRemove(userId),
             updatedAt: Timestamp.now()
         });
 
-        await updateDoc(userRef, {
+        batch.update(userRef, {
             familyIds: arrayRemove(familyId),
             updatedAt: Timestamp.now()
         });
 
-        console.log("✅ User left family");
+        await batch.commit();
+        console.log("✅ User left family atomically");
     } catch (error) {
         console.error("Error leaving family:", error);
         throw error;
@@ -444,6 +481,7 @@ export const createMemory = async (memoryData: Omit<Memory, 'id'>): Promise<stri
 
         const memoryRef = await addDoc(userMemoriesRef, {
             ...clean(memoryData),
+            familyId: (memoryData as any).familyId || (memoryData.familyIds && memoryData.familyIds.length > 0 ? memoryData.familyIds[0] : ""),
             createdAt: now,
             publishedAt: memoryData.status === 'published' ? now : null,
             serverCreatedAt: Timestamp.now()
@@ -475,6 +513,7 @@ export const publishMemory = async (memoryId: string, authorId: string, familyId
         await updateDoc(memoryRef, {
             status: 'published',
             familyIds: familyIds,
+            familyId: (familyIds && familyIds.length > 0) ? familyIds[0] : "",
             publishedAt: new Date().toISOString(),
             updatedAt: Timestamp.now()
         });
@@ -732,12 +771,15 @@ export const listenToFamilyMemories = (
         snapshot.forEach((doc) => {
             memories.push({ id: doc.id, ...doc.data() } as Memory);
         });
+        console.log(`✅ [listenToFamilyMemories] Loaded ${memories.length} memories for family ${familyId}`);
         callback(memories);
     }, (error) => {
-        console.error("Error in listenToFamilyMemories:", error);
+        console.error("❌ Error in listenToFamilyMemories:", error);
         if (error.code === 'failed-precondition') {
-            console.error("🔥 MISSING INDEX ERROR: You need to create a Firestore Index for this query to work.");
-            console.error("👉 Click the link in the error message above to automatically create it!");
+            console.error("🔥 MISSING INDEX ERROR: You need to create a Firestore Index for the 'memories' collection group query to work.");
+        }
+        if (error.code === 'permission-denied') {
+            console.error("🚫 PERMISSION DENIED: Make sure your Firestore rules allow reading from the 'memories' collection group.");
         }
     });
 };

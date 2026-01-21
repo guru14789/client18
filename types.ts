@@ -49,6 +49,7 @@ export interface Family {
 export interface Memory {
   id: string;
   authorId: string;
+  authorName: string;
   familyIds: string[];
   status: 'draft' | 'published';
   videoUrl: string;

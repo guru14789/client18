@@ -35,7 +35,8 @@ import {
   leaveFamily,
   validateAndJoinFamily,
   listenToUserDrafts,
-  listenToFamilyDocuments
+  listenToFamilyDocuments,
+  syncUserFamilyIds
 } from './services/firebaseServices';
 import {
   collection,
@@ -336,6 +337,19 @@ const App: React.FC = () => {
     }
   };
 
+  const handleRefresh = async () => {
+    if (!user?.uid) return;
+    try {
+      // Re-sync user memberships (self-healing)
+      await syncUserFamilyIds(user.uid);
+      // We don't need to manually re-subscribe as the existing listeners will catch changes
+      // but we add a small delay for UX feel
+      await new Promise(resolve => setTimeout(resolve, 800));
+    } catch (err) {
+      console.error("Refresh error:", err);
+    }
+  };
+
   const handleThemeChange = async (newTheme: 'light' | 'dark' | 'system') => {
     setTheme(newTheme);
     localStorage.setItem('inai_theme', newTheme);
@@ -438,11 +452,12 @@ const App: React.FC = () => {
               onToggleUpvote={toggleUpvote}
               onArchiveQuestion={handleArchiveQuestion}
               memories={memories}
+              onRefresh={handleRefresh}
             />
           )}
-          {view === 'feed' && user && <Feed memories={memories} user={user} families={families} currentLanguage={language} />}
-          {view === 'questions' && user && <Questions user={user} families={families} questions={qPrompts} onAnswer={(q) => { setActiveQuestion(q); setRecordMode('answer'); setView('record'); }} onRecordQuestion={() => { setActiveQuestion(null); setRecordMode('question'); setView('record'); }} onToggleUpvote={toggleUpvote} onArchiveQuestion={handleArchiveQuestion} onAddQuestion={handleAddQuestion} activeFamilyId={activeFamilyId} currentLanguage={language} memories={memories} />}
-          {view === 'documents' && user && <Documents user={user} families={families} documents={documents} setDocuments={setDocuments} currentLanguage={language} />}
+          {view === 'feed' && user && <Feed memories={memories} user={user} families={families} currentLanguage={language} onRefresh={handleRefresh} />}
+          {view === 'questions' && user && <Questions user={user} families={families} questions={qPrompts} onAnswer={(q) => { setActiveQuestion(q); setRecordMode('answer'); setView('record'); }} onRecordQuestion={() => { setActiveQuestion(null); setRecordMode('question'); setView('record'); }} onToggleUpvote={toggleUpvote} onArchiveQuestion={handleArchiveQuestion} onAddQuestion={handleAddQuestion} activeFamilyId={activeFamilyId} currentLanguage={language} memories={memories} onRefresh={handleRefresh} />}
+          {view === 'documents' && user && <Documents user={user} families={families} documents={documents} setDocuments={setDocuments} currentLanguage={language} onRefresh={handleRefresh} />}
           {view === 'record' && user && <RecordMemory user={user} question={activeQuestion} mode={recordMode} onCancel={() => { setView('home'); setActiveQuestion(null); }} onComplete={handleRecordingComplete} families={families} activeFamilyId={activeFamilyId} currentLanguage={language} />}
           {view === 'drafts' && <Drafts drafts={drafts} onPublish={(m) => handleRecordingComplete({ ...m, status: 'published' })} onDelete={(id) => deleteMemory(id, user.uid)} currentLanguage={language} onBack={() => setView('home')} />}
           {view === 'profile' && user && (
@@ -489,7 +504,28 @@ const App: React.FC = () => {
                 <span className="text-[8px] font-bold mt-1 uppercase tracking-tighter">{t('nav.profile', language)}</span>
                 {view === 'profile' && <div className="absolute bottom-[2px] w-5 h-[2px] bg-primary rounded-full shadow-[0_0_15px_rgba(47,93,138,0.8)]" />}
               </button>
-              <button onClick={() => setView('record')} className="absolute left-1/2 -translate-x-1/2 -top-[28px] w-[56px] h-[56px] bg-primary text-white rounded-full flex items-center justify-center shadow-[0_15px_35px_rgba(47,93,138,0.5)] hover:brightness-110 active:scale-95 transition-all z-[70] ring-4 ring-white dark:ring-charcoal border border-white/10">
+              <button
+                onClick={() => {
+                  const activePrompts = qPrompts.filter(q =>
+                    !memories.some(m => m.questionId === q.id) &&
+                    !(user?.archivedQuestionIds || []).includes(q.id)
+                  );
+
+                  if (activePrompts.length > 0) {
+                    const randomIndex = Math.floor(Math.random() * activePrompts.length);
+                    const randomQ = activePrompts[randomIndex];
+                    setActiveQuestion(randomQ);
+                    setRecordMode('answer');
+                    setView('record');
+                  } else {
+                    // Fallback if no active prompts
+                    setActiveQuestion(null);
+                    setRecordMode('question');
+                    setView('record');
+                  }
+                }}
+                className="absolute left-1/2 -translate-x-1/2 -top-[28px] w-[56px] h-[56px] bg-primary text-white rounded-full flex items-center justify-center shadow-[0_15px_35px_rgba(47,93,138,0.5)] hover:brightness-110 active:scale-95 transition-all z-[70] ring-4 ring-white dark:ring-charcoal border border-white/10"
+              >
                 <Plus size={30} strokeWidth={3} />
               </button>
             </nav>

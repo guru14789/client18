@@ -60,7 +60,8 @@ export {
     listenToUser,
     listenToUserFamilies,
     listenToJoinRequests,
-    handleJoinRequest
+    handleJoinRequest,
+    syncUserFamilyIds
 } from './firebaseDatabase';
 
 // Storage Services
