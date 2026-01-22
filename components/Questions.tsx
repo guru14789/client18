@@ -289,15 +289,6 @@ const Questions: React.FC<QuestionsProps> = ({ user, families, onAnswer, onRecor
         </div>
       </PullToRefresh>
 
-      {/* Floating Action Button - Positioned at right-center for easy access */}
-      {/* Uses absolute instead of fixed to stay aligned with the max-w-md container on desktop */}
-      <button
-        onClick={() => onNavigate('ask_question')}
-        className={`absolute top-[45%] -translate-y-1/2 right-4 sm:right-6 z-[100] w-14 h-14 bg-primary text-white rounded-full flex items-center justify-center shadow-2xl shadow-primary/40 active:scale-95 transition-all duration-500 hover:scale-110 hover:-translate-x-1 scale-100 opacity-100`}
-        title="Ask a Question"
-      >
-        <Plus size={28} strokeWidth={3} />
-      </button>
     </div>
   );
 };

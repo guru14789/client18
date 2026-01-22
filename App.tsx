@@ -413,7 +413,7 @@ const App: React.FC = () => {
 
   if (view === 'splash') return <SplashScreen currentLanguage={language} />;
 
-  const hideFrame = ['splash', 'onboarding', 'login', 'record', 'nameEntry', 'ask_question'].includes(view);
+  const hideFrame = ['splash', 'onboarding', 'login', 'record', 'nameEntry', 'ask_question', 'branches'].includes(view);
 
   return (
     <div className="flex flex-col h-screen max-w-md mx-auto bg-warmwhite dark:bg-charcoal text-charcoal dark:text-warmwhite shadow-xl relative overflow-hidden transition-colors duration-300">
@@ -477,6 +477,23 @@ const App: React.FC = () => {
               enableTranslation={getConfigValue('enable_profile_translation')}
             />
           )}
+          {view === 'branches' && user && (
+            <Profile
+              user={user}
+              families={families}
+              onLogout={handleLogout}
+              currentTheme={theme}
+              onThemeChange={handleThemeChange}
+              currentLanguage={language}
+              onLanguageChange={handleLanguageChange}
+              onNavigate={setView}
+              onAddFamily={handleAddFamily}
+              onJoinFamily={joinFamilyByCode}
+              onLeaveFamily={leaveFamily}
+              enableTranslation={getConfigValue('enable_profile_translation')}
+              initialSubView="branches"
+            />
+          )}
           {view === 'ask_question' && user && (
             <CreateQuestion
               user={user}
@@ -518,6 +535,16 @@ const App: React.FC = () => {
               </button>
               <button
                 onClick={() => {
+                  if (view === 'questions') {
+                    setView('ask_question');
+                    return;
+                  }
+
+                  if (view === 'profile') {
+                    setView('branches');
+                    return;
+                  }
+
                   const activePrompts = qPrompts.filter(q =>
                     !memories.some(m => m.questionId === q.id) &&
                     !(user?.archivedQuestionIds || []).includes(q.id)

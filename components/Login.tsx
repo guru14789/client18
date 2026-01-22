@@ -38,8 +38,7 @@ interface LoginProps {
 const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage, enablePhoneAuth = true }) => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']); // Firebase typically uses 6 digits
-  const [name, setName] = useState('');
-  const [step, setStep] = useState<'welcome' | 'phone' | 'otp' | 'nameEntry'>('welcome');
+  const [step, setStep] = useState<'welcome' | 'phone' | 'otp'>('welcome');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCountryPicker, setShowCountryPicker] = useState(false);
@@ -193,8 +192,8 @@ const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage, enablePhoneAuth
       if (fbUser.displayName) {
         onLogin(fullPhone, fbUser.displayName, fbUser.uid);
       } else {
-        setName('');
-        setStep('nameEntry');
+        // Automatically use a default name instead of asking
+        onLogin(fullPhone, t('feed.family_member', currentLanguage) || 'Family Member', fbUser.uid);
       }
     } catch (err: any) {
       console.error("Error verifying OTP:", err);
@@ -204,12 +203,6 @@ const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage, enablePhoneAuth
     }
   };
 
-  const handleNameSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (name.trim().length < 2 || !firebaseUid) return;
-    const fullPhone = `${selectedCountry.code}${phoneNumber}`;
-    onLogin(fullPhone, name.trim(), firebaseUid);
-  };
 
   const handleOtpChange = (index: number, value: string) => {
     if (value.length > 1) value = value.slice(-1);
@@ -460,48 +453,6 @@ const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage, enablePhoneAuth
               {loading ? <Loader2 size={24} className="animate-spin" /> : t('login.confirm', currentLanguage)}
             </button>
           </div>
-        </div>
-      );
-    }
-
-    if (step === 'nameEntry') {
-      return (
-        <div className="h-screen w-full bg-warmwhite flex flex-col px-8 animate-in slide-in-from-bottom duration-500">
-          <div className="pt-[calc(3rem+env(safe-area-inset-top))] pb-8 flex flex-col items-center">
-            <div className="w-20 h-20 bg-primary/10 rounded-[24px] flex items-center justify-center text-primary mb-6">
-              <UserIcon size={40} />
-            </div>
-            <h1 className="text-3xl font-black text-charcoal tracking-tighter text-center">{t('login.nearly_there', currentLanguage)}</h1>
-            <p className="text-slate font-medium opacity-60 text-center mt-2">{t('login.family_call_you', currentLanguage)}</p>
-          </div>
-
-          <form onSubmit={handleNameSubmit} className="flex-1 flex flex-col mt-10">
-            <div className="bg-white border border-secondary/30 rounded-[28px] p-6 shadow-sm">
-              <label className="text-[10px] font-black text-slate uppercase tracking-[0.3em] block mb-3 px-1">{t('login.full_name', currentLanguage)}</label>
-              <input
-                type="text"
-                placeholder={t('login.enter_name', currentLanguage)}
-                className="w-full bg-transparent outline-none text-2xl font-black text-charcoal placeholder-slate/10"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                autoFocus
-              />
-            </div>
-
-            <p className="mt-6 text-sm text-slate text-center px-4 opacity-50 font-medium">
-              {t('login.name_desc', currentLanguage)}
-            </p>
-
-            <div className="mt-auto pb-16">
-              <button
-                type="submit"
-                disabled={name.trim().length < 2 || !firebaseUid}
-                className="w-full h-16 bg-primary text-white font-black rounded-[24px] text-lg shadow-2xl shadow-primary/20 flex items-center justify-center gap-3 active:scale-95 transition-all disabled:opacity-50"
-              >
-                {t('login.get_started', currentLanguage)} <ArrowRight size={20} />
-              </button>
-            </div>
-          </form>
         </div>
       );
     }

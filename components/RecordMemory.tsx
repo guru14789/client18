@@ -11,7 +11,8 @@ import {
   Square,
   Loader2,
   FilePlus,
-  CloudUpload
+  CloudUpload,
+  AlertCircle
 } from 'lucide-react';
 import { User, Question, Memory, Family, Language } from '../types';
 import { t } from '../services/i18n';
@@ -45,6 +46,8 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
   const [videoBlob, setVideoBlob] = useState<Blob | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [savingOption, setSavingOption] = useState<'app_whatsapp' | 'app_only' | 'draft' | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [isCameraReady, setIsCameraReady] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewRef = useRef<HTMLVideoElement>(null);
@@ -83,43 +86,62 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
 
   useEffect(() => {
     const startCamera = async () => {
+      // Clear previous error
+      setCameraError(null);
+      setIsCameraReady(false);
+
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setCameraError(t('record.error_not_supported', currentLanguage) || "Camera access is not supported in this browser or context (requires HTTPS).");
+        return;
       }
 
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode,
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
+            width: { ideal: 1280, min: 640 },
+            height: { ideal: 720, min: 480 }
           },
           audio: true
         });
+
         streamRef.current = stream;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
+          // Ensure it's playing
+          try {
+            await videoRef.current.play();
+          } catch (e) {
+            console.warn("Video play interrupted:", e);
+          }
         }
-      } catch (err) {
+        setIsCameraReady(true);
+      } catch (err: any) {
         console.error("Error accessing camera:", err);
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          setCameraError(t('record.error_permission', currentLanguage) || "Camera/Mic permission denied. Please enable them in your browser settings to record.");
+        } else {
+          setCameraError(t('record.error_generic', currentLanguage) || "Could not start camera. Please ensure no other app is using it.");
+        }
       }
     };
 
     if (stage === 'prep' || stage === 'recording') {
       startCamera();
-    } else {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-        streamRef.current = null;
-      }
     }
 
     return () => {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
       }
     };
-  }, [facingMode, stage]);
+  }, [facingMode, stage, currentLanguage]);
 
   useEffect(() => {
     let timer: any;
@@ -410,6 +432,28 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
           </div>
         )}
         <div className="absolute inset-0 bg-black/10 pointer-events-none" />
+
+        {cameraError && (
+          <div className="absolute inset-0 z-[60] bg-black/80 backdrop-blur-md flex flex-col items-center justify-center p-10 text-center space-y-6">
+            <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center text-red-500">
+              <AlertCircle size={40} />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-xl font-black">{t('record.camera_error_title', currentLanguage) || "Camera Unavailable"}</h3>
+              <p className="text-sm text-white/60 font-medium leading-relaxed">{cameraError}</p>
+            </div>
+            <button
+              onClick={() => {
+                setStage('prep');
+                setFacingMode('user');
+                // This triggers the useEffect again
+              }}
+              className="px-8 py-3 bg-white text-charcoal rounded-full font-black text-xs uppercase tracking-widest active:scale-95 transition-all"
+            >
+              {t('record.retry', currentLanguage) || "Retry Camera"}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="relative z-10 flex-1 flex flex-col justify-end p-8 pb-12 bg-gradient-to-t from-charcoal/90 via-transparent to-transparent">
@@ -433,12 +477,13 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
             <div className="space-y-4 w-full">
               <button
                 onClick={handleStartRequest}
-                className="w-full bg-primary text-white font-bold py-5 rounded-[28px] shadow-2xl shadow-primary/40 flex items-center justify-center gap-3 active:scale-95 transition-all text-xl"
+                disabled={!isCameraReady}
+                className="w-full bg-primary text-white font-bold py-5 rounded-[28px] shadow-2xl shadow-primary/40 flex items-center justify-center gap-3 active:scale-95 transition-all text-xl disabled:opacity-50 disabled:grayscale"
               >
                 <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
-                  <Camera size={24} fill="white" />
+                  {isCameraReady ? <Camera size={24} fill="white" /> : <Loader2 size={24} className="animate-spin" />}
                 </div>
-                {mode === 'question' ? t('record.mode.question', currentLanguage) : t('record.start', currentLanguage)}
+                {!isCameraReady ? (t('common.loading', currentLanguage) || "Initializing...") : (mode === 'question' ? t('record.mode.question', currentLanguage) : t('record.start', currentLanguage))}
               </button>
             </div>
           </div>

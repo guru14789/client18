@@ -50,15 +50,16 @@ interface ProfileProps {
   onJoinFamily: (code: string, userId: string, userName: string, userAvatar?: string) => Promise<string>;
   onLeaveFamily: (familyId: string, userId: string) => Promise<void>;
   enableTranslation?: boolean;
+  initialSubView?: SubView;
 }
 
 // Local JoinRequest for UI compat if needed or just use the one from types
 
 const Profile: React.FC<ProfileProps> = ({
   user, families, onLogout, currentTheme, onThemeChange, currentLanguage, onLanguageChange, onNavigate,
-  onAddFamily, onJoinFamily, onLeaveFamily, enableTranslation = true
+  onAddFamily, onJoinFamily, onLeaveFamily, enableTranslation = true, initialSubView = 'none'
 }) => {
-  const [activeSubView, setActiveSubView] = useState<SubView>('none');
+  const [activeSubView, setActiveSubView] = useState<SubView>(initialSubView);
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(user.displayName);
   const [isUploading, setIsUploading] = useState(false);
@@ -151,7 +152,16 @@ const Profile: React.FC<ProfileProps> = ({
 
   const SubViewHeader = ({ title, onBack }: { title: string, onBack: () => void }) => (
     <div className="flex items-center gap-4 mb-8">
-      <button onClick={onBack} className="p-3 bg-white dark:bg-charcoal/50 rounded-2xl shadow-sm border border-secondary/20 dark:border-white/10 active:scale-90 transition-transform">
+      <button
+        onClick={() => {
+          if (initialSubView !== 'none') {
+            onNavigate('profile');
+          } else {
+            onBack();
+          }
+        }}
+        className="p-3 bg-white dark:bg-charcoal/50 rounded-2xl shadow-sm border border-secondary/20 dark:border-white/10 active:scale-90 transition-transform"
+      >
         <ChevronLeft size={20} className="text-charcoal dark:text-warmwhite" />
       </button>
       <h3 className="text-2xl font-black text-charcoal dark:text-warmwhite tracking-tighter">{title}</h3>
