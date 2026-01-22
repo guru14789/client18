@@ -321,7 +321,7 @@ const Profile: React.FC<ProfileProps> = ({
           <div className="relative w-full max-w-sm bg-warmwhite dark:bg-charcoal rounded-[40px] p-8 shadow-2xl border border-white/20 dark:border-white/10 animate-in zoom-in-95 duration-300 space-y-6">
             <div className="flex items-center justify-between">
               <h3 className="text-2xl font-black text-charcoal dark:text-warmwhite tracking-tight">{t('profile.sub.create_branch', currentLanguage)}</h3>
-              <button onClick={() => setShowCreateModal(false)} className="p-2.5 bg-secondary/10 dark:bg-white/5 rounded-xl hover:bg-secondary/20 transition-all"><X size={20} /></button>
+              <button onClick={() => setShowCreateModal(false)} className="p-2.5 bg-red-50 dark:bg-red-950/20 rounded-xl hover:bg-red-100 transition-all text-red-500"><X size={20} strokeWidth={3} /></button>
             </div>
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate/40 dark:text-support/40 uppercase tracking-[0.2em] px-1">{t('login.family_name', currentLanguage)}</label>
@@ -372,7 +372,7 @@ const Profile: React.FC<ProfileProps> = ({
           <div className="relative w-full max-w-sm bg-warmwhite dark:bg-charcoal rounded-[40px] p-8 shadow-2xl border border-white/20 dark:border-white/10 animate-in zoom-in-95 duration-300 space-y-6">
             <div className="flex items-center justify-between">
               <h3 className="text-2xl font-black text-charcoal dark:text-warmwhite tracking-tight">{t('dashboard.join_family', currentLanguage)}</h3>
-              <button onClick={() => setShowJoinModal(false)} className="p-2.5 bg-secondary/10 dark:bg-white/5 rounded-xl hover:bg-secondary/20 transition-all"><X size={20} /></button>
+              <button onClick={() => setShowJoinModal(false)} className="p-2.5 bg-red-50 dark:bg-red-950/20 rounded-xl hover:bg-red-100 transition-all text-red-500"><X size={20} strokeWidth={3} /></button>
             </div>
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate/40 dark:text-support/40 uppercase tracking-[0.2em] px-1">{t('login.invite_code', currentLanguage)}</label>
@@ -748,7 +748,7 @@ const Profile: React.FC<ProfileProps> = ({
                         disabled={isProcessing}
                         className="flex-1 bg-secondary/10 dark:bg-white/5 text-slate dark:text-support/60 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95 transition-all"
                       >
-                        <X size={16} strokeWidth={3} /> {t('profile.sub.decline', currentLanguage)}
+                        <X size={16} strokeWidth={4} className="text-red-500" /> {t('profile.sub.decline', currentLanguage)}
                       </button>
                     </div>
                   </div>

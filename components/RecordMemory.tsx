@@ -336,8 +336,8 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
     <div className="h-full flex flex-col bg-charcoal text-white overflow-hidden relative">
       <div className="absolute top-0 left-0 right-0 z-50">
         <div className="pt-[calc(1.5rem+env(safe-area-inset-top))] px-6 pb-6 flex items-center justify-between">
-          <button onClick={onCancel} className="p-2.5 bg-white/10 backdrop-blur-lg rounded-2xl border border-white/10 active:scale-90 transition-transform">
-            <X size={24} />
+          <button onClick={onCancel} className="p-3 bg-red-500/20 backdrop-blur-lg rounded-2xl border border-red-500/30 text-red-500 active:scale-95 transition-all shadow-lg hover:bg-red-500/30">
+            <X size={24} strokeWidth={3} />
           </button>
           {stage === 'recording' && (
             <div className="flex items-center gap-2 bg-red-500 px-4 py-2 rounded-full font-mono text-xs font-bold animate-pulse shadow-lg shadow-red-500/20">

@@ -139,7 +139,7 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
             <div className="bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 p-5 rounded-3xl flex items-center gap-4 text-red-600 shadow-sm">
               <AlertCircle size={20} className="shrink-0" />
               <p className="text-[11px] font-black uppercase tracking-wider flex-1">{error}</p>
-              <button onClick={() => setError(null)} className="p-2 hover:bg-red-100 dark:hover:bg-red-500/10 rounded-xl transition-colors"><X size={18} /></button>
+              <button onClick={() => setError(null)} className="p-2 hover:bg-red-200 dark:hover:bg-red-500/20 rounded-xl transition-colors text-red-600"><X size={18} strokeWidth={3} /></button>
             </div>
           )}
 
@@ -261,7 +261,7 @@ const Documents: React.FC<DocumentsProps> = ({ user, families, documents, setDoc
                 <div className="p-3.5 bg-primary text-white rounded-2xl shadow-xl shadow-primary/20"><FileText size={20} strokeWidth={3} /></div>
                 <h3 className="font-black text-charcoal dark:text-warmwhite truncate max-w-[240px] text-lg tracking-tight">{viewingDoc.name}</h3>
               </div>
-              <button onClick={() => setViewingDoc(null)} className="p-4 bg-secondary/10 dark:bg-white/10 rounded-full hover:bg-red-500 hover:text-white transition-all active:scale-90"><X size={20} /></button>
+              <button onClick={() => setViewingDoc(null)} className="p-4 bg-red-50 dark:bg-red-950/20 rounded-full hover:bg-red-500 hover:text-white text-red-500 transition-all active:scale-90 shadow-sm border border-red-100 dark:border-red-900/10"><X size={20} strokeWidth={3} /></button>
             </header>
 
             <div className="flex-1 bg-secondary/5 dark:bg-black/30 p-4 sm:p-10 flex flex-col items-center justify-center relative">

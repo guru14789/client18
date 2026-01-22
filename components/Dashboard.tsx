@@ -224,10 +224,10 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
                     <div key={q.id} className="bg-white dark:bg-white/5 rounded-[44px] p-8 flex flex-col gap-8 border border-secondary/20 dark:border-white/10 relative transition-all shadow-sm">
                       <button
                         onClick={() => onArchiveQuestion(q.id)}
-                        className="absolute top-6 right-8 p-2 text-slate/20 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-full transition-all"
+                        className="absolute top-6 right-8 p-2 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-full transition-all"
                         title="Ignore question"
                       >
-                        <X size={16} />
+                        <X size={16} strokeWidth={3} />
                       </button>
 
                       <div className="flex items-start gap-6">
@@ -362,9 +362,9 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
                   </div>
                   <button
                     onClick={() => setIsSwitchingFamily(false)}
-                    className="p-3 bg-secondary/10 dark:bg-white/5 hover:bg-secondary/20 dark:hover:bg-white/10 rounded-2xl transition-all active:scale-90"
+                    className="p-3 bg-red-50 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-2xl transition-all active:scale-90"
                   >
-                    <X size={20} className="text-charcoal dark:text-warmwhite" />
+                    <X size={20} className="text-red-500" strokeWidth={3} />
                   </button>
                 </div>
               </div>
@@ -582,8 +582,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
                         {showInviteFeedback ? <CheckCircle size={20} /> : <Share2 size={20} />}
                       </button>
                     )}
-                    <button onClick={() => setViewingMembersFamily(null)} className="p-3.5 bg-white dark:bg-white/10 rounded-2xl shadow-sm border border-secondary/10 dark:border-white/5 text-charcoal dark:text-warmwhite active:scale-90 transition-transform">
-                      <X size={20} />
+                    <button onClick={() => setViewingMembersFamily(null)} className="p-3.5 bg-red-50 dark:bg-red-950/20 rounded-2xl shadow-sm border border-red-100 dark:border-red-900/10 text-red-500 active:scale-90 transition-transform">
+                      <X size={20} strokeWidth={3} />
                     </button>
                   </div>
                 </div>

@@ -94,8 +94,8 @@ export const ReelPlayer: React.FC<ReelPlayerProps> = ({
                     <div className="w-12 h-1 bg-slate/20 rounded-full mx-auto my-4 shrink-0" />
                     <div className="px-8 pb-4 flex items-center justify-between border-b border-slate/5 dark:border-white/5">
                         <h3 className="text-lg font-black text-charcoal dark:text-warmwhite">{t('feed.replies', currentLanguage)}</h3>
-                        <button onClick={() => setShowComments(false)} className="text-slate/40">
-                            <X size={20} />
+                        <button onClick={() => setShowComments(false)} className="p-2 bg-red-50 dark:bg-red-950/20 rounded-xl text-red-500 hover:bg-red-100 transition-all">
+                            <X size={20} strokeWidth={3} />
                         </button>
                     </div>
 
@@ -213,9 +213,9 @@ const ReelItem: React.FC<ReelItemProps> = ({
                 <div className="p-6 flex items-center justify-between">
                     <button
                         onClick={onClose}
-                        className="p-3 bg-white/10 backdrop-blur-xl rounded-2xl border border-white/10 text-white active:scale-90 transition-all shadow-2xl"
+                        className="p-3 bg-red-500 text-white rounded-2xl border border-red-400 active:scale-90 transition-all shadow-2xl hover:bg-red-600"
                     >
-                        <X size={24} />
+                        <X size={24} strokeWidth={3} />
                     </button>
                     <div className="flex items-center gap-2 bg-black/40 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10">
                         <Clock size={14} className="text-primary" />

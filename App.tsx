@@ -58,6 +58,7 @@ import SplashScreen from './components/SplashScreen';
 import Onboarding from './components/Onboarding';
 import Profile from './components/Profile';
 import Documents from './components/Documents';
+import CreateQuestion from './components/CreateQuestion';
 import { AppState, User, Memory, Family, Language, Question, FamilyDocument } from './types';
 import { t } from './services/i18n';
 import { fetchConfig, getConfigValue } from './services/firebaseRemoteConfig';
@@ -412,7 +413,7 @@ const App: React.FC = () => {
 
   if (view === 'splash') return <SplashScreen currentLanguage={language} />;
 
-  const hideFrame = ['splash', 'onboarding', 'login', 'record', 'nameEntry'].includes(view);
+  const hideFrame = ['splash', 'onboarding', 'login', 'record', 'nameEntry', 'ask_question'].includes(view);
 
   return (
     <div className="flex flex-col h-screen max-w-md mx-auto bg-warmwhite dark:bg-charcoal text-charcoal dark:text-warmwhite shadow-xl relative overflow-hidden transition-colors duration-300">
@@ -456,7 +457,7 @@ const App: React.FC = () => {
             />
           )}
           {view === 'feed' && user && <Feed memories={memories} user={user} families={families} currentLanguage={language} onRefresh={handleRefresh} />}
-          {view === 'questions' && user && <Questions user={user} families={families} questions={qPrompts} onAnswer={(q) => { setActiveQuestion(q); setRecordMode('answer'); setView('record'); }} onRecordQuestion={() => { setActiveQuestion(null); setRecordMode('question'); setView('record'); }} onToggleUpvote={toggleUpvote} onArchiveQuestion={handleArchiveQuestion} onAddQuestion={handleAddQuestion} activeFamilyId={activeFamilyId} currentLanguage={language} memories={memories} onRefresh={handleRefresh} />}
+          {view === 'questions' && user && <Questions user={user} families={families} questions={qPrompts} onAnswer={(q) => { setActiveQuestion(q); setRecordMode('answer'); setView('record'); }} onRecordQuestion={() => { setActiveQuestion(null); setRecordMode('question'); setView('record'); }} onToggleUpvote={toggleUpvote} onArchiveQuestion={handleArchiveQuestion} onAddQuestion={handleAddQuestion} activeFamilyId={activeFamilyId} currentLanguage={language} memories={memories} onRefresh={handleRefresh} onNavigate={setView} />}
           {view === 'documents' && user && <Documents user={user} families={families} documents={documents} setDocuments={setDocuments} currentLanguage={language} onRefresh={handleRefresh} />}
           {view === 'record' && user && <RecordMemory user={user} question={activeQuestion} mode={recordMode} onCancel={() => { setView('home'); setActiveQuestion(null); }} onComplete={handleRecordingComplete} families={families} activeFamilyId={activeFamilyId} currentLanguage={language} />}
           {view === 'drafts' && <Drafts drafts={drafts} onPublish={(m) => handleRecordingComplete({ ...m, status: 'published' })} onDelete={(id) => deleteMemory(id, user.uid)} currentLanguage={language} onBack={() => setView('home')} />}
@@ -474,6 +475,17 @@ const App: React.FC = () => {
               onJoinFamily={joinFamilyByCode}
               onLeaveFamily={leaveFamily}
               enableTranslation={getConfigValue('enable_profile_translation')}
+            />
+          )}
+          {view === 'ask_question' && user && (
+            <CreateQuestion
+              user={user}
+              families={families}
+              onAddQuestion={handleAddQuestion}
+              onRecordQuestion={() => { setActiveQuestion(null); setRecordMode('question'); setView('record'); }}
+              onCancel={() => setView('questions')}
+              currentLanguage={language}
+              activeFamilyId={activeFamilyId}
             />
           )}
         </div>

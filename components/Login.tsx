@@ -371,8 +371,8 @@ const Login: React.FC<LoginProps> = ({ onLogin, currentLanguage, enablePhoneAuth
           {showCountryPicker && (
             <div className="fixed inset-0 z-[200] bg-warmwhite animate-in slide-in-from-bottom duration-300 flex flex-col">
               <div className="p-6 border-b border-secondary/20 flex items-center gap-4 bg-white">
-                <button onClick={() => setShowCountryPicker(false)} className="p-3 bg-secondary/20 rounded-2xl text-charcoal">
-                  <X size={20} />
+                <button onClick={() => setShowCountryPicker(false)} className="p-3 bg-red-50 hover:bg-red-100 rounded-2xl text-red-500 transition-all border border-red-100 active:scale-90">
+                  <X size={20} strokeWidth={3} />
                 </button>
                 <div className="flex-1 relative">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate/40" size={18} />
