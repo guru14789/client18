@@ -59,6 +59,7 @@ import Onboarding from './components/Onboarding';
 import Profile from './components/Profile';
 import Documents from './components/Documents';
 import CreateQuestion from './components/CreateQuestion';
+import Families from './components/Families';
 import { AppState, User, Memory, Family, Language, Question, FamilyDocument } from './types';
 import { t } from './services/i18n';
 import { fetchConfig, getConfigValue } from './services/firebaseRemoteConfig';
@@ -413,7 +414,7 @@ const App: React.FC = () => {
 
   if (view === 'splash') return <SplashScreen currentLanguage={language} />;
 
-  const hideFrame = ['splash', 'onboarding', 'login', 'record', 'nameEntry', 'ask_question', 'branches'].includes(view);
+  const hideFrame = ['splash', 'onboarding', 'login', 'record', 'nameEntry', 'ask_question', 'branches', 'families'].includes(view);
 
   return (
     <div className="flex flex-col h-screen max-w-md mx-auto bg-warmwhite dark:bg-charcoal text-charcoal dark:text-warmwhite shadow-xl relative overflow-hidden transition-colors duration-300">
@@ -503,6 +504,16 @@ const App: React.FC = () => {
               onCancel={() => setView('questions')}
               currentLanguage={language}
               activeFamilyId={activeFamilyId}
+            />
+          )}
+          {view === 'families' && user && (
+            <Families
+              user={user}
+              families={families}
+              currentLanguage={language}
+              activeFamilyId={activeFamilyId}
+              onSwitchFamily={switchFamily}
+              onNavigate={setView}
             />
           )}
         </div>

@@ -90,7 +90,7 @@ export const ReelPlayer: React.FC<ReelPlayerProps> = ({
 
             {/* Shared Comments Tray (Optional - could also be inside ReelItem) */}
             {showComments && activeId && (
-                <div className="absolute inset-x-0 bottom-0 z-[220] bg-white dark:bg-charcoal rounded-t-[40px] shadow-[0_-20px_80px_rgba(0,0,0,0.5)] animate-in slide-in-from-bottom duration-300 flex flex-col max-h-[60vh]">
+                <div className="absolute left-0 right-0 bottom-0 z-[220] w-full bg-white dark:bg-charcoal rounded-t-[40px] shadow-[0_-20px_80px_rgba(0,0,0,0.5)] animate-in slide-in-from-bottom duration-300 flex flex-col max-h-[70vh] overflow-hidden">
                     <div className="w-12 h-1 bg-slate/20 rounded-full mx-auto my-4 shrink-0" />
                     <div className="px-8 pb-4 flex items-center justify-between border-b border-slate/5 dark:border-white/5">
                         <h3 className="text-lg font-black text-charcoal dark:text-warmwhite">{t('feed.replies', currentLanguage)}</h3>
@@ -123,7 +123,7 @@ export const ReelPlayer: React.FC<ReelPlayerProps> = ({
                             <input
                                 type="text"
                                 placeholder={t('feed.reply_placeholder', currentLanguage)}
-                                className="flex-1 bg-transparent px-4 py-2 text-sm font-bold text-charcoal dark:text-warmwhite outline-none placeholder:font-medium"
+                                className="flex-1 min-w-0 bg-transparent px-4 py-2 text-sm font-bold text-charcoal dark:text-warmwhite outline-none placeholder:font-medium"
                                 value={newComment}
                                 onChange={(e) => setNewComment(e.target.value)}
                                 onKeyPress={(e) => e.key === 'Enter' && onComment(activeId, newComment).then(() => setNewComment(''))}
