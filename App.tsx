@@ -469,9 +469,21 @@ const App: React.FC = () => {
               onArchiveQuestion={handleArchiveQuestion}
               memories={memories}
               onRefresh={handleRefresh}
+              initialMemoryId={initialMemoryId}
+              onClearInitialMemory={() => setInitialMemoryId(null)}
             />
           )}
-          {view === 'feed' && user && <Feed memories={memories} user={user} families={families} currentLanguage={language} onRefresh={handleRefresh} />}
+          {view === 'feed' && user && (
+            <Feed
+              memories={memories}
+              user={user}
+              families={families}
+              currentLanguage={language}
+              onRefresh={handleRefresh}
+              initialMemoryId={initialMemoryId}
+              onClearInitialMemory={() => setInitialMemoryId(null)}
+            />
+          )}
           {view === 'questions' && user && <Questions user={user} families={families} questions={qPrompts} onAnswer={(q) => { setActiveQuestion(q); setRecordMode('answer'); setView('record'); }} onRecordQuestion={() => { setActiveQuestion(null); setRecordMode('question'); setView('record'); }} onToggleUpvote={toggleUpvote} onArchiveQuestion={handleArchiveQuestion} onAddQuestion={handleAddQuestion} activeFamilyId={activeFamilyId} currentLanguage={language} memories={memories} onRefresh={handleRefresh} onNavigate={setView} />}
           {view === 'documents' && user && <Documents user={user} families={families} documents={documents} setDocuments={setDocuments} currentLanguage={language} onRefresh={handleRefresh} />}
           {view === 'record' && user && <RecordMemory user={user} question={activeQuestion} mode={recordMode} onCancel={() => { setView('home'); setActiveQuestion(null); }} onComplete={handleRecordingComplete} families={families} activeFamilyId={activeFamilyId} currentLanguage={language} />}

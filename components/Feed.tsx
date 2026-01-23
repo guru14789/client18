@@ -26,11 +26,13 @@ interface FeedProps {
   families: Family[];
   currentLanguage: Language;
   onRefresh: () => Promise<void>;
+  initialMemoryId?: string | null;
+  onClearInitialMemory?: () => void;
 }
 
-const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage, onRefresh }) => {
+const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage, onRefresh, initialMemoryId, onClearInitialMemory }) => {
   const [filter, setFilter] = useState<'all' | 'mine'>('all');
-  const [playingMemoryId, setPlayingMemoryId] = useState<string | null>(null);
+  const [playingMemoryId, setPlayingMemoryId] = useState<string | null>(initialMemoryId || null);
   const [showComments, setShowComments] = useState<boolean>(false);
   const [newComment, setNewComment] = useState('');
   const [showShareToast, setShowShareToast] = useState(false);
@@ -319,6 +321,7 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage, 
             onClose={() => {
               setPlayingMemoryId(null);
               setShowComments(false);
+              if (onClearInitialMemory) onClearInitialMemory();
             }}
             onLike={handleLike}
             onComment={handleAddComment}
