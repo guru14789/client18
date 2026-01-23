@@ -96,6 +96,20 @@ const App: React.FC = () => {
 
   // 1. Auth Context consumption
   const { currentUser: user, loading, logout, refreshProfile } = useAuth();
+  const [initialMemoryId, setInitialMemoryId] = useState<string | null>(null);
+
+  // Capture shared memory ID from URL on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const mid = params.get('memoryId');
+    if (mid) {
+      setInitialMemoryId(mid);
+      // Wait for auth to settle, then switch to feed
+      if (!loading && user) {
+        setView('feed');
+      }
+    }
+  }, [loading, !!user]);
 
   // 2. Family & Profile Sync
   useEffect(() => {

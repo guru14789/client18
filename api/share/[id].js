@@ -7,7 +7,6 @@ if (!admin.apps.length) {
             credential: admin.credential.cert({
                 projectId: process.env.FIREBASE_PROJECT_ID,
                 clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-                // Handle private key with escaped newlines
                 privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
             }),
         });
@@ -26,34 +25,18 @@ export default async function handler(req, res) {
     }
 
     try {
-        // Query across all users' memories for the specific memory ID
-        // Note: Using collectionGroup requires an index if you filter, but
-        // since we are fetching by ID across a group, we might need to find the correct path.
-        // Actually, document IDs are not naturally searchable via collectionGroup without an index on a field.
-        // However, we can query by the 'id' field if we store it inside the document.
-        // Let's check if 'id' is stored inside the document.
-        // In firebaseDatabase.ts: createMemory stores ...clean(memoryData). memoryData has 'id' only if it's passed.
-        // But usually addDoc generates an ID and we don't store it inside unless explicit.
-
-        // A better way: Query collectionGroup('memories') where a field 'id' matches if we have it,
-        // OR we can use the fact that memoryId is unique and use a workaround.
-        // Since we don't know the parent user ID, we have to search.
-
         const memoriesRef = db.collectionGroup('memories');
-        // We assume the document has a field 'id' or we'll search by document ID using __name__
-        // Finding by __name__ in a collection group is possible:
         const snapshot = await memoriesRef.where(admin.firestore.FieldPath.documentId(), '==', id).limit(1).get();
 
         if (snapshot.empty) {
-            // Fallback: maybe it's saved as a field?
-            // (If the documentId() doesn't work as expected in some environments)
+            // Check if it's saved as an ID field
             const fallbackSnapshot = await memoriesRef.where('id', '==', id).limit(1).get();
             if (fallbackSnapshot.empty) {
                 return res.status(404).send('Memory not found');
             }
-            renderMeta(res, fallbackSnapshot.docs[0].data(), id);
+            renderVideoPage(res, fallbackSnapshot.docs[0].data(), id);
         } else {
-            renderMeta(res, snapshot.docs[0].data(), id);
+            renderVideoPage(res, snapshot.docs[0].data(), id);
         }
     } catch (error) {
         console.error('Error fetching memory:', error);
@@ -61,13 +44,13 @@ export default async function handler(req, res) {
     }
 }
 
-function renderMeta(res, memory, memoryId) {
+function renderVideoPage(res, memory, memoryId) {
     const title = memory.questionText || 'Inai Family Memory';
     const description = memory.authorName ? `Shared by ${memory.authorName}` : 'A special memory shared on Inai.';
-    const imageUrl = memory.thumbnailUrl || 'https://inai.io/default-share-image.jpg'; // Replace with your default
-    const appUrl = `https://${process.env.VERCEL_URL || 'inai-family-connect-1zip.vercel.app'}/?memoryId=${memoryId}`;
+    const imageUrl = memory.thumbnailUrl || '';
+    const videoUrl = memory.videoUrl;
+    const appUrl = `https://${process.env.VERCEL_URL || 'inai.app'}/?memoryId=${memoryId}`;
 
-    // Clean up title/desc for HTML
     const cleanTitle = title.replace(/"/g, '&quot;');
     const cleanDesc = description.replace(/"/g, '&quot;');
 
@@ -76,37 +59,128 @@ function renderMeta(res, memory, memoryId) {
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     
-    <!-- Primary Meta Tags -->
     <title>${cleanTitle}</title>
-    <meta name="title" content="${cleanTitle}">
     <meta name="description" content="${cleanDesc}">
 
-    <!-- Open Graph / Facebook -->
+    <!-- Open Graph -->
     <meta property="og:type" content="video.other">
-    <meta property="og:url" content="${appUrl}">
     <meta property="og:title" content="${cleanTitle}">
     <meta property="og:description" content="${cleanDesc}">
     <meta property="og:image" content="${imageUrl}">
-    <meta property="og:image:width" content="1200">
-    <meta property="og:image:height" content="630">
+    <meta property="og:video" content="${videoUrl}">
+    <meta property="og:url" content="${appUrl}">
 
-    <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:url" content="${appUrl}">
-    <meta property="twitter:title" content="${cleanTitle}">
-    <meta property="twitter:description" content="${cleanDesc}">
-    <meta property="twitter:image" content="${imageUrl}">
-
-    <!-- Redirect to SPA -->
-    <script>
-        window.location.href = "/?memoryId=${memoryId}";
-    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            font-family: 'Inter', sans-serif;
+            color: #fff;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .video-container {
+            flex: 1;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+        }
+        video {
+            width: 100%;
+            height: 100%;
+            max-width: 500px;
+            object-fit: contain;
+        }
+        .overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 40px 20px;
+            background: linear-gradient(transparent, rgba(0,0,0,0.8));
+            pointer-events: none;
+        }
+        .overlay-content {
+            max-width: 500px;
+            margin: 0 auto;
+            pointer-events: auto;
+        }
+        h1 {
+            font-size: 20px;
+            font-weight: 900;
+            margin: 0 0 8px 0;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+        p {
+            font-size: 14px;
+            opacity: 0.8;
+            margin: 0 0 24px 0;
+        }
+        .cta-button {
+            display: inline-flex;
+            align-items: center;
+            background: #2f5d8a;
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 14px;
+            box-shadow: 0 10px 20px rgba(47,93,138,0.3);
+            transition: transform 0.2s;
+        }
+        .cta-button:active {
+            transform: scale(0.95);
+        }
+        .logo {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-weight: 900;
+            letter-spacing: -1px;
+            font-size: 24px;
+            background: linear-gradient(to right, #2f5d8a, #8da9c4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            z-index: 10;
+        }
+    </style>
 </head>
 <body>
-    <h1>Redirecting to Inai...</h1>
-    <p>If you are not redirected automatically, <a href="/?memoryId=${memoryId}">click here</a>.</p>
+    <div class="logo">INAI</div>
+    
+    <div class="video-container">
+        <video 
+            src="${videoUrl}" 
+            poster="${imageUrl}"
+            controls 
+            autoplay 
+            playsinline
+            loop
+        ></video>
+        
+        <div class="overlay">
+            <div class="overlay-content">
+                <h1>${cleanTitle}</h1>
+                <p>${cleanDesc}</p>
+                <a href="/?memoryId=${memoryId}" class="cta-button">
+                    Open in Inai App
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bots/Crawlers get the meta tags above. Humans get the player. -->
+    <!-- Optional: Auto-redirect only if user has been here for a while or clicks button -->
 </body>
 </html>
     `;
