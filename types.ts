@@ -152,4 +152,4 @@ export interface JoinRequest {
   createdAt: string;
 }
 
-export type AppState = 'splash' | 'onboarding' | 'login' | 'home' | 'feed' | 'questions' | 'record' | 'drafts' | 'profile' | 'documents' | 'nameEntry' | 'ask_question' | 'branches' | 'families';
+export type AppState = 'splash' | 'onboarding' | 'login' | 'home' | 'feed' | 'questions' | 'record' | 'drafts' | 'profile' | 'documents' | 'nameEntry' | 'ask_question' | 'branches' | 'families' | 'shared_memory';

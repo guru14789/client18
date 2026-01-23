@@ -41,6 +41,7 @@ export {
     likeMemory,
     unlikeMemory,
     addCommentToMemory,
+    getMemoryById,
     // Question operations
     createQuestion,
     upvoteQuestion,

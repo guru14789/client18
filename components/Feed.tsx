@@ -143,10 +143,10 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage, 
     try {
       const questionLabel = t('record.question_label', currentLanguage) || 'Question';
       const questionText = memory.questionText || t('feed.shared_story_default', currentLanguage);
-      const watchUrl = memory.videoUrl;
+      const appUrl = `${window.location.origin}/?memoryId=${memory.id}`;
       const shareTitle = t('feed.share_title_tag', currentLanguage) || 'Inai Family Memory';
 
-      const fullShareText = `${questionLabel}: ${questionText}\n\n${t('feed.share_text', currentLanguage)}: ${watchUrl}`;
+      const fullShareText = `${questionLabel}: ${questionText}\n\n${t('feed.share_text', currentLanguage)}: ${appUrl}`;
 
       const shareData: any = {
         title: shareTitle,
@@ -161,14 +161,14 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage, 
           if (navigator.canShare && navigator.canShare({ files: [file] })) {
             shareData.files = [file];
           } else {
-            shareData.url = watchUrl;
+            shareData.url = appUrl;
           }
         } catch (fileErr) {
           console.warn('Could not prepare thumbnail for sharing:', fileErr);
-          shareData.url = watchUrl;
+          shareData.url = appUrl;
         }
       } else {
-        shareData.url = watchUrl;
+        shareData.url = appUrl;
       }
 
       if (navigator.share) {
