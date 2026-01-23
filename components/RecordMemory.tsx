@@ -317,13 +317,12 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
           : t('record.whatsapp_template_question', currentLanguage);
 
         const baseText = template.replace('{question}', qText);
-        const watchUrl = `${window.location.origin}/api/share/${memoryId}`;
-        const fullShareText = `${questionLabel}: ${qText}\n\n${baseText}\n\nCheck it out here: ${watchUrl}`;
+        const watchUrl = `${window.location.origin}/v/${memoryId}.mp4`;
+        const fullShareText = `${questionLabel}: ${qText}\n\nVideo: ${watchUrl}`;
 
         const shareData: any = {
           title: t('feed.share_title_tag', currentLanguage) || 'Inai Family Memory',
           text: fullShareText,
-          url: watchUrl
         };
 
         // If thumbnail is available and supported, include it as a file

@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/v/:id.mp4",
+      "destination": "/api/share/:id"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

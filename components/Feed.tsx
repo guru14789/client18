@@ -157,15 +157,14 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage, 
     try {
       const questionLabel = t('record.question_label', currentLanguage) || 'Question';
       const questionText = memory.questionText || t('feed.shared_story_default', currentLanguage);
-      const watchUrl = `${window.location.origin}/api/share/${memory.id}`;
+      const watchUrl = `${window.location.origin}/v/${memory.id}.mp4`;
       const shareTitle = t('feed.share_title_tag', currentLanguage) || 'Inai Family Memory';
 
-      const fullShareText = `${questionLabel}: ${questionText}\n\n${t('feed.share_text', currentLanguage)}: ${watchUrl}`;
+      const fullShareText = `${questionLabel}: ${questionText}\n\nVideo: ${watchUrl}`;
 
       const shareData: any = {
         title: shareTitle,
         text: fullShareText,
-        url: watchUrl
       };
 
       // Try to include thumbnail as a file for better WhatsApp/social sharing
