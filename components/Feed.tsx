@@ -141,25 +141,25 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage, 
     setIsSharing(true);
 
     try {
-      const shareTitle = t('feed.share_title_tag', currentLanguage) || 'Family Connect';
-      const shareText = `${t('feed.share_text', currentLanguage)}: ${memory.questionText || t('feed.shared_story_default', currentLanguage)}`;
+      const questionLabel = t('record.question_label', currentLanguage) || 'Question';
+      const questionText = memory.questionText || t('feed.shared_story_default', currentLanguage);
       const watchUrl = memory.videoUrl;
+      const shareTitle = t('feed.share_title_tag', currentLanguage) || 'Inai Family Memory';
+
+      const fullShareText = `${questionLabel}: ${questionText}\n\n${t('feed.share_text', currentLanguage)}: ${watchUrl}`;
 
       const shareData: any = {
         title: shareTitle,
-        text: `${shareText}\n\nWatch here: ${watchUrl}`,
+        text: fullShareText,
       };
 
       // Try to include thumbnail as a file for better WhatsApp/social sharing
       if (memory.thumbnailUrl) {
         try {
-          // Use fetch with 'anonymous' cross-origin if needed, though fetch(url) usually works if CORS is set
-          const file = await blobUrlToFile(memory.thumbnailUrl, 'memory-screenshot.jpg');
+          const file = await blobUrlToFile(memory.thumbnailUrl, 'thumbnail.jpg');
 
           if (navigator.canShare && navigator.canShare({ files: [file] })) {
             shareData.files = [file];
-            // On some platforms, if files are present, the text is used as caption
-            // We still include the URL in the text for safety
           } else {
             shareData.url = watchUrl;
           }
@@ -175,16 +175,14 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage, 
         try {
           await navigator.share(shareData);
         } catch (shareErr: any) {
-          // If user cancelled or file share failed, try simple text share
           if (shareErr.name !== 'AbortError') {
-            const fallbackText = `${shareText}\n${watchUrl}`;
+            const fallbackText = `${fullShareText}`;
             const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(fallbackText)}`;
             window.open(whatsappUrl, '_blank');
           }
         }
       } else {
-        // Fallback for browsers without navigator.share (desktop)
-        const fallbackText = `${shareText}\n${watchUrl}`;
+        const fallbackText = `${fullShareText}`;
         const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(fallbackText)}`;
         window.open(whatsappUrl, '_blank');
       }

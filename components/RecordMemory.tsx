@@ -310,19 +310,21 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
       };
 
       if (shareOption === 'app_whatsapp') {
+        const questionLabel = t('record.question_label', currentLanguage) || 'Question';
+        const qText = question?.text.english || "";
         const template = mode === 'answer'
           ? t('record.whatsapp_template_answer', currentLanguage)
           : t('record.whatsapp_template_question', currentLanguage);
-        const qText = question?.text.english || "";
-        const text = template.replace('{question}', qText);
+
+        const baseText = template.replace('{question}', qText);
+        const fullShareText = `${questionLabel}: ${qText}\n\n${baseText}\n\nCheck it out here: ${downloadURL}`;
 
         const shareData: any = {
-          title: t('feed.share_title_tag', currentLanguage) || 'Family Connect',
-          text: `${text}\n\nCheck it out here: ${downloadURL}`,
+          title: t('feed.share_title_tag', currentLanguage) || 'Inai Family Memory',
+          text: fullShareText,
         };
 
         // If thumbnail is available and supported, include it as a file
-        // Attaching a file usually allows WhatsApp to use the 'text' as a caption.
         if (thumbnailFile && navigator.canShare && navigator.canShare({ files: [thumbnailFile] })) {
           shareData.files = [thumbnailFile];
         } else {
@@ -333,15 +335,13 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
           try {
             await navigator.share(shareData);
           } catch (shareErr: any) {
-            console.warn("Navigator share failed, falling back to URL:", shareErr);
-            // Fallback to simple link if user cancelled or browser failed file share
             if (shareErr.name !== 'AbortError') {
-              const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text + "\n" + downloadURL)}`;
+              const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(fullShareText)}`;
               window.open(whatsappUrl, '_blank');
             }
           }
         } else {
-          const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text + "\n" + downloadURL)}`;
+          const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(fullShareText)}`;
           window.open(whatsappUrl, '_blank');
         }
       }

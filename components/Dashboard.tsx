@@ -24,7 +24,7 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRecord, onAddFamily, currentLanguage, activeFamilyId, onSwitchFamily, prompts, onToggleUpvote, onArchiveQuestion, memories, onRefresh }) => {
   const [isCreatingFamily, setIsCreatingFamily] = useState(false);
-  const [isSwitchingFamily, setIsSwitchingFamily] = useState(false);
+
   const [newFamilyName, setNewFamilyName] = useState('');
   const [newFamilyLang, setNewFamilyLang] = useState<Language>(Language.TAMIL);
   const [greeting, setGreeting] = useState('Hello');
