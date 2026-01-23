@@ -316,20 +316,21 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
           ? t('record.whatsapp_template_answer', currentLanguage)
           : t('record.whatsapp_template_question', currentLanguage);
 
-        const appUrl = `${window.location.origin}/?memoryId=${memoryId}`;
         const baseText = template.replace('{question}', qText);
-        const fullShareText = `${questionLabel}: ${qText}\n\n${baseText}\n\nCheck it out here: ${appUrl}`;
+        const watchUrl = `${window.location.origin}/api/share/${memoryId}`;
+        const fullShareText = `${questionLabel}: ${qText}\n\n${baseText}\n\nCheck it out here: ${watchUrl}`;
 
         const shareData: any = {
           title: t('feed.share_title_tag', currentLanguage) || 'Inai Family Memory',
           text: fullShareText,
+          url: watchUrl
         };
 
         // If thumbnail is available and supported, include it as a file
         if (thumbnailFile && navigator.canShare && navigator.canShare({ files: [thumbnailFile] })) {
           shareData.files = [thumbnailFile];
         } else {
-          shareData.url = appUrl;
+          shareData.url = watchUrl;
         }
 
         if (navigator.share) {

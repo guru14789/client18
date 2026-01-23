@@ -13,7 +13,8 @@
     "react-dom": "^19.2.3",
     "lucide-react": "0.460.0",
     "@google/generative-ai": "^0.21.0",
-    "firebase": "^12.7.0"
+    "firebase": "^12.7.0",
+    "firebase-admin": "^13.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

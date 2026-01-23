@@ -60,7 +60,6 @@ import Profile from './components/Profile';
 import Documents from './components/Documents';
 import CreateQuestion from './components/CreateQuestion';
 import Families from './components/Families';
-import SharedMemory from './components/SharedMemory';
 import { AppState, User, Memory, Family, Language, Question, FamilyDocument } from './types';
 import { t } from './services/i18n';
 import { fetchConfig, getConfigValue } from './services/firebaseRemoteConfig';
@@ -70,7 +69,6 @@ const App: React.FC = () => {
   const [families, setFamilies] = useState<Family[]>([]);
   const [activeQuestion, setActiveQuestion] = useState<Question | null>(null);
   const [activeFamilyId, setActiveFamilyId] = useState<string | null>(null);
-  const [sharedMemoryId, setSharedMemoryId] = useState<string | null>(null);
   const [recordMode, setRecordMode] = useState<'answer' | 'question'>('answer');
   const [configLoaded, setConfigLoaded] = useState(false);
 
@@ -154,12 +152,6 @@ const App: React.FC = () => {
     const inviteCode = params.get('join');
     const secureFamilyId = params.get('familyId');
     const secureToken = params.get('token');
-    const memoryId = params.get('memoryId');
-
-    if (memoryId) {
-      setSharedMemoryId(memoryId);
-      setView('shared_memory');
-    }
 
     const cleanUrl = () => {
       window.history.replaceState({}, document.title, "/"); // Always return to root after join
@@ -422,7 +414,7 @@ const App: React.FC = () => {
 
   if (view === 'splash') return <SplashScreen currentLanguage={language} />;
 
-  const hideFrame = ['splash', 'onboarding', 'login', 'record', 'nameEntry', 'ask_question', 'branches', 'families', 'shared_memory'].includes(view);
+  const hideFrame = ['splash', 'onboarding', 'login', 'record', 'nameEntry', 'ask_question', 'branches', 'families'].includes(view);
 
   return (
     <div className="flex flex-col h-screen max-w-md mx-auto bg-warmwhite dark:bg-charcoal text-charcoal dark:text-warmwhite shadow-xl relative overflow-hidden transition-colors duration-300">
@@ -512,17 +504,6 @@ const App: React.FC = () => {
               onCancel={() => setView('questions')}
               currentLanguage={language}
               activeFamilyId={activeFamilyId}
-            />
-          )}
-          {view === 'shared_memory' && sharedMemoryId && (
-            <SharedMemory
-              memoryId={sharedMemoryId}
-              onClose={() => {
-                setSharedMemoryId(null);
-                setView(user ? 'home' : 'login');
-              }}
-              currentLanguage={language}
-              user={user || undefined}
             />
           )}
           {view === 'families' && user && (

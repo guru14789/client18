@@ -598,20 +598,6 @@ export const addCommentToMemory = async (memoryId: string, authorId: string, use
     }
 };
 
-export const getMemoryById = async (memoryId: string): Promise<Memory | null> => {
-    try {
-        const q = query(collectionGroup(db, COLLECTIONS.MEMORIES), where("id", "==", memoryId));
-        const snapshot = await getDocs(q);
-        if (!snapshot.empty) {
-            return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Memory;
-        }
-        return null;
-    } catch (error) {
-        console.error("Error getting memory by ID:", error);
-        throw error;
-    }
-};
-
 // ============================================
 // QUESTION OPERATIONS (Stored under /users/{uid}/questions)
 // ============================================

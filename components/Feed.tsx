@@ -40,6 +40,18 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage, 
 
   const [optimisticCache, setOptimisticCache] = useState<Record<string, Partial<Memory>>>({});
 
+  // Handle incoming memoryId from URL
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const mid = params.get('memoryId');
+    if (mid) {
+      setPlayingMemoryId(mid);
+      // Clean up URL for cleaner look
+      const newUrl = window.location.pathname + window.location.search.replace(/memoryId=[^&]*(&|$)/, '').replace(/[?&]$/, '');
+      window.history.replaceState({}, document.title, newUrl || "/");
+    }
+  }, []);
+
   // Helper to merge server data with local optimistic updates
   const getDisplayMemory = (memory: Memory) => {
     if (!optimisticCache[memory.id]) return memory;
@@ -143,14 +155,15 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage, 
     try {
       const questionLabel = t('record.question_label', currentLanguage) || 'Question';
       const questionText = memory.questionText || t('feed.shared_story_default', currentLanguage);
-      const appUrl = `${window.location.origin}/?memoryId=${memory.id}`;
+      const watchUrl = `${window.location.origin}/api/share/${memory.id}`;
       const shareTitle = t('feed.share_title_tag', currentLanguage) || 'Inai Family Memory';
 
-      const fullShareText = `${questionLabel}: ${questionText}\n\n${t('feed.share_text', currentLanguage)}: ${appUrl}`;
+      const fullShareText = `${questionLabel}: ${questionText}\n\n${t('feed.share_text', currentLanguage)}: ${watchUrl}`;
 
       const shareData: any = {
         title: shareTitle,
         text: fullShareText,
+        url: watchUrl
       };
 
       // Try to include thumbnail as a file for better WhatsApp/social sharing
@@ -161,14 +174,14 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage, 
           if (navigator.canShare && navigator.canShare({ files: [file] })) {
             shareData.files = [file];
           } else {
-            shareData.url = appUrl;
+            shareData.url = watchUrl;
           }
         } catch (fileErr) {
           console.warn('Could not prepare thumbnail for sharing:', fileErr);
-          shareData.url = appUrl;
+          shareData.url = watchUrl;
         }
       } else {
-        shareData.url = appUrl;
+        shareData.url = watchUrl;
       }
 
       if (navigator.share) {
