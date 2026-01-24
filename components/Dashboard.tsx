@@ -4,7 +4,8 @@ import { Users, Archive, Plus, Video, X, Globe, MapPin, Info, ThumbsUp, Play, Lo
 import { User, Family, Question, Language, Memory } from '../types';
 import { t } from '../services/i18n';
 import { LocalizedText } from './LocalizedText';
-import { getUsers, addFamilyAdmin, generateSecureInvite } from '../services/firebaseServices';
+import { getUsers, addFamilyAdmin, generateSecureInvite, likeMemory, unlikeMemory, addCommentToMemory } from '../services/firebaseServices';
+import { ReelPlayer } from './ReelPlayer';
 
 interface DashboardProps {
   user: User;
@@ -20,9 +21,11 @@ interface DashboardProps {
   onArchiveQuestion: (questionId: string) => void;
   memories: Memory[];
   onRefresh: () => Promise<void>;
+  initialMemoryId: string | null;
+  onClearInitialMemory: () => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRecord, onAddFamily, currentLanguage, activeFamilyId, onSwitchFamily, prompts, onToggleUpvote, onArchiveQuestion, memories, onRefresh }) => {
+const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRecord, onAddFamily, currentLanguage, activeFamilyId, onSwitchFamily, prompts, onToggleUpvote, onArchiveQuestion, memories, onRefresh, initialMemoryId, onClearInitialMemory }) => {
   const [isCreatingFamily, setIsCreatingFamily] = useState(false);
 
   const [newFamilyName, setNewFamilyName] = useState('');
@@ -34,6 +37,18 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
   const [isPromoting, setIsPromoting] = useState<string | null>(null);
   const [showInviteFeedback, setShowInviteFeedback] = useState(false);
   const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
+  const [playingMemoryId, setPlayingMemoryId] = useState<string | null>(initialMemoryId);
+  const [isLiking, setIsLiking] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const [isCommenting, setIsCommenting] = useState(false);
+  const [optimisticCache, setOptimisticCache] = useState<Record<string, Partial<Memory>>>({});
+
+  // Synchronize internal playing state with prop
+  useEffect(() => {
+    if (initialMemoryId) {
+      setPlayingMemoryId(initialMemoryId);
+    }
+  }, [initialMemoryId]);
 
   const activeFamily = families.find(f => f.id === activeFamilyId) || families[0];
 
@@ -503,6 +518,41 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
             </div>
           </div>
         )}
+
+        {/* Video Player Overlay for Shared Memories */}
+        {playingMemoryId && (() => {
+          const initialIndex = memories.findIndex(m => m.id === playingMemoryId);
+          if (initialIndex === -1) return null;
+
+          return (
+            <ReelPlayer
+              memories={memories}
+              initialIndex={initialIndex}
+              user={user}
+              currentLanguage={currentLanguage}
+              onClose={() => {
+                setPlayingMemoryId(null);
+                onClearInitialMemory();
+              }}
+              onLike={(id) => likeMemory(id, memories.find(m => m.id === id)!.authorId, user.uid)}
+              onComment={(id, text) => addCommentToMemory(id, memories.find(m => m.id === id)!.authorId, user.uid, user.displayName, text)}
+              onShare={async (memory) => {
+                const watchUrl = `${window.location.origin}/v/${memory.id}.mp4`;
+                if (navigator.share) {
+                  await navigator.share({
+                    title: 'Inai Family Memory',
+                    text: `Watch this family story: ${memory.questionText || ''}`,
+                    url: watchUrl
+                  });
+                }
+              }}
+              isLiking={isLiking}
+              isSharing={isSharing}
+              isCommenting={isCommenting}
+              getDisplayMemory={(m) => m}
+            />
+          );
+        })()}
       </div>
     </PullToRefresh>
   );

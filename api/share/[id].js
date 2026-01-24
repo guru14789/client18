@@ -37,67 +37,200 @@ export default async function handler(req, res) {
         }
 
         const title = memoryData.questionText || 'Family Story';
-        const description = memoryData.authorName ? `Shared by ${memoryData.authorName}` : 'A special memory on Inai.';
-        const videoUrl = memoryData.videoUrl;
+        const description = memoryData.authorName ? `Shared by ${memoryData.authorName} on Inai` : 'A special memory shared on Inai Family Connect.';
         const thumbnailUrl = memoryData.thumbnailUrl || '';
         const shortUrl = `https://${req.headers.host}/v/${id}.mp4`;
+        const deepLinkUrl = `https://${req.headers.host}/?memoryId=${id}`;
 
-        // Check user agent to see if it's a bot or a real user
-        const ua = req.headers['user-agent'] || '';
-        const isBot = /WhatsApp|facebookexternalhit|Twitterbot|LinkedInBot|bot|crawler|spider/i.test(ua);
+        // FETCH VIDEO LINK FROM FIREBASE STORAGE DIRECTLY
+        // This ensures we have a fresh, valid link even if the Firestore URL is old/missing
+        let videoUrl = memoryData.videoUrl;
+        try {
+            const bucket = admin.storage().bucket(process.env.FIREBASE_STORAGE_BUCKET);
+            const fileName = `users/${memoryData.authorId}/videos/${id}.mp4`;
+            const file = bucket.file(fileName);
 
-        // If it's a bot, we MUST return the OG tags for the preview
-        // If it's a human, we show the beautiful player page
+            // Generate a long-lived signed URL or just use the direct storage link if public
+            // Here we get a signed URL that lasts 1 day to ensure direct playback in all players
+            const [signedUrl] = await file.getSignedUrl({
+                action: 'read',
+                expires: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
+            });
+            videoUrl = signedUrl;
+            console.log('✅ Fresh video URL fetched from Storage');
+        } catch (storageError) {
+            console.error('Error fetching from Storage, falling back to Firestore URL:', storageError);
+        }
 
+        // Prepare HTML with enhanced OG tags and premium design
         const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     
-    <title>Question: ${title}</title>
+    <title>${title} | Inai Family Memories</title>
     <meta name="description" content="${description}">
 
-    <!-- Open Graph / WhatsApp Preview -->
+    <!-- Open Graph / WhatsApp / Facebook -->
     <meta property="og:type" content="video.other">
-    <meta property="og:title" content="Question: ${title}">
+    <meta property="og:site_name" content="Inai Family Connect">
+    <meta property="og:title" content="${title}">
     <meta property="og:description" content="${description}">
     <meta property="og:image" content="${thumbnailUrl}">
     <meta property="og:url" content="${shortUrl}">
     <meta property="og:video" content="${videoUrl}">
+    <meta property="og:video:secure_url" content="${videoUrl}">
     <meta property="og:video:type" content="video/mp4">
+    <meta property="og:video:width" content="1280">
+    <meta property="og:video:height" content="720">
 
     <!-- Twitter -->
     <meta name="twitter:card" content="player">
-    <meta name="twitter:title" content="Question: ${title}">
+    <meta name="twitter:site" content="@inaiconnect">
+    <meta name="twitter:title" content="${title}">
     <meta name="twitter:description" content="${description}">
     <meta name="twitter:image" content="${thumbnailUrl}">
     <meta name="twitter:player" content="${shortUrl}">
     <meta name="twitter:player:width" content="360">
     <meta name="twitter:player:height" content="640">
 
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800;900&display=swap" rel="stylesheet">
+
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow: hidden; }
-        .player-wrapper { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
-        video { width: 100%; height: 100%; max-width: 500px; object-fit: contain; background: #000; }
-        .branding { position: absolute; top: 30px; left: 30px; font-weight: 900; color: #fff; font-size: 24px; letter-spacing: -1px; z-index: 10; opacity: 0.8; }
-        .info-overlay { position: absolute; bottom: 0; left: 0; right: 0; padding: 60px 30px; background: linear-gradient(transparent, rgba(0,0,0,0.9)); color: #fff; pointer-events: none; z-index: 5; }
-        .info-content { max-width: 500px; margin: 0 auto; pointer-events: auto; }
-        h1 { font-size: 20px; margin: 0 0 10px 0; font-weight: 800; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
-        .btn { display: inline-block; background: #2f5d8a; color: #fff; padding: 14px 28px; border-radius: 50px; text-decoration: none; font-weight: 700; font-size: 14px; margin-top: 15px; box-shadow: 0 10px 30px rgba(47,93,138,0.4); }
+        :root {
+            --primary: #2F5D8A;
+            --charcoal: #2B2B2B;
+            --warmwhite: #FAF9F7;
+        }
+        body, html { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            background: var(--charcoal); 
+            font-family: 'Inter', -apple-system, sans-serif; 
+            overflow: hidden; 
+            color: #fff;
+        }
+        .player-wrapper { 
+            position: relative; width: 100%; height: 100%; 
+            display: flex; align-items: center; justify-content: center; 
+        }
+        video { 
+            width: 100%; height: 100%; object-fit: contain; 
+            background: #000; 
+            box-shadow: 0 0 100px rgba(0,0,0,0.5);
+        }
+        .branding { 
+            position: absolute; top: 40px; left: 40px; 
+            font-weight: 900; font-size: 28px; letter-spacing: -1.5px; 
+            z-index: 100; opacity: 0.9;
+            text-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            background: linear-gradient(135deg, #fff, rgba(255,255,255,0.7));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .info-overlay { 
+            position: absolute; bottom: 0; left: 0; right: 0; 
+            padding: 80px 40px 60px; 
+            background: linear-gradient(transparent, rgba(0,0,0,0.95)); 
+            pointer-events: none; z-index: 50; 
+        }
+        .info-content { 
+            max-width: 600px; margin: 0 auto; pointer-events: auto; 
+            display: flex; flex-col; gap: 20px;
+        }
+        h1 { 
+            font-size: 24px; margin: 0 0 8px 0; font-weight: 800; 
+            text-shadow: 0 2px 20px rgba(0,0,0,0.8); 
+            line-height: 1.2;
+        }
+        .author {
+            font-size: 14px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.1em; color: var(--primary); margin-bottom: 20px;
+            display: block; opacity: 0.9;
+        }
+        .actions {
+            display: flex; gap: 12px; margin-top: 10px; flex-wrap: wrap;
+        }
+        .btn { 
+            display: inline-flex; align-items: center; justify-content: center;
+            background: var(--primary); color: #fff;
+            height: 56px;
+            border-radius: 28px; text-decoration: none; font-weight: 800; 
+            font-size: 14px; box-shadow: 0 15px 35px rgba(47,93,138,0.4);
+            transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+            padding: 0 32px;
+            white-space: nowrap;
+        }
+        .btn:active { transform: scale(0.95); }
+        .btn-secondary {
+            background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: none;
+        }
+        .bg-glow {
+            position: absolute; top: 50%; left: 50%; 
+            width: 150%; height: 150%; 
+            background: radial-gradient(circle, rgba(47,93,138,0.15) 0%, transparent 70%);
+            transform: translate(-50%, -50%);
+            z-index: 1; pointer-events: none;
+            animation: pulse 8s infinite alternate;
+        }
+        @keyframes pulse {
+            from { opacity: 0.5; transform: translate(-50%, -50%) scale(1); }
+            to { opacity: 0.8; transform: translate(-50%, -50%) scale(1.1); }
+        }
+        @media (max-width: 480px) {
+            .branding { top: 30px; left: 30px; font-size: 22px; }
+            .info-overlay { padding: 60px 25px 50px; }
+            h1 { font-size: 20px; }
+            .btn { flex: 1; padding: 0 20px; font-size: 13px; }
+            .actions { width: 100%; }
+        }
     </style>
 </head>
 <body>
+    <div class="bg-glow"></div>
     <div class="player-wrapper">
         <div class="branding">INAI</div>
-        <video src="${videoUrl}" poster="${thumbnailUrl}" controls autoplay playsinline loop></video>
+        <video id="videoPlayer" src="${videoUrl}" poster="${thumbnailUrl}" controls autoplay playsinline loop></video>
         <div class="info-overlay">
             <div class="info-content">
-                <h1>Question: ${title}</h1>
-                <a href="/?memoryId=${id}" class="btn">Open in Inai App</a>
+                <span class="author">${memoryData.authorName || 'Family Member'} shared a story</span>
+                <h1>${title}</h1>
+                <div class="actions">
+                    <a href="${deepLinkUrl}" class="btn">Open Inai App</a>
+                    <button id="shareBtn" class="btn btn-secondary">Share Memory</button>
+                </div>
             </div>
         </div>
     </div>
+
+    <script>
+        const shareBtn = document.getElementById('shareBtn');
+        if (shareBtn) {
+            shareBtn.onclick = () => {
+                if (navigator.share) {
+                    navigator.share({
+                        title: '${title}',
+                        text: 'Watch this family memory on Inai: ${title}',
+                        url: window.location.href
+                    });
+                } else {
+                    const waUrl = 'https://wa.me/?text=' + encodeURIComponent('Watch this family memory on Inai: ${title} ' + window.location.href);
+                    window.open(waUrl, '_blank');
+                }
+            };
+        }
+
+        // Try to unmute on first click anywhere if autoplay was blocked
+        document.body.onclick = () => {
+            const v = document.getElementById('videoPlayer');
+            if (v && v.paused) v.play();
+        };
+    </script>
 </body>
 </html>`;
 

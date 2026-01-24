@@ -396,7 +396,12 @@ const App: React.FC = () => {
 
     if (user) {
       if (['splash', 'login', 'onboarding'].includes(view)) {
-        setView('home');
+        // Shared memory links now land on the Dashboard (Home)
+        if (initialMemoryId) {
+          setView('home');
+        } else {
+          setView('home');
+        }
       }
     } else {
       if (!['splash', 'onboarding', 'login'].includes(view)) {
@@ -411,7 +416,7 @@ const App: React.FC = () => {
         }
       }
     }
-  }, [loading, user, view]);
+  }, [loading, user, view, initialMemoryId]);
 
   // Theme Application Effect
   useEffect(() => {
