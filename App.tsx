@@ -99,50 +99,46 @@ const App: React.FC = () => {
   const { currentUser: user, loading, logout, refreshProfile } = useAuth();
   const [initialMemoryId, setInitialMemoryId] = useState<string | null>(null);
   const [sharedMemory, setSharedMemory] = useState<Memory | null>(null);
+  const isSharedView = Boolean(initialMemoryId);
 
   // Capture shared memory ID from URL on mount and fetch the specific memory
   useEffect(() => {
-    // 1. If we already have a memory ID, just ensure we switch to feed when auth is ready
-    if (initialMemoryId) {
-      if (!loading && user && view !== 'feed' && view !== 'splash') {
-        setView('feed');
+    // 2. Try to detect ID from URL if not already captured
+    if (!initialMemoryId) {
+      let mid = new URLSearchParams(window.location.search).get('memoryId');
+      const pathParts = window.location.pathname.split('/');
+      if (pathParts[1] === 'v' && pathParts[2]) {
+        mid = pathParts[2];
       }
-      return;
-    }
 
-    // 2. Try to detect ID from URL
-    let mid = new URLSearchParams(window.location.search).get('memoryId');
-    const pathParts = window.location.pathname.split('/');
-    if (pathParts[1] === 'v' && pathParts[2]) {
-      mid = pathParts[2];
-    }
+      if (mid) {
+        setInitialMemoryId(mid);
 
-    // 3. If ID found, capture it and clean URL
-    if (mid) {
-      setInitialMemoryId(mid);
+        // Optional URL Cleanup: Replace /v/:memoryId with /
+        window.history.replaceState({}, '', '/');
 
-      // Optional URL Cleanup: Replace /v/:memoryId with /
-      window.history.replaceState({}, '', '/');
-
-      const fetchSpecificMemory = async () => {
-        try {
-          const mem = await getMemoryById(mid!);
-          if (mem) {
-            console.log("✅ Shared memory fetched successfully:", mem.id);
-            setSharedMemory(mem);
+        const fetchSpecificMemory = async () => {
+          try {
+            const mem = await getMemoryById(mid!);
+            if (mem) {
+              console.log("✅ Shared memory fetched successfully:", mem.id);
+              setSharedMemory(mem);
+            }
+          } catch (err) {
+            console.error("Error fetching shared memory:", err);
           }
-        } catch (err) {
-          console.error("Error fetching shared memory:", err);
-        }
-      };
+        };
 
-      fetchSpecificMemory();
+        fetchSpecificMemory();
 
-      if (!loading && user) {
+        // Always jump to feed for shared views
         setView('feed');
       }
+    } else if (view !== 'feed' && !loading) {
+      // If we have an initialMemoryId, we MUST be in feed view
+      setView('feed');
     }
-  }, [loading, !!user, initialMemoryId, view]);
+  }, [loading, initialMemoryId, view]);
 
   // 2. Family & Profile Sync
   useEffect(() => {
@@ -429,18 +425,21 @@ const App: React.FC = () => {
 
     if (user) {
       if (['splash', 'login', 'onboarding'].includes(view)) {
-        // Shared memory links now land on the Dashboard (Home)
-        if (initialMemoryId) {
+        if (isSharedView) {
           setView('feed');
         } else {
           setView('home');
         }
       }
     } else {
+      // Allow unauthenticated users to stay on 'feed' if they are in shared view mode
+      if (isSharedView && view === 'feed') {
+        return;
+      }
+
       if (!['splash', 'onboarding', 'login'].includes(view)) {
         setView('login');
       } else if (view === 'splash') {
-        // Check if onboarding is completed
         const onboardingDone = localStorage.getItem('inai_onboarding_done');
         if (onboardingDone) {
           setView('login');
@@ -449,7 +448,7 @@ const App: React.FC = () => {
         }
       }
     }
-  }, [loading, user, view, initialMemoryId]);
+  }, [loading, user, view, isSharedView]);
 
   // Theme Application Effect
   useEffect(() => {
@@ -512,7 +511,7 @@ const App: React.FC = () => {
               sharedMemory={sharedMemory}
             />
           )}
-          {view === 'feed' && user && (
+          {(view === 'feed' && (user || isSharedView)) && (
             <Feed
               memories={memories}
               user={user}
@@ -522,6 +521,7 @@ const App: React.FC = () => {
               initialMemoryId={initialMemoryId}
               onClearInitialMemory={() => setInitialMemoryId(null)}
               sharedMemory={sharedMemory}
+              isPublicView={!user && isSharedView}
             />
           )}
           {view === 'questions' && user && <Questions user={user} families={families} questions={qPrompts} onAnswer={(q) => { setActiveQuestion(q); setRecordMode('answer'); setView('record'); }} onRecordQuestion={() => { setActiveQuestion(null); setRecordMode('question'); setView('record'); }} onToggleUpvote={toggleUpvote} onArchiveQuestion={handleArchiveQuestion} onAddQuestion={handleAddQuestion} activeFamilyId={activeFamilyId} currentLanguage={language} memories={memories} onRefresh={handleRefresh} onNavigate={setView} />}

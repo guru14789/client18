@@ -22,16 +22,17 @@ import { ReelPlayer } from './ReelPlayer';
 
 interface FeedProps {
   memories: Memory[];
-  user: User;
+  user: User | null;
   families: Family[];
   currentLanguage: Language;
   onRefresh: () => Promise<void>;
   initialMemoryId?: string | null;
   onClearInitialMemory?: () => void;
   sharedMemory?: Memory | null;
+  isPublicView?: boolean;
 }
 
-const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage, onRefresh, initialMemoryId, onClearInitialMemory, sharedMemory }) => {
+const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage, onRefresh, initialMemoryId, onClearInitialMemory, sharedMemory, isPublicView }) => {
   const [filter, setFilter] = useState<'all' | 'mine'>('all');
   const [playingMemoryId, setPlayingMemoryId] = useState<string | null>(initialMemoryId || null);
   const [showComments, setShowComments] = useState<boolean>(false);
@@ -59,7 +60,7 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage, 
   };
 
   const handleLike = async (memoryId: string) => {
-    if (isLiking) return;
+    if (isLiking || !user) return;
     setIsLiking(true);
 
     const originalMemory = memories.find(m => m.id === memoryId);
@@ -100,6 +101,7 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage, 
   };
 
   const handleAddComment = async (memoryId: string, textOverride?: string) => {
+    if (!user) return; // Return early if user is null
     const commentText = textOverride || newComment;
     if (!commentText.trim() || isCommenting) return;
     setIsCommenting(true);
@@ -205,9 +207,9 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage, 
     }
   };
 
-  const filteredMemories = filter === 'all'
+  const filteredMemories = (filter === 'all' || isPublicView)
     ? memories
-    : memories.filter(m => m.authorId === user.uid);
+    : memories.filter(m => m.authorId === user?.uid);
 
   if (memories.length === 0) {
     // ... (Empty state logic, unchanged mostly but ensuring consistent returns)
@@ -234,26 +236,37 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage, 
       <header className="px-6 py-4 flex items-center justify-between sticky top-0 bg-warmwhite/90 dark:bg-charcoal/90 backdrop-blur-md z-20 transition-colors">
         <h1 className="text-[32px] font-bold text-charcoal dark:text-warmwhite tracking-tight transition-colors">{t('feed.title', currentLanguage)}</h1>
 
-        <div className="bg-support/20 dark:bg-white/5 rounded-full p-1 flex items-center border border-support/10 dark:border-white/5">
+        {!isPublicView && (
+          <div className="bg-support/20 dark:bg-white/5 rounded-full p-1 flex items-center border border-support/10 dark:border-white/5">
+            <button
+              onClick={() => setFilter('all')}
+              className={`px-5 py-2 rounded-full text-[11px] font-black uppercase tracking-widest transition-all ${filter === 'all'
+                ? 'bg-primary text-white shadow-md'
+                : 'text-primary dark:text-support/60'
+                }`}
+            >
+              {t('feed.all', currentLanguage)}
+            </button>
+            <button
+              onClick={() => setFilter('mine')}
+              className={`px-5 py-2 rounded-full text-[11px] font-black uppercase tracking-widest transition-all ${filter === 'mine'
+                ? 'bg-primary text-white shadow-md'
+                : 'text-primary dark:text-support/60'
+                }`}
+            >
+              {t('feed.mine', currentLanguage)}
+            </button>
+          </div>
+        )}
+
+        {isPublicView && (
           <button
-            onClick={() => setFilter('all')}
-            className={`px-5 py-2 rounded-full text-[11px] font-black uppercase tracking-widest transition-all ${filter === 'all'
-              ? 'bg-primary text-white shadow-md'
-              : 'text-primary dark:text-support/60'
-              }`}
+            onClick={() => window.location.href = '/login'}
+            className="bg-primary text-white px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all"
           >
-            {t('feed.all', currentLanguage)}
+            Sign In
           </button>
-          <button
-            onClick={() => setFilter('mine')}
-            className={`px-5 py-2 rounded-full text-[11px] font-black uppercase tracking-widest transition-all ${filter === 'mine'
-              ? 'bg-primary text-white shadow-md'
-              : 'text-primary dark:text-support/60'
-              }`}
-          >
-            {t('feed.mine', currentLanguage)}
-          </button>
-        </div>
+        )}
       </header>
 
       {/* Grid Content */}
@@ -261,7 +274,8 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage, 
         <div className="flex-1 px-4 pb-32">
           <div className="grid grid-cols-2 gap-3 pt-2">
             {filteredMemories.map((memory) => {
-              const displayName = memory.authorName || (memory.authorId === user.uid ? user.displayName : (t('feed.family_member', currentLanguage) || "Family Member"));
+              const isAuthor = user?.uid === memory.authorId;
+              const displayName = memory.authorName || (isAuthor ? user?.displayName : (t('feed.family_member', currentLanguage) || "Family Member"));
               return (
                 <div
                   key={memory.id}
@@ -336,6 +350,7 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage, 
             isSharing={isSharing}
             isCommenting={isCommenting}
             getDisplayMemory={getDisplayMemory}
+            isPublicView={isPublicView}
           />
         );
       })()}
