@@ -28,9 +28,10 @@ interface FeedProps {
   onRefresh: () => Promise<void>;
   initialMemoryId?: string | null;
   onClearInitialMemory?: () => void;
+  sharedMemory?: Memory | null;
 }
 
-const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage, onRefresh, initialMemoryId, onClearInitialMemory }) => {
+const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage, onRefresh, initialMemoryId, onClearInitialMemory, sharedMemory }) => {
   const [filter, setFilter] = useState<'all' | 'mine'>('all');
   const [playingMemoryId, setPlayingMemoryId] = useState<string | null>(initialMemoryId || null);
   const [showComments, setShowComments] = useState<boolean>(false);
@@ -308,12 +309,21 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage, 
 
       {/* Video Player Modal */}
       {playingMemoryId && (() => {
-        const initialIndex = filteredMemories.findIndex(m => m.id === playingMemoryId);
+        // Find in regular list first
+        let initialIndex = filteredMemories.findIndex(m => m.id === playingMemoryId);
+        let playbackList = filteredMemories;
+
+        // If not in the list but we have the shared memory object, use that
+        if (initialIndex === -1 && sharedMemory && sharedMemory.id === playingMemoryId) {
+          playbackList = [sharedMemory, ...filteredMemories];
+          initialIndex = 0;
+        }
+
         if (initialIndex === -1) return null;
 
         return (
           <ReelPlayer
-            memories={filteredMemories}
+            memories={playbackList}
             initialIndex={initialIndex}
             user={user}
             currentLanguage={currentLanguage}

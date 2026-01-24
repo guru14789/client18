@@ -43,23 +43,62 @@ export default async function handler(req, res) {
         const deepLinkUrl = `https://${req.headers.host}/?memoryId=${id}`;
 
         // FETCH VIDEO LINK FROM FIREBASE STORAGE DIRECTLY
-        // This ensures we have a fresh, valid link even if the Firestore URL is old/missing
+        const bucket = admin.storage().bucket(process.env.FIREBASE_STORAGE_BUCKET || `${process.env.FIREBASE_PROJECT_ID}.firebasestorage.app`);
+        const fileName = `users/${memoryData.authorId}/videos/${id}.mp4`;
+        const file = bucket.file(fileName);
+
+        // CHECK IF THIS IS A DIRECT STREAM REQUEST (e.g. from a video player or social preview)
+        // We detect this by checking if it's NOT a browser navigation (Accept: text/html)
+        const isHtmlRequest = req.headers.accept?.includes('text/html');
+        // Or if it's a Range request, it's definitely a media player
+        const isRangeRequest = !!req.headers.range;
+
+        if (!isHtmlRequest || isRangeRequest) {
+            try {
+                const [metadata] = await file.getMetadata();
+                const size = parseInt(metadata.size);
+
+                res.setHeader('Content-Type', 'video/mp4');
+                res.setHeader('Accept-Ranges', 'bytes');
+                res.setHeader('Cache-Control', 'public, max-age=3600');
+
+                if (req.headers.range) {
+                    const parts = req.headers.range.replace(/bytes=/, "").split("-");
+                    const start = parseInt(parts[0], 10);
+                    const end = parts[1] ? parseInt(parts[1], 10) : size - 1;
+                    const chunksize = (end - start) + 1;
+
+                    res.status(206);
+                    res.setHeader('Content-Range', `bytes ${start}-${end}/${size}`);
+                    res.setHeader('Content-Length', chunksize);
+
+                    const stream = file.createReadStream({ start, end });
+                    stream.pipe(res);
+                } else {
+                    res.setHeader('Content-Length', size);
+                    const stream = file.createReadStream();
+                    stream.pipe(res);
+                }
+                console.log('✅ Streaming video directly from Storage proxy');
+                return;
+            } catch (streamError) {
+                console.error('Streaming error, falling back to HTML/Redirect:', streamError);
+                // If streaming fails, we continue to serve the HTML page
+            }
+        }
+
+        // For browser requests, we serve the premium HTML player page
         let videoUrl = memoryData.videoUrl;
         try {
-            const bucket = admin.storage().bucket(process.env.FIREBASE_STORAGE_BUCKET);
-            const fileName = `users/${memoryData.authorId}/videos/${id}.mp4`;
-            const file = bucket.file(fileName);
-
-            // Generate a long-lived signed URL or just use the direct storage link if public
-            // Here we get a signed URL that lasts 1 day to ensure direct playback in all players
+            // Generate a fresh signed URL for the <video> tag in the HTML page
             const [signedUrl] = await file.getSignedUrl({
                 action: 'read',
                 expires: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
             });
             videoUrl = signedUrl;
-            console.log('✅ Fresh video URL fetched from Storage');
+            console.log('✅ Fresh video URL fetched for HTML player');
         } catch (storageError) {
-            console.error('Error fetching from Storage, falling back to Firestore URL:', storageError);
+            console.error('Error fetching signed URL:', storageError);
         }
 
         // Prepare HTML with enhanced OG tags and premium design
@@ -79,8 +118,8 @@ export default async function handler(req, res) {
     <meta property="og:description" content="${description}">
     <meta property="og:image" content="${thumbnailUrl}">
     <meta property="og:url" content="${shortUrl}">
-    <meta property="og:video" content="${videoUrl}">
-    <meta property="og:video:secure_url" content="${videoUrl}">
+    <meta property="og:video" content="${shortUrl}">
+    <meta property="og:video:secure_url" content="${shortUrl}">
     <meta property="og:video:type" content="video/mp4">
     <meta property="og:video:width" content="1280">
     <meta property="og:video:height" content="720">

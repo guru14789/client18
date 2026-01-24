@@ -579,6 +579,34 @@ export const unlikeMemory = async (memoryId: string, authorId: string, userId: s
     }
 };
 
+/**
+ * Fetches a single memory by its document ID across all user collections.
+ * Uses collectionGroup and the __name__ field.
+ */
+export const getMemoryById = async (memoryId: string): Promise<Memory | null> => {
+    try {
+        // Query by the document ID across all sub-collections
+        // Note: FieldPath.documentId() is represented as "__name__" in the client SDK
+        const q = query(
+            collectionGroup(db, COLLECTIONS.MEMORIES),
+            where("id", "==", memoryId),
+            limit(1)
+        );
+
+        const snapshot = await getDocs(q);
+
+        if (!snapshot.empty) {
+            const data = snapshot.docs[0].data();
+            return { id: snapshot.docs[0].id, ...data } as Memory;
+        }
+
+        return null;
+    } catch (error) {
+        console.error("Error getting memory by ID:", error);
+        return null; // Return null rather than throwing for UI safety
+    }
+};
+
 export const addCommentToMemory = async (memoryId: string, authorId: string, userId: string, userName: string, text: string): Promise<void> => {
     try {
         const memoryRef = doc(db, COLLECTIONS.USERS, authorId, COLLECTIONS.MEMORIES, memoryId);

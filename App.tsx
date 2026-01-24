@@ -36,7 +36,8 @@ import {
   validateAndJoinFamily,
   listenToUserDrafts,
   listenToFamilyDocuments,
-  syncUserFamilyIds
+  syncUserFamilyIds,
+  getMemoryById
 } from './services/firebaseServices';
 import {
   collection,
@@ -97,14 +98,32 @@ const App: React.FC = () => {
   // 1. Auth Context consumption
   const { currentUser: user, loading, logout, refreshProfile } = useAuth();
   const [initialMemoryId, setInitialMemoryId] = useState<string | null>(null);
+  const [sharedMemory, setSharedMemory] = useState<Memory | null>(null);
 
-  // Capture shared memory ID from URL on mount
+  // Capture shared memory ID from URL on mount and fetch the specific memory
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const mid = params.get('memoryId');
     if (mid) {
       setInitialMemoryId(mid);
-      // Wait for auth to settle, then switch to feed
+
+      // Fetch the specific memory directly from Storage/Firestore
+      // This fulfills the "Only that specific video should be fetched" requirement
+      const fetchSpecificMemory = async () => {
+        try {
+          const mem = await getMemoryById(mid);
+          if (mem) {
+            console.log("✅ Shared memory fetched successfully:", mem.id);
+            setSharedMemory(mem);
+          }
+        } catch (err) {
+          console.error("Error fetching shared memory:", err);
+        }
+      };
+
+      fetchSpecificMemory();
+
+      // Wait for auth to settle, then switch to feed for the best preview experience
       if (!loading && user) {
         setView('feed');
       }
@@ -398,7 +417,7 @@ const App: React.FC = () => {
       if (['splash', 'login', 'onboarding'].includes(view)) {
         // Shared memory links now land on the Dashboard (Home)
         if (initialMemoryId) {
-          setView('home');
+          setView('feed');
         } else {
           setView('home');
         }
@@ -476,6 +495,7 @@ const App: React.FC = () => {
               onRefresh={handleRefresh}
               initialMemoryId={initialMemoryId}
               onClearInitialMemory={() => setInitialMemoryId(null)}
+              sharedMemory={sharedMemory}
             />
           )}
           {view === 'feed' && user && (
@@ -487,6 +507,7 @@ const App: React.FC = () => {
               onRefresh={handleRefresh}
               initialMemoryId={initialMemoryId}
               onClearInitialMemory={() => setInitialMemoryId(null)}
+              sharedMemory={sharedMemory}
             />
           )}
           {view === 'questions' && user && <Questions user={user} families={families} questions={qPrompts} onAnswer={(q) => { setActiveQuestion(q); setRecordMode('answer'); setView('record'); }} onRecordQuestion={() => { setActiveQuestion(null); setRecordMode('question'); setView('record'); }} onToggleUpvote={toggleUpvote} onArchiveQuestion={handleArchiveQuestion} onAddQuestion={handleAddQuestion} activeFamilyId={activeFamilyId} currentLanguage={language} memories={memories} onRefresh={handleRefresh} onNavigate={setView} />}

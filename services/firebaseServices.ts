@@ -40,6 +40,7 @@ export {
     deleteMemory,
     likeMemory,
     unlikeMemory,
+    getMemoryById,
     addCommentToMemory,
     // Question operations
     createQuestion,

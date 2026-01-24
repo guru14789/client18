@@ -23,9 +23,10 @@ interface DashboardProps {
   onRefresh: () => Promise<void>;
   initialMemoryId: string | null;
   onClearInitialMemory: () => void;
+  sharedMemory?: Memory | null;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRecord, onAddFamily, currentLanguage, activeFamilyId, onSwitchFamily, prompts, onToggleUpvote, onArchiveQuestion, memories, onRefresh, initialMemoryId, onClearInitialMemory }) => {
+const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRecord, onAddFamily, currentLanguage, activeFamilyId, onSwitchFamily, prompts, onToggleUpvote, onArchiveQuestion, memories, onRefresh, initialMemoryId, onClearInitialMemory, sharedMemory }) => {
   const [isCreatingFamily, setIsCreatingFamily] = useState(false);
 
   const [newFamilyName, setNewFamilyName] = useState('');
@@ -521,12 +522,20 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
 
         {/* Video Player Overlay for Shared Memories */}
         {playingMemoryId && (() => {
-          const initialIndex = memories.findIndex(m => m.id === playingMemoryId);
+          let initialIndex = memories.findIndex(m => m.id === playingMemoryId);
+          let playbackList = memories;
+
+          // If not in the list but we have the shared memory object, use that
+          if (initialIndex === -1 && sharedMemory && sharedMemory.id === playingMemoryId) {
+            playbackList = [sharedMemory, ...memories];
+            initialIndex = 0;
+          }
+
           if (initialIndex === -1) return null;
 
           return (
             <ReelPlayer
-              memories={memories}
+              memories={playbackList}
               initialIndex={initialIndex}
               user={user}
               currentLanguage={currentLanguage}
@@ -534,8 +543,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
                 setPlayingMemoryId(null);
                 onClearInitialMemory();
               }}
-              onLike={(id) => likeMemory(id, memories.find(m => m.id === id)!.authorId, user.uid)}
-              onComment={(id, text) => addCommentToMemory(id, memories.find(m => m.id === id)!.authorId, user.uid, user.displayName, text)}
+              onLike={(id) => likeMemory(id, playbackList.find(m => m.id === id)!.authorId, user.uid)}
+              onComment={(id, text) => addCommentToMemory(id, playbackList.find(m => m.id === id)!.authorId, user.uid, user.displayName, text)}
               onShare={async (memory) => {
                 const watchUrl = `${window.location.origin}/v/${memory.id}.mp4`;
                 if (navigator.share) {
