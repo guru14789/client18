@@ -20,171 +20,92 @@ const db = admin.firestore();
 export default async function handler(req, res) {
     const { id } = req.query;
 
-    if (!id) {
-        return res.status(400).send('Memory ID is required');
-    }
+    if (!id) return res.status(400).send('ID required');
 
     try {
+        // Query memory by ID across collection group
         const memoriesRef = db.collectionGroup('memories');
         const snapshot = await memoriesRef.where(admin.firestore.FieldPath.documentId(), '==', id).limit(1).get();
 
+        let memoryData;
         if (snapshot.empty) {
-            // Check if it's saved as an ID field
-            const fallbackSnapshot = await memoriesRef.where('id', '==', id).limit(1).get();
-            if (fallbackSnapshot.empty) {
-                return res.status(404).send('Memory not found');
-            }
-            renderVideoPage(res, fallbackSnapshot.docs[0].data(), id);
+            const fallback = await memoriesRef.where('id', '==', id).limit(1).get();
+            if (fallback.empty) return res.status(404).send('Not found');
+            memoryData = fallback.docs[0].data();
         } else {
-            renderVideoPage(res, snapshot.docs[0].data(), id);
+            memoryData = snapshot.docs[0].data();
         }
-    } catch (error) {
-        console.error('Error fetching memory:', error);
-        return res.status(500).send('Internal Server Error');
-    }
-}
 
-function renderVideoPage(res, memory, memoryId) {
-    const title = memory.questionText || 'Inai Family Memory';
-    const description = memory.authorName ? `Shared by ${memory.authorName}` : 'A special memory shared on Inai.';
-    const imageUrl = memory.thumbnailUrl || '';
-    const videoUrl = memory.videoUrl;
-    const appUrl = `https://${process.env.VERCEL_URL || 'inai.app'}/?memoryId=${memoryId}`;
+        const title = memoryData.questionText || 'Family Story';
+        const description = memoryData.authorName ? `Shared by ${memoryData.authorName}` : 'A special memory on Inai.';
+        const videoUrl = memoryData.videoUrl;
+        const thumbnailUrl = memoryData.thumbnailUrl || '';
+        const shortUrl = `https://${req.headers.host}/v/${id}.mp4`;
 
-    const cleanTitle = title.replace(/"/g, '&quot;');
-    const cleanDesc = description.replace(/"/g, '&quot;');
+        // Check user agent to see if it's a bot or a real user
+        const ua = req.headers['user-agent'] || '';
+        const isBot = /WhatsApp|facebookexternalhit|Twitterbot|LinkedInBot|bot|crawler|spider/i.test(ua);
 
-    const html = `
-<!DOCTYPE html>
+        // If it's a bot, we MUST return the OG tags for the preview
+        // If it's a human, we show the beautiful player page
+
+        const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     
-    <title>${cleanTitle}</title>
-    <meta name="description" content="${cleanDesc}">
+    <title>Question: ${title}</title>
+    <meta name="description" content="${description}">
 
-    <!-- Open Graph -->
+    <!-- Open Graph / WhatsApp Preview -->
     <meta property="og:type" content="video.other">
-    <meta property="og:title" content="${cleanTitle}">
-    <meta property="og:description" content="${cleanDesc}">
-    <meta property="og:image" content="${imageUrl}">
+    <meta property="og:title" content="Question: ${title}">
+    <meta property="og:description" content="${description}">
+    <meta property="og:image" content="${thumbnailUrl}">
+    <meta property="og:url" content="${shortUrl}">
     <meta property="og:video" content="${videoUrl}">
-    <meta property="og:url" content="${appUrl}">
+    <meta property="og:video:type" content="video/mp4">
 
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+    <!-- Twitter -->
+    <meta name="twitter:card" content="player">
+    <meta name="twitter:title" content="Question: ${title}">
+    <meta name="twitter:description" content="${description}">
+    <meta name="twitter:image" content="${thumbnailUrl}">
+    <meta name="twitter:player" content="${shortUrl}">
+    <meta name="twitter:player:width" content="360">
+    <meta name="twitter:player:height" content="640">
+
     <style>
-        body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            background-color: #000;
-            font-family: 'Inter', sans-serif;
-            color: #fff;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-        }
-        .video-container {
-            flex: 1;
-            position: relative;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: #000;
-        }
-        video {
-            width: 100%;
-            height: 100%;
-            max-width: 500px;
-            object-fit: contain;
-        }
-        .overlay {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            padding: 40px 20px;
-            background: linear-gradient(transparent, rgba(0,0,0,0.8));
-            pointer-events: none;
-        }
-        .overlay-content {
-            max-width: 500px;
-            margin: 0 auto;
-            pointer-events: auto;
-        }
-        h1 {
-            font-size: 20px;
-            font-weight: 900;
-            margin: 0 0 8px 0;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
-        }
-        p {
-            font-size: 14px;
-            opacity: 0.8;
-            margin: 0 0 24px 0;
-        }
-        .cta-button {
-            display: inline-flex;
-            align-items: center;
-            background: #2f5d8a;
-            color: #fff;
-            padding: 12px 24px;
-            border-radius: 50px;
-            text-decoration: none;
-            font-weight: 700;
-            font-size: 14px;
-            box-shadow: 0 10px 20px rgba(47,93,138,0.3);
-            transition: transform 0.2s;
-        }
-        .cta-button:active {
-            transform: scale(0.95);
-        }
-        .logo {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            font-weight: 900;
-            letter-spacing: -1px;
-            font-size: 24px;
-            background: linear-gradient(to right, #2f5d8a, #8da9c4);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            z-index: 10;
-        }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; overflow: hidden; }
+        .player-wrapper { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+        video { width: 100%; height: 100%; max-width: 500px; object-fit: contain; background: #000; }
+        .branding { position: absolute; top: 30px; left: 30px; font-weight: 900; color: #fff; font-size: 24px; letter-spacing: -1px; z-index: 10; opacity: 0.8; }
+        .info-overlay { position: absolute; bottom: 0; left: 0; right: 0; padding: 60px 30px; background: linear-gradient(transparent, rgba(0,0,0,0.9)); color: #fff; pointer-events: none; z-index: 5; }
+        .info-content { max-width: 500px; margin: 0 auto; pointer-events: auto; }
+        h1 { font-size: 20px; margin: 0 0 10px 0; font-weight: 800; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+        .btn { display: inline-block; background: #2f5d8a; color: #fff; padding: 14px 28px; border-radius: 50px; text-decoration: none; font-weight: 700; font-size: 14px; margin-top: 15px; box-shadow: 0 10px 30px rgba(47,93,138,0.4); }
     </style>
 </head>
 <body>
-    <div class="logo">INAI</div>
-    
-    <div class="video-container">
-        <video 
-            src="${videoUrl}" 
-            poster="${imageUrl}"
-            controls 
-            autoplay 
-            playsinline
-            loop
-        ></video>
-        
-        <div class="overlay">
-            <div class="overlay-content">
-                <h1>${cleanTitle}</h1>
-                <p>${cleanDesc}</p>
-                <a href="/?memoryId=${memoryId}" class="cta-button">
-                    Open in Inai App
-                </a>
+    <div class="player-wrapper">
+        <div class="branding">INAI</div>
+        <video src="${videoUrl}" poster="${thumbnailUrl}" controls autoplay playsinline loop></video>
+        <div class="info-overlay">
+            <div class="info-content">
+                <h1>Question: ${title}</h1>
+                <a href="/?memoryId=${id}" class="btn">Open in Inai App</a>
             </div>
         </div>
     </div>
-
-    <!-- Bots/Crawlers get the meta tags above. Humans get the player. -->
-    <!-- Optional: Auto-redirect only if user has been here for a while or clicks button -->
 </body>
-</html>
-    `;
+</html>`;
 
-    res.setHeader('Content-Type', 'text/html');
-    res.status(200).send(html);
+        res.setHeader('Content-Type', 'text/html');
+        return res.status(200).send(html);
+
+    } catch (error) {
+        console.error('Share proxy error:', error);
+        return res.status(500).send('Internal error');
+    }
 }
