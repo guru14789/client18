@@ -20,6 +20,7 @@ interface ReelPlayerProps {
     isCommenting: boolean;
     getDisplayMemory: (memory: Memory) => Memory;
     isPublicView?: boolean;
+    onLoginClick?: () => void;
 }
 
 export const ReelPlayer: React.FC<ReelPlayerProps> = ({
@@ -35,7 +36,8 @@ export const ReelPlayer: React.FC<ReelPlayerProps> = ({
     isSharing,
     isCommenting,
     getDisplayMemory,
-    isPublicView
+    isPublicView,
+    onLoginClick
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [activeId, setActiveId] = useState<string>(memories[initialIndex]?.id);
@@ -97,7 +99,7 @@ export const ReelPlayer: React.FC<ReelPlayerProps> = ({
             {isPublicView && (
                 <div className="absolute inset-x-0 bottom-6 px-6 z-[220] flex justify-center pointer-events-none">
                     <button
-                        onClick={() => window.location.href = '/login'}
+                        onClick={onLoginClick}
                         className="bg-primary text-white font-black text-xs uppercase tracking-[0.2em] px-8 py-4 rounded-full shadow-2xl pointer-events-auto border border-white/20 active:scale-95 transition-all"
                     >
                         Sign in to interact

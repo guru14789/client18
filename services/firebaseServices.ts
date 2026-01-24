@@ -41,6 +41,7 @@ export {
     likeMemory,
     unlikeMemory,
     getMemoryById,
+    markMemoryAsPublic,
     addCommentToMemory,
     // Question operations
     createQuestion,

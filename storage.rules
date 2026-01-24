@@ -24,13 +24,15 @@ service firebase.storage {
       // Security is managed at the Firestore layer where video IDs are discovered.
       match /videos/{memoryId} {
         allow write: if isOwner(userId);
-        allow read: if isSignedIn();
+        allow read: if isSignedIn() || 
+          firestore.get(/databases/(default)/documents/users/$(userId)/memories/$(memoryId)).data.get('isPublic', false) == true;
       }
 
       // Thumbnails: Same as videos
       match /thumbnails/{memoryId} {
         allow write: if isOwner(userId);
-        allow read: if isSignedIn();
+        allow read: if isSignedIn() || 
+          firestore.get(/databases/(default)/documents/users/$(userId)/memories/$(memoryId)).data.get('isPublic', false) == true;
       }
 
       // Documents: Strictly private to the owner

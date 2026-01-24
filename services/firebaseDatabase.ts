@@ -608,6 +608,22 @@ export const getMemoryById = async (memoryId: string): Promise<Memory | null> =>
     }
 };
 
+/**
+ * Marks a memory as public so anyone with the link can view it.
+ */
+export const markMemoryAsPublic = async (memoryId: string, authorId: string): Promise<void> => {
+    try {
+        const memoryRef = doc(db, COLLECTIONS.USERS, authorId, COLLECTIONS.MEMORIES, memoryId);
+        await updateDoc(memoryRef, {
+            isPublic: true,
+            publicAt: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error("Error marking memory as public:", error);
+        throw error;
+    }
+};
+
 export const addCommentToMemory = async (memoryId: string, authorId: string, userId: string, userName: string, text: string): Promise<void> => {
     try {
         const memoryRef = doc(db, COLLECTIONS.USERS, authorId, COLLECTIONS.MEMORIES, memoryId);

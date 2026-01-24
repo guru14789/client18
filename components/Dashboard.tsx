@@ -4,7 +4,7 @@ import { Users, Archive, Plus, Video, X, Globe, MapPin, Info, ThumbsUp, Play, Lo
 import { User, Family, Question, Language, Memory } from '../types';
 import { t } from '../services/i18n';
 import { LocalizedText } from './LocalizedText';
-import { getUsers, addFamilyAdmin, generateSecureInvite, likeMemory, unlikeMemory, addCommentToMemory } from '../services/firebaseServices';
+import { getUsers, addFamilyAdmin, generateSecureInvite, likeMemory, unlikeMemory, addCommentToMemory, markMemoryAsPublic } from '../services/firebaseServices';
 import { ReelPlayer } from './ReelPlayer';
 
 interface DashboardProps {
@@ -546,7 +546,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, families, onNavigate, onRec
               onLike={(id) => likeMemory(id, playbackList.find(m => m.id === id)!.authorId, user.uid)}
               onComment={(id, text) => addCommentToMemory(id, playbackList.find(m => m.id === id)!.authorId, user.uid, user.displayName, text)}
               onShare={async (memory) => {
-                const watchUrl = `${window.location.origin}/v/${memory.id}.mp4`;
+                await markMemoryAsPublic(memory.id, memory.authorId);
+                const watchUrl = `${window.location.origin}/v/${memory.id}`;
                 if (navigator.share) {
                   await navigator.share({
                     title: 'Inai Family Memory',

@@ -19,6 +19,7 @@ import { t } from '../services/i18n';
 import { translateQuestion } from '../services/geminiService';
 import { LocalizedText } from './LocalizedText';
 import { uploadMemoryVideo, uploadQuestionVideo, uploadMemoryThumbnail } from '../services/firebaseStorage';
+import { markMemoryAsPublic } from '../services/firebaseServices';
 
 interface RecordMemoryProps {
   user: User;
@@ -310,6 +311,13 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
       };
 
       if (shareOption === 'app_whatsapp') {
+        // Mark as public in Firestore
+        try {
+          await markMemoryAsPublic(memoryId, user.uid);
+        } catch (e) {
+          console.warn("Failed to mark memory as public:", e);
+        }
+
         const questionLabel = t('record.question_label', currentLanguage) || 'Question';
         const qText = question?.text.english || "";
         const template = mode === 'answer'

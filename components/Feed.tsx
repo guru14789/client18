@@ -17,7 +17,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { LocalizedText } from './LocalizedText';
-import { likeMemory, unlikeMemory, addCommentToMemory, blobUrlToFile } from '../services/firebaseServices';
+import { likeMemory, unlikeMemory, addCommentToMemory, blobUrlToFile, markMemoryAsPublic } from '../services/firebaseServices';
 import { ReelPlayer } from './ReelPlayer';
 
 interface FeedProps {
@@ -30,9 +30,10 @@ interface FeedProps {
   onClearInitialMemory?: () => void;
   sharedMemory?: Memory | null;
   isPublicView?: boolean;
+  onNavigate?: (view: any) => void;
 }
 
-const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage, onRefresh, initialMemoryId, onClearInitialMemory, sharedMemory, isPublicView }) => {
+const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage, onRefresh, initialMemoryId, onClearInitialMemory, sharedMemory, isPublicView, onNavigate }) => {
   const [filter, setFilter] = useState<'all' | 'mine'>('all');
   const [playingMemoryId, setPlayingMemoryId] = useState<string | null>(initialMemoryId || null);
   const [showComments, setShowComments] = useState<boolean>(false);
@@ -155,6 +156,9 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage, 
     setIsSharing(true);
 
     try {
+      // Mark as public in Firestore so anyone with the link can view
+      await markMemoryAsPublic(memory.id, memory.authorId);
+
       const questionLabel = t('record.question_label', currentLanguage) || 'Question';
       const questionText = memory.questionText || t('feed.shared_story_default', currentLanguage);
       const watchUrl = `${window.location.origin}/v/${memory.id}`;
@@ -261,7 +265,7 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage, 
 
         {isPublicView && (
           <button
-            onClick={() => window.location.href = '/login'}
+            onClick={() => onNavigate?.('login')}
             className="bg-primary text-white px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg active:scale-95 transition-all"
           >
             Sign In
@@ -351,6 +355,7 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage, 
             isCommenting={isCommenting}
             getDisplayMemory={getDisplayMemory}
             isPublicView={isPublicView}
+            onLoginClick={() => onNavigate?.('login')}
           />
         );
       })()}

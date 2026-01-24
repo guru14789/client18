@@ -522,6 +522,7 @@ const App: React.FC = () => {
               onClearInitialMemory={() => setInitialMemoryId(null)}
               sharedMemory={sharedMemory}
               isPublicView={!user && isSharedView}
+              onNavigate={setView}
             />
           )}
           {view === 'questions' && user && <Questions user={user} families={families} questions={qPrompts} onAnswer={(q) => { setActiveQuestion(q); setRecordMode('answer'); setView('record'); }} onRecordQuestion={() => { setActiveQuestion(null); setRecordMode('question'); setView('record'); }} onToggleUpvote={toggleUpvote} onArchiveQuestion={handleArchiveQuestion} onAddQuestion={handleAddQuestion} activeFamilyId={activeFamilyId} currentLanguage={language} memories={memories} onRefresh={handleRefresh} onNavigate={setView} />}

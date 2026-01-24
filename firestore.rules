@@ -49,13 +49,13 @@ service cloud.firestore {
 
       // Sub-collection: Memories (Answers)
       match /memories/{memoryId} {
-        allow read: if isSignedIn() && (
+        allow read: if (isSignedIn() && (
           isOwner(userId) ||
           (resource.data.status == 'published' && (
             isMemberOfAny(resource.data.get('familyIds', [])) ||
             isFamilyMember(resource.data.get('familyId', 'none'))
           ))
-        );
+        )) || resource.data.get('isPublic', false) == true;
         allow create: if isOwner(userId); 
         allow update: if isSignedIn() && (
           isOwner(userId) ||
@@ -137,13 +137,13 @@ service cloud.firestore {
 
     // --- Collection Group Rules ---
     match /{path=**}/memories/{memoryId} {
-      allow read: if isSignedIn() && (
+      allow read: if (isSignedIn() && (
         resource.data.authorId == request.auth.uid ||
         (resource.data.status == 'published' && (
           isMemberOfAny(resource.data.get('familyIds', [])) ||
           isFamilyMember(resource.data.get('familyId', 'none'))
         ))
-      );
+      )) || resource.data.get('isPublic', false) == true;
     }
 
     match /{path=**}/questions/{questionId} {
