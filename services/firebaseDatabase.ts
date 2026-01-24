@@ -18,7 +18,8 @@ import {
     arrayRemove,
     increment,
     collectionGroup,
-    writeBatch
+    writeBatch,
+    documentId
 } from "firebase/firestore";
 import { db } from "./firebaseConfig";
 import { User, Family, Memory, Question, Notification, FamilyDocument, Comment, FamilyInvitation, ActivityLog } from "../types";
@@ -589,7 +590,7 @@ export const getMemoryById = async (memoryId: string): Promise<Memory | null> =>
         // Note: FieldPath.documentId() is represented as "__name__" in the client SDK
         const q = query(
             collectionGroup(db, COLLECTIONS.MEMORIES),
-            where("id", "==", memoryId),
+            where(documentId(), "==", memoryId),
             limit(1)
         );
 
