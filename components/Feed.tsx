@@ -158,7 +158,7 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage, 
     try {
       const questionLabel = t('record.question_label', currentLanguage) || 'Question';
       const questionText = memory.questionText || t('feed.shared_story_default', currentLanguage);
-      const watchUrl = `${window.location.origin}/v/${memory.id}.mp4`;
+      const watchUrl = `${window.location.origin}/v/${memory.id}`;
       const shareTitle = t('feed.share_title_tag', currentLanguage) || 'Inai Family Memory';
 
       const fullShareText = `${questionLabel}: ${questionText}\n\nVideo: ${watchUrl}`;

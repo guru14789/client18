@@ -58,7 +58,7 @@ export default async function handler(req, res) {
             console.error("Error signing URL:", e);
         }
 
-        const shortUrl = `https://${req.headers.host}/v/${memoryId}.mp4`;
+        const shortUrl = `https://${req.headers.host}/v/${memoryId}`;
         const appRedirectUrl = `https://${req.headers.host}/?memoryId=${memoryId}`;
 
         // Serve HTML with Meta Tags and IMMEDIATE REDIRECT for humans

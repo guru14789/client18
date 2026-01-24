@@ -317,7 +317,7 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
           : t('record.whatsapp_template_question', currentLanguage);
 
         const baseText = template.replace('{question}', qText);
-        const watchUrl = `${window.location.origin}/v/${memoryId}.mp4`;
+        const watchUrl = `${window.location.origin}/v/${memoryId}`;
         const fullShareText = `${questionLabel}: ${qText}\n\nVideo: ${watchUrl}`;
 
         const shareData: any = {
