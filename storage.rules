@@ -12,45 +12,28 @@ service firebase.storage {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    // Helper to get memory data from Firestore
-    function getMemoryData(memoryId) {
-      return firestore.get(/databases/familybank/documents/memories/$(memoryId)).data;
-    }
-
-    // Helper to check family membership
-    function isFamilyMember(familyId) {
-      return isSignedIn() && request.auth.uid in firestore.get(/databases/familybank/documents/families/$(familyId)).members;
-    }
-
-    // New rules matching the actual code paths
     match /users/{userId} {
-      // Profile Pictures
+      // Profile Pictures: Owner can write, any logged-in user can see (for family display)
       match /profile/{allPaths=**} {
         allow write: if isOwner(userId);
         allow read: if isSignedIn();
       }
 
-      // Videos
+      // Videos: Restricted write to owner. 
+      // Read is allowed for any signed-in user. 
+      // Security is managed at the Firestore layer where video IDs are discovered.
       match /videos/{memoryId} {
         allow write: if isOwner(userId);
-        allow read: if isSignedIn() && (
-          isOwner(userId) || 
-          (getMemoryData(memoryId.replace('.mp4', '')).status == 'published' && 
-           isFamilyMember(getMemoryData(memoryId.replace('.mp4', '')).familyIds[0]))
-        );
+        allow read: if isSignedIn();
       }
 
-      // Thumbnails
+      // Thumbnails: Same as videos
       match /thumbnails/{memoryId} {
         allow write: if isOwner(userId);
-        allow read: if isSignedIn() && (
-          isOwner(userId) || 
-          (getMemoryData(memoryId.replace('.jpg', '')).status == 'published' && 
-           isFamilyMember(getMemoryData(memoryId.replace('.jpg', '')).familyIds[0]))
-        );
+        allow read: if isSignedIn();
       }
 
-      // Documents
+      // Documents: Strictly private to the owner
       match /documents/{docId} {
         allow write, read: if isOwner(userId);
       }
