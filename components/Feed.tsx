@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PullToRefresh } from './PullToRefresh';
 import { User, Memory, Family, Language } from '../types';
 import { t } from '../services/i18n';
@@ -43,17 +43,14 @@ const Feed: React.FC<FeedProps> = ({ memories, user, families, currentLanguage, 
 
   const [optimisticCache, setOptimisticCache] = useState<Record<string, Partial<Memory>>>({});
 
-  // Handle incoming memoryId from URL
-  React.useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const mid = params.get('memoryId');
-    if (mid) {
-      setPlayingMemoryId(mid);
-      // Clean up URL for cleaner look
-      const newUrl = window.location.pathname + window.location.search.replace(/memoryId=[^&]*(&|$)/, '').replace(/[?&]$/, '');
-      window.history.replaceState({}, document.title, newUrl || "/");
+  // Sync state with incoming props for shared links
+  useEffect(() => {
+    if (initialMemoryId) {
+      setPlayingMemoryId(initialMemoryId);
     }
-  }, []);
+  }, [initialMemoryId]);
+
+
 
   // Helper to merge server data with local optimistic updates
   const getDisplayMemory = (memory: Memory) => {

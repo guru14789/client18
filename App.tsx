@@ -102,16 +102,31 @@ const App: React.FC = () => {
 
   // Capture shared memory ID from URL on mount and fetch the specific memory
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const mid = params.get('memoryId');
+    // 1. If we already have a memory ID, just ensure we switch to feed when auth is ready
+    if (initialMemoryId) {
+      if (!loading && user && view !== 'feed' && view !== 'splash') {
+        setView('feed');
+      }
+      return;
+    }
+
+    // 2. Try to detect ID from URL
+    let mid = new URLSearchParams(window.location.search).get('memoryId');
+    const pathParts = window.location.pathname.split('/');
+    if (pathParts[1] === 'v' && pathParts[2]) {
+      mid = pathParts[2];
+    }
+
+    // 3. If ID found, capture it and clean URL
     if (mid) {
       setInitialMemoryId(mid);
 
-      // Fetch the specific memory directly from Storage/Firestore
-      // This fulfills the "Only that specific video should be fetched" requirement
+      // Optional URL Cleanup: Replace /v/:memoryId with /
+      window.history.replaceState({}, '', '/');
+
       const fetchSpecificMemory = async () => {
         try {
-          const mem = await getMemoryById(mid);
+          const mem = await getMemoryById(mid!);
           if (mem) {
             console.log("✅ Shared memory fetched successfully:", mem.id);
             setSharedMemory(mem);
@@ -123,12 +138,11 @@ const App: React.FC = () => {
 
       fetchSpecificMemory();
 
-      // Wait for auth to settle, then switch to feed for the best preview experience
       if (!loading && user) {
         setView('feed');
       }
     }
-  }, [loading, !!user]);
+  }, [loading, !!user, initialMemoryId, view]);
 
   // 2. Family & Profile Sync
   useEffect(() => {
