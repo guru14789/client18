@@ -80,10 +80,12 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
 
     if (activeFamilyId) {
       setTargetFamilyId(activeFamilyId);
+    } else if (user.defaultFamilyId) {
+      setTargetFamilyId(user.defaultFamilyId);
     } else if (families.length > 0) {
       setTargetFamilyId(families[0].id);
     }
-  }, [activeFamilyId, families, question, mode]);
+  }, [activeFamilyId, families, question, mode, user.defaultFamilyId]);
 
   useEffect(() => {
     const startCamera = async () => {
@@ -262,6 +264,12 @@ const RecordMemory: React.FC<RecordMemoryProps> = ({ user, question, onCancel, o
     setSavingOption(shareOption);
     setStage('processing');
     setUploadProgress(0);
+
+    if (!targetFamilyId) {
+      alert(t('record.error_no_family', currentLanguage) || "Please join or create a family group first!");
+      setStage('review');
+      return;
+    }
 
     try {
       const memoryId = existingDraftId || Date.now().toString();

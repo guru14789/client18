@@ -30,7 +30,9 @@ service cloud.firestore {
              (
                get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('familyIds', []).hasAny(familyIds) ||
                // Fallback: Check the first family in the list directly for membership
-               (familyIds.size() > 0 && isFamilyMember(familyIds[0]))
+               (familyIds.size() > 0 && isFamilyMember(familyIds[0])) ||
+               // Redundant Fallback: Check if the separate familyId field matches
+               (resource.data.get('familyId', 'none') != 'none' && isFamilyMember(resource.data.familyId))
              );
     }
 
